@@ -9,6 +9,7 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { createClient } from "@/lib/supabase/client";
+import { errorTitle } from "@/lib/auth-errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,17 +54,15 @@ export function ResetPasswordForm() {
       });
 
       if (error) {
-        setServerError("Unable to reset password. The link may have expired.");
+        setServerError("Unable to reset password — the link may have expired.");
         setSubmitting(false);
         return;
       }
 
       setDone(true);
-      toast.success("Password updated", {
-        description: "You can now sign in with your new password.",
-      });
+      toast.success("Password updated");
     } catch {
-      setServerError("Network error. Please try again.");
+      setServerError(errorTitle("NETWORK_ERROR"));
       setSubmitting(false);
     }
   };

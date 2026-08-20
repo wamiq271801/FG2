@@ -10,6 +10,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { createClient } from "@/lib/supabase/client";
+import { errorTitle } from "@/lib/auth-errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,7 +54,7 @@ export function SignInForm() {
       });
 
       if (error) {
-        setServerError("Incorrect email or password. Please try again.");
+        setServerError(errorTitle("SIGNIN_FAILED"));
         setSubmitting(false);
         return;
       }
@@ -64,7 +65,7 @@ export function SignInForm() {
       router.push("/account");
       router.refresh();
     } catch {
-      setServerError("Network error. Please try again.");
+      setServerError(errorTitle("NETWORK_ERROR"));
       setSubmitting(false);
     }
   };

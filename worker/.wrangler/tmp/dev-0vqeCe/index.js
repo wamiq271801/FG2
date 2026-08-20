@@ -41,8 +41,8 @@ function success(data = null) {
   return json({ success: true, data }, 200);
 }
 __name(success, "success");
-function fail(code, message, status = 422) {
-  return json({ success: false, error: { code, message } }, status);
+function fail(code, title, status = 422) {
+  return json({ success: false, error: { code, title } }, status);
 }
 __name(fail, "fail");
 function corsPreflight() {
@@ -310,15 +310,15 @@ __name(createSignupAuthorization, "createSignupAuthorization");
 async function handleRegister(request, env) {
   const ip = clientIp(request);
   const ipAllowed = await checkRateLimit(env, `register:${ip}`, 5, 900);
-  if (!ipAllowed) return fail("RATE_LIMITED", "Too many attempts. Please wait a few minutes.", 429);
+  if (!ipAllowed) return fail("RATE_LIMITED", "Too many attempts", 429);
   const body = await request.json().catch(() => null);
   const validation = validateRegistration(body);
-  if (!validation.ok) return fail("VALIDATION_ERROR", validation.error);
+  if (!validation.ok) return fail("VALIDATION_ERROR", "Please check your details");
   const { fullName, email, password, turnstileToken } = validation.data;
   const emailAllowed = await checkRateLimit(env, `register:${email}`, 3, 900);
-  if (!emailAllowed) return fail("RATE_LIMITED", "Too many attempts. Please wait a few minutes.", 429);
+  if (!emailAllowed) return fail("RATE_LIMITED", "Too many attempts", 429);
   const turnstileOk = await verifyTurnstile(env, turnstileToken, ip);
-  if (!turnstileOk) return fail("TURNSTILE_FAILED", "Verification failed. Please try again.", 422);
+  if (!turnstileOk) return fail("TURNSTILE_FAILED", "Verification failed", 422);
   const token = generateAuthorizationToken();
   const tokenHash = await sha256Hex(token);
   const emailHashValue = await emailHash(email);
@@ -329,7 +329,7 @@ async function handleRegister(request, env) {
     env.SIGNUP_AUTHZ_TTL_SECONDS
   );
   if (!created) {
-    return fail("AUTHZ_ERROR", "Unable to authorize registration. Please try again.", 502);
+    return fail("SIGNUP_FAILED", "Unable to create account", 502);
   }
   const signup = await supabaseSignup(env, email, password, {
     full_name: fullName,
@@ -338,20 +338,20 @@ async function handleRegister(request, env) {
   if (!signup.ok) {
     const msg = typeof signup.body?.msg === "string" ? signup.body.msg : typeof signup.body?.message === "string" ? signup.body.message : "";
     if (/already registered|already exists/i.test(msg)) {
-      return fail("EMAIL_EXISTS", "An account with this email already exists.", 409);
+      return fail("EMAIL_EXISTS", "An account with this email already exists", 409);
     }
     if (signup.status === 422 || /not authorized|session expired/i.test(msg)) {
-      return fail("SIGNUP_REJECTED", "Registration could not be completed. Please try again.", 422);
+      return fail("SIGNUP_REJECTED", "Registration unavailable", 422);
     }
     if (signup.status === 400 && /captcha/i.test(msg)) {
-      console.error("[register] Supabase rejected signup: captcha protection is enabled on the project. Disable it in Authentication \u2192 Attack Protection.");
-      return fail("SIGNUP_FAILED", "Unable to create account. Please try again.", 500);
+      console.error("[register] Supabase captcha protection is enabled \u2014 disable it.");
+      return fail("SIGNUP_FAILED", "Unable to create account", 500);
     }
     if (signup.status === 502) {
-      return fail("SIGNUP_FAILED", "Unable to reach authentication service. Please try again.", 502);
+      return fail("SIGNUP_FAILED", "Unable to create account", 502);
     }
-    console.error(`[register] Supabase signup failed: status=${signup.status} msg=${msg}`);
-    return fail("SIGNUP_FAILED", "Unable to create account. Please try again.", 500);
+    console.error(`[register] Supabase signup failed: status=${signup.status}`);
+    return fail("SIGNUP_FAILED", "Unable to create account", 500);
   }
   return success();
 }
@@ -359,16 +359,16 @@ __name(handleRegister, "handleRegister");
 async function handleResendSignup(request, env) {
   const body = await request.json().catch(() => null);
   const validation = validateEmailOnly(body);
-  if (!validation.ok) return fail("VALIDATION_ERROR", validation.error);
+  if (!validation.ok) return fail("VALIDATION_ERROR", "Please check your details");
   const email = validation.data.email;
   const allowed = await checkRateLimit(env, `resend:${email}`, 3, 86400);
-  if (!allowed) return fail("RATE_LIMITED", "Too many resend attempts for this email. Please try again tomorrow.", 429);
+  if (!allowed) return fail("RATE_LIMITED", "Too many attempts", 429);
   const result = await supabaseAuthFetch(env, "/auth/v1/resend", {
     email,
     type: "signup"
   });
   if (!result.ok) {
-    return fail("RESEND_FAILED", "Unable to send code. Please try again.", 429);
+    return fail("RESEND_FAILED", "Unable to resend code", 429);
   }
   return success();
 }
@@ -377,10 +377,10 @@ async function handleResetPassword(request, env) {
   const ip = clientIp(request);
   const body = await request.json().catch(() => null);
   const validation = validateEmailOnly(body);
-  if (!validation.ok) return fail("VALIDATION_ERROR", validation.error);
+  if (!validation.ok) return fail("VALIDATION_ERROR", "Please check your details");
   const email = validation.data.email;
   const allowed = await checkRateLimit(env, `reset:${email}:${ip}`, 5, 900);
-  if (!allowed) return fail("RATE_LIMITED", "Too many attempts. Please wait.", 429);
+  if (!allowed) return fail("RATE_LIMITED", "Too many attempts", 429);
   await supabaseAuthFetch(env, "/auth/v1/recover", { email });
   return success();
 }

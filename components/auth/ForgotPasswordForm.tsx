@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 import { requestPasswordReset } from "@/services/worker";
+import { errorTitle } from "@/lib/auth-errors";
 
 const schema = z.object({
   email: z.email("Enter a valid email address"),
@@ -41,17 +42,15 @@ export function ForgotPasswordForm() {
     try {
       const result = await requestPasswordReset(values.email);
       if (!result.success) {
-        setServerError(result.error ?? "Unable to send reset link. Try again.");
+        setServerError(result.error ?? errorTitle("RESET_FAILED"));
         setSubmitting(false);
         return;
       }
 
       setSentTo(values.email);
-      toast.success("Reset link sent", {
-        description: "Check your inbox (and spam, just in case).",
-      });
+      toast.success("Reset link sent");
     } catch {
-      setServerError("Network error. Please try again.");
+      setServerError(errorTitle("NETWORK_ERROR"));
       setSubmitting(false);
     }
   };

@@ -14,6 +14,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Link } from "@/components/shared/Link";
 import { useOperation } from "@/hooks/use-operation";
 import { register } from "@/services/worker";
+import { errorTitle } from "@/lib/auth-errors";
 import { TurnstileWidget, type TurnstileState } from "./TurnstileWidget";
 
 const schema = z
@@ -88,7 +89,7 @@ export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => 
       setTurnstileState("expired");
 
       if (!result.success) {
-        setServerError(result.error ?? "Unable to create account. Please try again.");
+        setServerError(result.error ?? errorTitle("SIGNUP_FAILED"));
         return;
       }
 
@@ -100,7 +101,7 @@ export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => 
       stopOp();
       setTurnstileToken(null);
       setTurnstileState("expired");
-      setServerError("Network error. Please try again.");
+      setServerError(errorTitle("NETWORK_ERROR"));
     }
   };
 

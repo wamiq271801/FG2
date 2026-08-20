@@ -5,6 +5,7 @@ import { Loader2, RotateCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { createClient } from "@/lib/supabase/client";
+import { errorTitle } from "@/lib/auth-errors";
 import { Button } from "@/components/ui/button";
 import {
   InputOTP,
@@ -48,9 +49,9 @@ export function VerifyForm({ email, onVerified }: { email: string; onVerified: (
       if (error) {
         const msg = error.message ?? "";
         if (/expired/i.test(msg)) {
-          setServerError("That code has expired. Request a new one below.");
+          setServerError(errorTitle("OTP_EXPIRED"));
         } else {
-          setServerError("That code didn't match. Please try again.");
+          setServerError(errorTitle("OTP_INVALID"));
         }
         setSubmitting(false);
         return;
@@ -62,7 +63,7 @@ export function VerifyForm({ email, onVerified }: { email: string; onVerified: (
       onVerified();
     } catch {
       stopOp();
-      setServerError("Network error. Please try again.");
+      setServerError(errorTitle("NETWORK_ERROR"));
       setSubmitting(false);
     }
   };
@@ -72,9 +73,7 @@ export function VerifyForm({ email, onVerified }: { email: string; onVerified: (
     try {
       const result = await resendSignupOtp(email);
       if (!result.success) {
-        toast.error("Couldn't resend", {
-          description: result.error ?? "Please try again in a minute.",
-        });
+        toast.error(result.error ?? errorTitle("RESEND_FAILED"));
       } else {
         toast.success("Code sent", {
           description: "A fresh 6-digit code is on its way to your inbox.",
@@ -84,9 +83,7 @@ export function VerifyForm({ email, onVerified }: { email: string; onVerified: (
         setClientError(null);
       }
     } catch {
-      toast.error("Network error", {
-        description: "Please try again.",
-      });
+      toast.error(errorTitle("NETWORK_ERROR"));
     } finally {
       setResending(false);
     }

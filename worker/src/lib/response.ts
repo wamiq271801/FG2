@@ -14,8 +14,8 @@ export function success(data: unknown = null): Response {
   return json({ success: true, data }, 200);
 }
 
-export function fail(code: string, message: string, status = 422): Response {
-  return json({ success: false, error: { code, message } }, status);
+export function fail(code: string, title: string, status = 422): Response {
+  return json({ success: false, error: { code, title } }, status);
 }
 
 export function corsPreflight(): Response {
