@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, RotateCw } from "lucide-react";
 import { toast } from "sonner";
 
@@ -17,7 +16,6 @@ import { useOperation } from "@/hooks/use-operation";
 import { resendSignupOtp } from "@/services/worker";
 
 export function VerifyForm({ email, onVerified }: { email: string; onVerified: () => void }) {
-  const router = useRouter();
   const [code, setCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [resending, setResending] = useState(false);
@@ -42,13 +40,18 @@ export function VerifyForm({ email, onVerified }: { email: string; onVerified: (
       const { error } = await supabase.auth.verifyOtp({
         email,
         token: code,
-        type: "signup",
+        type: "email",
       });
 
       stopOp();
 
       if (error) {
-        setServerError("That code didn't match. Please try again.");
+        const msg = error.message ?? "";
+        if (/expired/i.test(msg)) {
+          setServerError("That code has expired. Request a new one below.");
+        } else {
+          setServerError("That code didn't match. Please try again.");
+        }
         setSubmitting(false);
         return;
       }
