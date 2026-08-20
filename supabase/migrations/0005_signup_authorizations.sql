@@ -4,8 +4,10 @@
 --
 -- Flow:
 --   Worker /auth/register  →  INSERT signup_authorizations (token_hash, email_hash, expires_at)
---   supabase.auth.signUp   →  Before User Created hook
---                            →  consume_signup_authorization(email, token)  [atomic UPDATE ... RETURNING]
+--                          →  POST /auth/v1/signup (server-to-server, anon key)
+--                             with data.reg_auth = raw token in user_metadata
+--                          →  Before User Created hook fires
+--                             →  consume_signup_authorization(email_hash, token_hash)  [atomic UPDATE … RETURNING]
 --   success / no row       →  allow / reject
 
 -- pgcrypto provides digest() for SHA-256 hashing (Supabase ships it; enable explicitly).

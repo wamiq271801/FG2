@@ -2,36 +2,32 @@
 
 import { useState, useEffect } from "react";
 import { Link } from "@/components/shared/Link";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, MailCheck } from "lucide-react";
 import { SignUpForm } from "@/components/auth/SignUpForm";
-import { VerifyForm } from "@/components/auth/VerifyForm";
 import { OnboardingFlow } from "@/components/account/OnboardingFlow";
 import { useAuthContext } from "@/providers/AuthProvider";
 
-type Step = "register" | "verify" | "onboarding" | "complete";
+type Step = "register" | "confirm" | "onboarding" | "complete";
 
 export function AccountFlowShell() {
   const { state: authState, user } = useAuthContext();
   const [step, setStep] = useState<Step>("register");
   const [registeredEmail, setRegisteredEmail] = useState("");
 
-  // If user becomes authenticated (e.g. already had a session), check onboarding
+  // If the user becomes authenticated (session from email confirmation link or
+  // existing session), move to onboarding. If they sign out, go back to register.
   useEffect(() => {
     if (authState === "authenticated" && user) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStep("onboarding");
-    } else if (authState === "unauthenticated") {
+    } else if (authState === "unauthenticated" && step !== "confirm") {
       setStep("register");
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authState, user]);
 
   const handleRegistered = (email: string) => {
     setRegisteredEmail(email);
-    setStep("verify");
-  };
-
-  const handleVerified = () => {
-    setStep("onboarding");
+    setStep("confirm");
   };
 
   const handleOnboardingComplete = () => {
@@ -67,7 +63,7 @@ export function AccountFlowShell() {
               </h1>
               <p className="mt-3 text-pretty text-sm leading-relaxed text-muted-foreground">
                 Join Fusion Gadgets to track orders, save your cart, and check out
-                in seconds. We&apos;ll send a six-digit code to verify your email.
+                in seconds. We&apos;ll send a link to verify your email.
               </p>
               <SignUpForm onRegistered={handleRegistered} />
               <div className="mt-6 flex items-center gap-2 text-xs text-muted-foreground">
@@ -86,20 +82,31 @@ export function AccountFlowShell() {
             </>
           )}
 
-          {step === "verify" && (
+          {step === "confirm" && (
             <>
-              <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+              <div className="flex justify-center">
+                <MailCheck className="h-10 w-10 text-copper" aria-hidden="true" />
+              </div>
+              <p className="mt-4 text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground text-center">
                 Account
               </p>
-              <h1 className="mt-2 font-display text-3xl tracking-tight">
-                Verify your email
+              <h1 className="mt-2 font-display text-3xl tracking-tight text-center">
+                Check your inbox
               </h1>
-              <p className="mt-3 text-pretty text-sm leading-relaxed text-muted-foreground">
-                We&apos;ve sent a six-digit code to{" "}
+              <p className="mt-3 text-pretty text-sm leading-relaxed text-muted-foreground text-center">
+                We sent a verification link to{" "}
                 <span className="font-medium text-foreground">{registeredEmail}</span>.
-                Enter it below to confirm you own it.
+                Click it to confirm your email and then sign in.
               </p>
-              <VerifyForm email={registeredEmail} onVerified={handleVerified} />
+              <p className="mt-6 text-center text-sm text-muted-foreground">
+                Already verified?{" "}
+                <Link
+                  href="/auth/signin"
+                  className="font-medium text-copper hover:underline"
+                >
+                  Sign in
+                </Link>
+              </p>
             </>
           )}
 

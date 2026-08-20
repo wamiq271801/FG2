@@ -1,5 +1,5 @@
 import type { Env } from "../config/env";
-import { supabaseAuthFetch } from "../lib/supabase";
+import { supabaseAuthFetch, supabaseSignup } from "../lib/supabase";
 import { fail, success } from "../lib/response";
 import { validateRegistration, validateEmailOnly } from "../lib/validation";
 import { checkRateLimit, clientIp } from "../middleware/rate-limit";
@@ -11,10 +11,6 @@ import {
   sha256Hex,
 } from "../lib/signup-auth";
 
-// Worker is a security gate only. It does NOT create the Supabase user, send
-// OTP, or keep execution alive during OTP entry. It issues a short-lived,
-// single-use registration authorization that the Supabase Before User Created
-// hook validates + consumes atomically.
 export async function handleRegister(request: Request, env: Env): Promise<Response> {
   const ip = clientIp(request);
 
@@ -26,7 +22,7 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
   const validation = validateRegistration(body);
   if (!validation.ok) return fail("VALIDATION_ERROR", validation.error);
 
-  const { email, password, turnstileToken } = validation.data;
+  const { fullName, email, password, turnstileToken } = validation.data;
 
   // Email-based limit (normalized). Keeps one address from driving abuse.
   const emailAllowed = await checkRateLimit(env, `register:${email}`, 3, 900);
@@ -36,13 +32,11 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
   const turnstileOk = await verifyTurnstile(env, turnstileToken, ip);
   if (!turnstileOk) return fail("TURNSTILE_FAILED", "Verification failed. Please try again.", 422);
 
-  // Generate a fresh one-time authorization token. Hash it + the email.
+  // Generate a fresh one-time authorization token. Only the hash is stored.
   const token = generateAuthorizationToken();
   const tokenHash = await sha256Hex(token);
   const emailHashValue = await emailHash(email);
 
-  // Store ONLY the hash. Raw token returns to the frontend for the immediate
-  // native signUp() call, then is consumed by the Supabase hook.
   const created = await createSignupAuthorization(
     env,
     tokenHash,
@@ -53,10 +47,35 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
     return fail("AUTHZ_ERROR", "Unable to authorize registration. Please try again.", 502);
   }
 
-  // Worker's job is done — return the raw token. The frontend immediately
-  // calls supabase.auth.signUp(...) with it in signup metadata.
-  // Password is never logged. The raw token is never logged.
-  return success({ authorization: token });
+  // Call the normal Supabase Auth signup endpoint server-to-server.
+  // The raw token travels only inside this Worker process — it is attached
+  // to the signup metadata so the Before User Created hook can validate and
+  // atomically consume it. It is never returned to the browser.
+  const signup = await supabaseSignup(env, email, password, {
+    full_name: fullName,
+    reg_auth: token,
+  });
+
+  if (!signup.ok) {
+    // Surface Supabase error messages in normalized form. Common cases:
+    // 400 "User already registered" — already exists
+    // 422 hook rejection — authorization invalid (shouldn't happen within TTL)
+    // 4xx/5xx — other Supabase-side failures
+    const msg = typeof signup.body?.msg === "string" ? signup.body.msg
+      : typeof signup.body?.message === "string" ? signup.body.message
+      : "";
+    if (/already registered|already exists/i.test(msg)) {
+      return fail("EMAIL_EXISTS", "An account with this email already exists.", 409);
+    }
+    if (signup.status === 422 || /not authorized|session expired/i.test(msg)) {
+      return fail("SIGNUP_REJECTED", "Registration could not be completed. Please try again.", 422);
+    }
+    return fail("SIGNUP_FAILED", "Unable to create account. Please try again.", 502);
+  }
+
+  // Signup accepted — user created as unconfirmed, verification email sent.
+  // No token, session, or user data returned to the browser.
+  return success();
 }
 
 export async function handleResendSignup(request: Request, env: Env): Promise<Response> {

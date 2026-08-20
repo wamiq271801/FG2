@@ -13,8 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Link } from "@/components/shared/Link";
 import { useOperation } from "@/hooks/use-operation";
-import { register as requestAuthorization } from "@/services/worker";
-import { createClient } from "@/lib/supabase/client";
+import { register } from "@/services/worker";
 import { TurnstileWidget, type TurnstileState } from "./TurnstileWidget";
 
 const schema = z
@@ -37,23 +36,18 @@ const schema = z
 
 type FormValues = z.infer<typeof schema>;
 
-// Public Turnstile site key (safe for the browser). The matching secret lives
-// only on the Worker. Falls back to a Cloudflare always-passes test key when
-// unset so the form remains functional in local dev without real keys.
 const TURNSTILE_SITE_KEY =
   process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ||
-  "1x00000000000000000000AA"; // Cloudflare test site key (always passes)
+  "1x00000000000000000000AA";
 
 export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => void }) {
   const [serverError, setServerError] = useState<string | null>(null);
   const [turnstileState, setTurnstileState] = useState<TurnstileState>("idle");
-  // Token held in component state (memory only — never persisted). Cleared
-  // immediately after the signUp attempt so it can never be reused.
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const { start: startOp, stop: stopOp } = useOperation();
 
   const {
-    register,
+    register: registerField,
     handleSubmit,
     setValue,
     control,
@@ -74,7 +68,6 @@ export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => 
   const onSubmit = async (values: FormValues) => {
     setServerError(null);
 
-    // The Turnstile token must be fresh and present before we proceed.
     if (!turnstileToken || turnstileState !== "success") {
       setServerError("Please complete the verification and try again.");
       return;
@@ -82,80 +75,29 @@ export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => 
 
     startOp("Creating your account");
     try {
-      // Step 1: Worker gate — verify Turnstile, issue one-time authorization.
-      const authzResult = await requestAuthorization(
+      const result = await register(
+        values.fullName,
         values.email,
         values.password,
         turnstileToken
       );
 
-      if (!authzResult.success || !authzResult.authorization) {
-        stopOp();
-        // Turnstile tokens are single-use; a stale token cannot be retried.
-        // Clear so the user must complete a fresh challenge.
-        setTurnstileToken(null);
-        setTurnstileState("expired");
-        setServerError(authzResult.error ?? "Unable to create account. Please try again.");
-        return;
-      }
-
-      const authorization = authzResult.authorization;
-
-      // Step 2: native Supabase signUp. Pass the same Turnstile token as
-      // captchaToken (Supabase verifies CAPTCHA) AND the opaque Worker
-      // authorization in signup metadata (the Before User Created hook
-      // validates + consumes it). The authorization exists only in memory
-      // for this single call.
-      const supabase = createClient();
-      const { data, error } = await supabase.auth.signUp({
-        email: values.email,
-        password: values.password,
-        options: {
-          captchaToken: turnstileToken,
-          data: {
-            full_name: values.fullName,
-            reg_auth: authorization,
-          },
-        },
-      });
-
       stopOp();
-
-      // Token has been consumed by the signUp attempt — never reuse it.
+      // Turnstile tokens are single-use — clear regardless of outcome.
       setTurnstileToken(null);
+      setTurnstileState("expired");
 
-      if (error) {
-        // Common cases: email already registered, hook rejection, expired auth.
-        const msg = error.message ?? "";
-        if (/already|exists|registered/i.test(msg)) {
-          setServerError("An account with this email already exists.");
-          return;
-        }
-        if (/signup is not authorized|registration session expired|not authorized/i.test(msg)) {
-          setServerError("Your registration session expired. Please submit the form again.");
-          setTurnstileState("expired");
-          return;
-        }
-        setServerError(msg || "Unable to create account. Please try again.");
-        setTurnstileState("expired");
-        return;
-      }
-
-      // signUp returns a user object even before email confirmation. If the
-      // session is null, OTP confirmation is required (the normal flow).
-      if (!data?.user) {
-        setServerError("Unable to create account. Please try again.");
-        setTurnstileState("expired");
+      if (!result.success) {
+        setServerError(result.error ?? "Unable to create account. Please try again.");
         return;
       }
 
       toast.success("Account created", {
-        description: "We've sent a verification code to your email.",
+        description: "Check your inbox for a verification link.",
       });
       onRegistered(values.email);
     } catch {
       stopOp();
-      // Network failure or Worker unreachable. No fallback direct signup.
       setTurnstileToken(null);
       setTurnstileState("expired");
       setServerError("Network error. Please try again.");
@@ -185,7 +127,7 @@ export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => 
           placeholder="Riya Sharma"
           aria-invalid={!!errors.fullName}
           aria-describedby={errors.fullName ? "signup-name-error" : undefined}
-          {...register("fullName")}
+          {...registerField("fullName")}
         />
         {errors.fullName && (
           <p id="signup-name-error" role="alert" className="text-destructive text-sm">
@@ -204,7 +146,7 @@ export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => 
           placeholder="you@example.com"
           aria-invalid={!!errors.email}
           aria-describedby={errors.email ? "signup-email-error" : undefined}
-          {...register("email")}
+          {...registerField("email")}
         />
         {errors.email && (
           <p id="signup-email-error" role="alert" className="text-destructive text-sm">
@@ -222,7 +164,7 @@ export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => 
           placeholder="At least 8 characters"
           aria-invalid={!!errors.password}
           aria-describedby={errors.password ? "signup-password-error" : "signup-password-hint"}
-          {...register("password")}
+          {...registerField("password")}
         />
         {!errors.password && (
           <p id="signup-password-hint" className="text-xs text-muted-foreground">
@@ -242,9 +184,10 @@ export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => 
           id="signup-confirm"
           type="password"
           autoComplete="new-password"
+          placeholder="Repeat your password"
           aria-invalid={!!errors.confirmPassword}
           aria-describedby={errors.confirmPassword ? "signup-confirm-error" : undefined}
-          {...register("confirmPassword")}
+          {...registerField("confirmPassword")}
         />
         {errors.confirmPassword && (
           <p id="signup-confirm-error" role="alert" className="text-destructive text-sm">
@@ -253,8 +196,7 @@ export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => 
         )}
       </div>
 
-      <div className="space-y-2">
-        <Label className="text-sm">Verify you&apos;re human</Label>
+      <div className="space-y-1.5">
         <TurnstileWidget
           siteKey={TURNSTILE_SITE_KEY}
           onToken={setTurnstileToken}
@@ -266,40 +208,42 @@ export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => 
         <Checkbox
           id="signup-terms"
           checked={terms}
-          onCheckedChange={(v) =>
-            setValue("terms", v === true, { shouldDirty: true })
-          }
-          aria-invalid={!!errors.terms}
+          onCheckedChange={(checked) => setValue("terms", checked === true)}
           aria-describedby={errors.terms ? "signup-terms-error" : undefined}
-          className="mt-0.5"
         />
-        <Label
-          htmlFor="signup-terms"
-          className="text-sm font-normal leading-relaxed text-muted-foreground"
-        >
-          I agree to Fusion&apos;s{" "}
-          <Link href="/terms" className="font-medium text-copper hover:underline">
-            Terms of Service
-          </Link>{" "}
-          and{" "}
-          <Link href="/privacy" className="font-medium text-copper hover:underline">
-            Privacy Policy
-          </Link>
-          .
-        </Label>
+        <div className="space-y-1">
+          <Label htmlFor="signup-terms" className="cursor-pointer text-sm font-normal leading-snug">
+            I agree to the{" "}
+            <Link href="/terms" className="text-copper hover:underline">
+              Terms of Service
+            </Link>{" "}
+            and{" "}
+            <Link href="/privacy" className="text-copper hover:underline">
+              Privacy Policy
+            </Link>
+          </Label>
+          {errors.terms && (
+            <p id="signup-terms-error" role="alert" className="text-destructive text-sm">
+              {errors.terms.message}
+            </p>
+          )}
+        </div>
       </div>
-      {errors.terms && (
-        <p id="signup-terms-error" role="alert" className="text-destructive text-sm">
-          {errors.terms.message}
-        </p>
-      )}
 
       <Button
         type="submit"
+        disabled={turnstileState === "loading"}
         className="press w-full bg-foreground text-background hover:bg-foreground/90"
       >
         Create account
       </Button>
+
+      <p className="text-center text-sm text-muted-foreground">
+        Already have an account?{" "}
+        <Link href="/auth/signin" className="font-medium text-copper hover:underline">
+          Sign in
+        </Link>
+      </p>
     </form>
   );
 }

@@ -5,7 +5,7 @@ import { supabaseRestFetch } from "./supabase";
 // supabase/migrations/0005_signup_authorizations.sql:
 //   - email: lower(trim(email))  →  SHA-256  →  hex
 //   - token: raw token            →  SHA-256  →  hex
-// The raw authorization token is returned to the frontend and never stored.
+// The raw authorization token is used internally by the Worker and never stored or returned to the browser.
 
 export async function sha256Hex(input: string): Promise<string> {
   const data = new TextEncoder().encode(input);

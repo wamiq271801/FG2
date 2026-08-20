@@ -18,18 +18,18 @@ async function workerPost(path: string, body: unknown, auth?: string): Promise<{
   return json as { success: boolean; data?: unknown; error?: { code: string; message: string } };
 }
 
-// Request a one-time registration authorization from the Worker.
-// The Worker verifies Turnstile server-side and returns a raw opaque token
-// that the frontend must immediately pass to supabase.auth.signUp() in the
-// signup metadata. The token exists only in memory for the immediate signup.
-export async function register(email: string, password: string, turnstileToken: string): Promise<{ success: boolean; authorization?: string; error?: string }> {
-  const result = await workerPost("auth/register", { email, password, turnstileToken });
+// Register a new account. The Worker handles all security checks (Turnstile,
+// rate limits, authorization gate) and calls Supabase signup server-to-server.
+// Returns success when the user has been created and a verification email sent.
+export async function register(
+  fullName: string,
+  email: string,
+  password: string,
+  turnstileToken: string
+): Promise<{ success: boolean; error?: string }> {
+  const result = await workerPost("auth/register", { fullName, email, password, turnstileToken });
   if (!result.success) return { success: false, error: result.error?.message ?? "Unable to create account." };
-  const data = result.data as { authorization?: string } | null;
-  if (!data?.authorization) {
-    return { success: false, error: "Unable to authorize registration. Please try again." };
-  }
-  return { success: true, authorization: data.authorization };
+  return { success: true };
 }
 
 export async function resendSignupOtp(email: string): Promise<{ success: boolean; error?: string }> {

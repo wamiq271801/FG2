@@ -8,6 +8,7 @@
 # Supabase project (server-side, privileged)
 SUPABASE_URL="https://YOUR-PROJECT.supabase.co"
 SUPABASE_SERVICE_ROLE_KEY="eyJhbGciOi..."   # service_role key — admin authority
+SUPABASE_ANON_KEY="eyJhbGciOi..."           # anon key — used for normal signup call
 
 # Shared HMAC secret used to sign trusted responses back to the storefront
 # (e.g. a one-time order-creation receipt). Not used in Phase 1.

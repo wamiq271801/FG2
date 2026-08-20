@@ -2,6 +2,41 @@ import type { Env } from "../config/env";
 
 const DEFAULT_TIMEOUT = 10000;
 
+// Normal Supabase Auth signup — equivalent to supabase.auth.signUp() but
+// called server-to-server. Uses the anon key (not service role) so Supabase
+// applies the normal confirmation flow and fires the Before User Created hook.
+// data fields are stored as user_metadata on the created user.
+export async function supabaseSignup(
+  env: Env,
+  email: string,
+  password: string,
+  data: Record<string, unknown>
+): Promise<{ ok: boolean; status: number; body: Record<string, unknown> }> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
+  try {
+    const res = await fetch(`${env.SUPABASE_URL}/auth/v1/signup`, {
+      method: "POST",
+      headers: {
+        apikey: env.SUPABASE_ANON_KEY,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ email, password, data }),
+      signal: controller.signal,
+    });
+    const text = await res.text();
+    let body: Record<string, unknown> = {};
+    if (text) {
+      try { body = JSON.parse(text); } catch {}
+    }
+    return { ok: res.ok, status: res.status, body };
+  } catch {
+    return { ok: false, status: 502, body: {} };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function supabaseAuthFetch(
   env: Env,
   path: string,
