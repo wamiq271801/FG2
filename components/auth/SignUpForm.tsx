@@ -93,7 +93,7 @@ export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => 
       }
 
       toast.success("Account created", {
-        description: "Check your inbox for a verification link.",
+        description: "We sent a six-digit code to your email.",
       });
       onRegistered(values.email);
     } catch {

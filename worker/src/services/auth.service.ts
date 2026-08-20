@@ -57,20 +57,30 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
   });
 
   if (!signup.ok) {
-    // Surface Supabase error messages in normalized form. Common cases:
-    // 400 "User already registered" — already exists
-    // 422 hook rejection — authorization invalid (shouldn't happen within TTL)
-    // 4xx/5xx — other Supabase-side failures
     const msg = typeof signup.body?.msg === "string" ? signup.body.msg
       : typeof signup.body?.message === "string" ? signup.body.message
       : "";
     if (/already registered|already exists/i.test(msg)) {
       return fail("EMAIL_EXISTS", "An account with this email already exists.", 409);
     }
+    // Hook rejection — authorization invalid/expired/consumed.
     if (signup.status === 422 || /not authorized|session expired/i.test(msg)) {
       return fail("SIGNUP_REJECTED", "Registration could not be completed. Please try again.", 422);
     }
-    return fail("SIGNUP_FAILED", "Unable to create account. Please try again.", 502);
+    // Supabase captcha protection is enabled but the Worker made a server-to-server
+    // call without a token. This means Supabase captcha must be disabled — the Worker
+    // is the sole Turnstile verifier. Log the stage clearly and return 500 (not 502)
+    // so this is distinguishable from a network failure.
+    if (signup.status === 400 && /captcha/i.test(msg)) {
+      console.error("[register] Supabase rejected signup: captcha protection is enabled on the project. Disable it in Authentication → Attack Protection.");
+      return fail("SIGNUP_FAILED", "Unable to create account. Please try again.", 500);
+    }
+    // Network/timeout — supabaseSignup returned status 502 from the catch block.
+    if (signup.status === 502) {
+      return fail("SIGNUP_FAILED", "Unable to reach authentication service. Please try again.", 502);
+    }
+    console.error(`[register] Supabase signup failed: status=${signup.status} msg=${msg}`);
+    return fail("SIGNUP_FAILED", "Unable to create account. Please try again.", 500);
   }
 
   // Signup accepted — user created as unconfirmed, verification email sent.

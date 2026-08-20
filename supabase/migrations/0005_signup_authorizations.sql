@@ -93,6 +93,9 @@ REVOKE EXECUTE ON FUNCTION consume_signup_authorization(text, text) FROM anon, a
 --
 --    Returns '{}'::jsonb to allow; returns {"error":{...}} to reject.
 --    Execute granted ONLY to supabase_auth_admin.
+--
+--    NOTE: pgcrypto is installed in the `extensions` schema on Supabase, not
+--    `public`. Use extensions.digest(...) explicitly — do not use public.digest.
 -- =========================================================================
 CREATE OR REPLACE FUNCTION public.hook_validate_signup_authorization(event jsonb)
 RETURNS jsonb
@@ -101,12 +104,12 @@ SECURITY DEFINER
 SET search_path = public, extensions
 AS $$
 DECLARE
-  v_email        text;
-  v_token        text;
-  v_email_hash   text;
-  v_token_hash   text;
-  v_algo         text := 'sha256';
-  v_ok           boolean;
+  v_email      text;
+  v_token      text;
+  v_email_hash text;
+  v_token_hash text;
+  v_algo       text := 'sha256';
+  v_ok         boolean;
 BEGIN
   v_email := event->'user'->>'email';
   v_token := event->'user'->'user_metadata'->>'reg_auth';
@@ -121,13 +124,10 @@ BEGIN
     );
   END IF;
 
-  -- Normalize email the SAME way the Worker does (trim + lower), then hash.
-  -- SHA-256 matches the Worker's crypto.subtle.digest('SHA-256').
-  -- v_algo is a `text` variable so digest() resolves to pgcrypto's
-  -- digest(text, text); `public.digest` is qualified because Supabase may
-  -- install pgcrypto into a non-public schema.
-  v_email_hash := encode(public.digest(lower(trim(v_email)), v_algo), 'hex');
-  v_token_hash := encode(public.digest(v_token, v_algo), 'hex');
+  -- Normalize email identically to the Worker: lower(trim(email)) → SHA-256 → hex.
+  -- pgcrypto is installed in the extensions schema on Supabase; qualify explicitly.
+  v_email_hash := encode(extensions.digest(lower(trim(v_email)), v_algo), 'hex');
+  v_token_hash := encode(extensions.digest(v_token, v_algo), 'hex');
 
   -- Single atomic consume.
   SELECT consume_signup_authorization(v_email_hash, v_token_hash) INTO v_ok;

@@ -343,7 +343,15 @@ async function handleRegister(request, env) {
     if (signup.status === 422 || /not authorized|session expired/i.test(msg)) {
       return fail("SIGNUP_REJECTED", "Registration could not be completed. Please try again.", 422);
     }
-    return fail("SIGNUP_FAILED", "Unable to create account. Please try again.", 502);
+    if (signup.status === 400 && /captcha/i.test(msg)) {
+      console.error("[register] Supabase rejected signup: captcha protection is enabled on the project. Disable it in Authentication \u2192 Attack Protection.");
+      return fail("SIGNUP_FAILED", "Unable to create account. Please try again.", 500);
+    }
+    if (signup.status === 502) {
+      return fail("SIGNUP_FAILED", "Unable to reach authentication service. Please try again.", 502);
+    }
+    console.error(`[register] Supabase signup failed: status=${signup.status} msg=${msg}`);
+    return fail("SIGNUP_FAILED", "Unable to create account. Please try again.", 500);
   }
   return success();
 }
@@ -508,7 +516,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-5GX8oF/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-jwpwEW/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -540,7 +548,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-5GX8oF/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-jwpwEW/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;
