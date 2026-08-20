@@ -1,0 +1,13 @@
+# Supabase local dev config — used by `supabase` CLI for local emulation.
+# Phase 1 schema/seed can be applied to either a cloud project OR a local stack:
+#
+#   supabase db push         # apply migrations to the linked project
+#   supabase db seed         # apply supabase/seed.sql
+#   supabase start            # (optional) run a local Postgres stack
+#
+# The migrations under supabase/migrations/ are the source of truth.
+project_id = "fusiongadgets"
+
+[db]
+# Local Postgres image used by `supabase start`. Not required for cloud projects.
+major_version = 15

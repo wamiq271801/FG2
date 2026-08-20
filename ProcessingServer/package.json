@@ -1,0 +1,21 @@
+{
+  "name": "fusiongadgets-processing-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tracking processor (Render, cron-triggered). Reads TiDB raw events -> publishes circulation to Supabase.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "@tidbcloud/serverless": "^0.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.5.4"
+  }
+}

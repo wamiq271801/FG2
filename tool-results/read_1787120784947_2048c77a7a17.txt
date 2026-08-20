@@ -1,0 +1,1595 @@
+     1→     1→````markdown id="fusion-phase-5"
+     2→     2→# Fusion Gadgets — Phase 5 Implementation Prompt for GLM 5.3
+     3→     3→
+     4→     4→You are continuing the existing Fusion Gadgets codebase after:
+     5→     5→
+     6→     6→```text
+     7→     7→Phase 1 — Foundation and Database
+     8→     8→Phase 2 — Real Catalog and Mock Data Migration
+     9→     9→Phase 3 — Authentication and User Data
+    10→    10→Phase 4 — Real Cart and Wishlist
+    11→    11→````
+    12→    12→
+    13→    13→Your task in this run is to implement **Phase 5 only: Checkout and COD Order Creation**.
+    14→    14→
+    15→    15→Do not start Phase 6 or any later phase.
+    16→    16→
+    17→    17→The existing premium frontend UI is already designed and approved. Preserve it exactly. Integrate real checkout and order behavior into the existing UI. Do not redesign, simplify, replace, or restyle the website.
+    18→    18→
+    19→    19→Read this entire instruction before changing anything.
+    20→    20→
+    21→    21→First inspect the actual repository and verify the completed previous phases. Do not assume they were implemented perfectly. Verify the real schema, order-related tables, address tables, product data model, offer model, authentication flow, cart implementation, RLS policies, Worker structure, and existing checkout/order UI before changing code.
+    22→    22→
+    23→    23→This phase has a strict authority boundary:
+    24→    24→
+    25→    25→> **The browser never creates an order directly in Supabase. Order creation must go through the Cloudflare Worker.**
+    26→    26→
+    27→    27→Do not bypass this rule.
+    28→    28→
+    29→    29→---
+    30→    30→
+    31→    31→# 1. Phase 5 Objective
+    32→    32→
+    33→    33→Implement the complete real checkout and COD order creation flow.
+    34→    34→
+    35→    35→For now, Fusion Gadgets supports:
+    36→    36→
+    37→    37→```text
+    38→    38→COD only
+    39→    39→```
+    40→    40→
+    41→    41→Do not add any payment gateway.
+    42→    42→
+    43→    43→Do not add payment abstractions.
+    44→    44→
+    45→    45→Do not add Razorpay, Stripe, PayPal, UPI payment processing, payment webhooks, payment intent tables, or placeholder payment architecture.
+    46→    46→
+    47→    47→The final flow is:
+    48→    48→
+    49→    49→```text
+    50→    50→Authenticated User
+    51→    51→        │
+    52→    52→        ▼
+    53→    53→Real Cart
+    54→    54→        │
+    55→    55→        ▼
+    56→    56→Checkout Page
+    57→    57→        │
+    58→    58→        ▼
+    59→    59→Address Required
+    60→    60→        │
+    61→    61→        ▼
+    62→    62→User confirms order
+    63→    63→        │
+    64→    64→        ▼
+    65→    65→Cloudflare Worker
+    66→    66→        │
+    67→    67→        ├── Authenticate request
+    68→    68→        ├── Validate request
+    69→    69→        ├── Apply abuse protection
+    70→    70→        ├── Load authoritative data
+    71→    71→        ├── Revalidate cart products
+    72→    72→        ├── Revalidate offers/prices
+    73→    73→        ├── Create immutable order snapshot
+    74→    74→        ├── Create COD order
+    75→    75→        └── Return result
+    76→    76→                │
+    77→    77→                ▼
+    78→    78→Browser
+    79→    79→        │
+    80→    80→        ▼
+    81→    81→Clear/order-update relevant cart state only after success
+    82→    82→        │
+    83→    83→        ▼
+    84→    84→Order confirmation
+    85→    85→```
+    86→    86→
+    87→    87→The Worker is the required order authority.
+    88→    88→
+    89→    89→Supabase remains the database and authentication authority.
+    90→    90→
+    91→    91→---
+    92→    92→
+    93→    93→# 2. Strict Scope
+    94→    94→
+    95→    95→Phase 5 includes only:
+    96→    96→
+    97→    97→```text id="ph5scope"
+    98→    98→Checkout integration
+    99→    99→Authenticated checkout flow
+   100→   100→Address selection
+   101→   101→Address required validation
+   102→   102→Current cart validation
+   103→   103→COD-only order creation
+   104→   104→Worker-based order creation
+   105→   105→Order snapshot creation
+   106→   106→Order item snapshot creation
+   107→   107→Current product revalidation
+   108→   108→Current offer revalidation
+   109→   109→Current price calculation
+   110→   110→Order totals
+   111→   111→Order creation idempotency
+   112→   112→Checkout abuse protection
+   113→   113→Successful cart cleanup/update
+   114→   114→Order confirmation
+   115→   115→Real order data integration where required for confirmation
+   116→   116→Removal of checkout/order mock simulation
+   117→   117→```
+   118→   118→
+   119→   119→Phase 5 does NOT include:
+   120→   120→
+   121→   121→```text id="ph5noscope"
+   122→   122→Online payments
+   123→   123→Payment gateway
+   124→   124→UPI
+   125→   125→Razorpay
+   126→   126→Stripe
+   127→   127→PayPal
+   128→   128→Payment webhooks
+   129→   129→Refunds
+   130→   130→Cancellation workflow
+   131→   131→Returns
+   132→   132→Inventory reservation
+   133→   133→Inventory deduction unless already explicitly required by the real schema
+   134→   134→Admin order management
+   135→   135→Order fulfillment dashboard
+   136→   136→Shipment tracking ingestion
+   137→   137→TrackingServer implementation
+   138→   138→ProcessingServer implementation
+   139→   139→TiDB tracking processing
+   140→   140→Order tracking events
+   141→   141→Circulation processing
+   142→   142→Offer creation/admin UI
+   143→   143→```
+   144→   144→
+   145→   145→Do not implement future functionality because order tables already exist.
+   146→   146→
+   147→   147→---
+   148→   148→
+   149→   149→# 3. Mandatory First Step: Audit Before Editing
+   150→   150→
+   151→   151→Before implementation, inspect the actual repository and verify:
+   152→   152→
+   153→   153→```text id="ph5audit"
+   154→   154→Phase 1 order schema
+   155→   155→Order item schema
+   156→   156→Order status model
+   157→   157→Order number/identifier strategy
+   158→   158→Address schema
+   159→   159→Cart schema
+   160→   160→Product schema
+   161→   161→Offer schema
+   162→   162→Current RLS policies
+   163→   163→Phase 3 authentication/session flow
+   164→   164→Phase 4 real cart behavior
+   165→   165→Guest-to-account merge behavior
+   166→   166→Existing Worker structure
+   167→   167→Existing Worker secrets/configuration
+   168→   168→Existing checkout UI
+   169→   169→Existing address selection UI
+   170→   170→Existing order confirmation UI
+   171→   171→Existing order-related mock data
+   172→   172→Existing loading states
+   173→   173→Existing error states
+   174→   174→Existing account/order routes
+   175→   175→```
+   176→   176→
+   177→   177→Do not guess table names.
+   178→   178→
+   179→   179→Do not create duplicate order tables.
+   180→   180→
+   181→   181→Do not create a second checkout architecture.
+   182→   182→
+   183→   183→Do not invent an order schema parallel to the Phase 1 foundation.
+   184→   184→
+   185→   185→Use the actual schema.
+   186→   186→
+   187→   187→If a concrete schema defect prevents safe order creation, fix it with the smallest necessary migration.
+   188→   188→
+   189→   189→Do not redesign the entire database.
+   190→   190→
+   191→   191→---
+   192→   192→
+   193→   193→# 4. Final Checkout Architecture
+   194→   194→
+   195→   195→The architecture is fixed.
+   196→   196→
+   197→   197→```text id="ph5architecture"
+   198→   198→NEXT.JS FRONTEND
+   199→   199→        │
+   200→   200→        │ Direct Supabase
+   201→   201→        │
+   202→   202→        ├── Read own cart
+   203→   203→        ├── Read own addresses
+   204→   204→        └── Read allowed public product display data
+   205→   205→        │
+   206→   206→        ▼
+   207→   207→USER CONFIRMS CHECKOUT
+   208→   208→        │
+   209→   209→        ▼
+   210→   210→CLOUDFLARE WORKER
+   211→   211→        │
+   212→   212→        ├── Validate authenticated request
+   213→   213→        ├── Validate selected address
+   214→   214→        ├── Validate idempotency
+   215→   215→        ├── Apply checkout abuse protection
+   216→   216→        ├── Read authoritative cart/products/offers
+   217→   217→        ├── Calculate authoritative totals
+   218→   218→        ├── Create order snapshots
+   219→   219→        ├── Create COD order
+   220→   220→        └── Finalize result
+   221→   221→        │
+   222→   222→        ▼
+   223→   223→SUPABASE
+   224→   224→        │
+   225→   225→        ▼
+   226→   226→ORDER CREATED
+   227→   227→```
+   228→   228→
+   229→   229→The frontend must not create order rows directly.
+   230→   230→
+   231→   231→The frontend must not create order-item rows directly.
+   232→   232→
+   233→   233→The frontend must not calculate a trusted final total.
+   234→   234→
+   235→   235→The frontend may display an estimated/current total, but the Worker is authoritative.
+   236→   236→
+   237→   237→---
+   238→   238→
+   239→   239→# 5. Checkout Requires Authentication
+   240→   240→
+   241→   241→Checkout is not a guest-order system.
+   242→   242→
+   243→   243→The user must be authenticated.
+   244→   244→
+   245→   245→The flow is:
+   246→   246→
+   247→   247→```text id="ph5authcheckout"
+   248→   248→User opens checkout
+   249→   249→        │
+   250→   250→        ▼
+   251→   251→Authenticated session?
+   252→   252→        │
+   253→   253→        ├── NO → redirect to /login
+   254→   254→        │
+   255→   255→        └── YES → load checkout data
+   256→   256→```
+   257→   257→
+   258→   258→Do not create anonymous orders.
+   259→   259→
+   260→   260→Do not create guest checkout.
+   261→   261→
+   262→   262→Do not create a temporary checkout user.
+   263→   263→
+   264→   264→Do not create another authentication flow.
+   265→   265→
+   266→   266→Use the Phase 3 Supabase session.
+   267→   267→
+   268→   268→The browser sends the authenticated request to the Worker using the real user session/token according to the established architecture.
+   269→   269→
+   270→   270→The Worker must independently verify the authenticated identity.
+   271→   271→
+   272→   272→Do not trust a user ID sent in the request body.
+   273→   273→
+   274→   274→---
+   275→   275→
+   276→   276→# 6. Checkout Page Rendering
+   277→   277→
+   278→   278→The checkout page remains aligned with the existing project rendering architecture.
+   279→   279→
+   280→   280→It must not become a server-authenticated page.
+   281→   281→
+   282→   282→The page is:
+   283→   283→
+   284→   284→```text id="ph5shell"
+   285→   285→Server-rendered/static shell
+   286→   286→        │
+   287→   287→        ▼
+   288→   288→Hydration
+   289→   289→        │
+   290→   290→        ▼
+   291→   291→Client reads authenticated session
+   292→   292→        │
+   293→   293→        ▼
+   294→   294→Direct Supabase reads own cart/addresses
+   295→   295→        │
+   296→   296→        ▼
+   297→   297→Render authenticated checkout data
+   298→   298→```
+   299→   299→
+   300→   300→Do not add server-side auth checks for the page.
+   301→   301→
+   302→   302→Do not fetch the user's cart server-side.
+   303→   303→
+   304→   304→Do not create a Next.js API route.
+   305→   305→
+   306→   306→Do not create Server Actions as a checkout backend.
+   307→   307→
+   308→   308→The interactive checkout content may be client-side.
+   309→   309→
+   310→   310→Keep the server-rendered page shell and static visible layout intact where possible.
+   311→   311→
+   312→   312→Do not place `"use client"` in the page file merely because checkout needs interaction.
+   313→   313→
+   314→   314→---
+   315→   315→
+   316→   316→# 7. Checkout Data Reads
+   317→   317→
+   318→   318→Before placing an order, the frontend may directly read:
+   319→   319→
+   320→   320→```text id="ph5reads"
+   321→   321→Own cart
+   322→   322→Own addresses
+   323→   323→Current public product display data
+   324→   324→Current public offer display data where allowed
+   325→   325→```
+   326→   326→
+   327→   327→using:
+   328→   328→
+   329→   329→```text
+   330→   330→Browser
+   331→   331→    │
+   332→   332→    ▼
+   333→   333→Supabase SDK
+   334→   334→    │
+   335→   335→    ▼
+   336→   336→RLS/public read permissions
+   337→   337→```
+   338→   338→
+   339→   339→Do not route ordinary checkout-page reads through the Worker.
+   340→   340→
+   341→   341→The Worker is for the final sensitive order creation.
+   342→   342→
+   343→   343→Do not create a Worker endpoint that merely returns the user's cart.
+   344→   344→
+   345→   345→Do not use the service-role key in browser code.
+   346→   346→
+   347→   347→---
+   348→   348→
+   349→   349→# 8. Address Is Mandatory
+   350→   350→
+   351→   351→A valid address is required before order creation.
+   352→   352→
+   353→   353→The rule is:
+   354→   354→
+   355→   355→```text id="ph5address"
+   356→   356→Registration → address optional
+   357→   357→Onboarding → address optional
+   358→   358→Checkout → address mandatory
+   359→   359→```
+   360→   360→
+   361→   361→If the user has no address:
+   362→   362→
+   363→   363→```text
+   364→   364→Checkout
+   365→   365→    │
+   366→   366→    ▼
+   367→   367→No valid address available
+   368→   368→    │
+   369→   369→    ▼
+   370→   370→User must add an address before order creation
+   371→   371→```
+   372→   372→
+   373→   373→Do not allow order creation without an address.
+   374→   374→
+   375→   375→Do not create a fake address.
+   376→   376→
+   377→   377→Do not silently use a previous/default address without the user's valid selection unless the existing approved UI already has a clear default-address behavior.
+   378→   378→
+   379→   379→The selected address must belong to the authenticated user.
+   380→   380→
+   381→   381→The Worker verifies this independently.
+   382→   382→
+   383→   383→Do not trust an arbitrary address ID from the browser.
+   384→   384→
+   385→   385→---
+   386→   386→
+   387→   387→# 9. Address Snapshot Rule
+   388→   388→
+   389→   389→The order must not depend permanently on the mutable user address record.
+   390→   390→
+   391→   391→When the Worker creates the order:
+   392→   392→
+   393→   393→```text id="ph5addresssnapshot"
+   394→   394→Current selected user address
+   395→   395→        │
+   396→   396→        ▼
+   397→   397→Worker verifies ownership
+   398→   398→        │
+   399→   399→        ▼
+   400→   400→Create immutable order address snapshot
+   401→   401→        │
+   402→   402→        ▼
+   403→   403→Order uses snapshot
+   404→   404→```
+   405→   405→
+   406→   406→The user must be able to change or delete their profile address later without corrupting historical order information.
+   407→   407→
+   408→   408→Do not simply store a live foreign-key dependency and treat the current mutable address as historical truth if the actual schema supports snapshots.
+   409→   409→
+   410→   410→Use the Phase 1 order snapshot model.
+   411→   411→
+   412→   412→If the snapshot capability is missing and is required for correctness, add the smallest proper schema migration.
+   413→   413→
+   414→   414→Do not duplicate unrelated address infrastructure.
+   415→   415→
+   416→   416→---
+   417→   417→
+   418→   418→# 10. Cart Must Be Valid
+   419→   419→
+   420→   420→Before order creation, the Worker must validate the authoritative cart.
+   421→   421→
+   422→   422→The frontend cart is not authoritative for order creation.
+   423→   423→
+   424→   424→The Worker must load the authenticated user's actual cart state from Supabase.
+   425→   425→
+   426→   426→The Worker validates:
+   427→   427→
+   428→   428→```text id="ph5cartvalidation"
+   429→   429→Cart belongs to authenticated user
+   430→   430→Cart is not empty
+   431→   431→Referenced products exist
+   432→   432→Products are currently valid for ordering
+   433→   433→Product state is currently eligible
+   434→   434→Quantities are valid
+   435→   435→```
+   436→   436→
+   437→   437→Do not trust:
+   438→   438→
+   439→   439→```text
+   440→   440→Product IDs from frontend alone
+   441→   441→Frontend quantity alone
+   442→   442→Frontend cart total
+   443→   443→Frontend price
+   444→   444→Frontend offer calculation
+   445→   445→```
+   446→   446→
+   447→   447→The Worker loads the required authoritative records itself.
+   448→   448→
+   449→   449→---
+   450→   450→
+   451→   451→# 11. Product Revalidation
+   452→   452→
+   453→   453→Order creation must use current authoritative product data.
+   454→   454→
+   455→   455→The Worker flow is:
+   456→   456→
+   457→   457→```text id="ph5productvalidation"
+   458→   458→Authenticated user
+   459→   459→        │
+   460→   460→        ▼
+   461→   461→Worker loads real cart
+   462→   462→        │
+   463→   463→        ▼
+   464→   464→Worker loads current products
+   465→   465→        │
+   466→   466→        ▼
+   467→   467→For each cart item:
+   468→   468→        │
+   469→   469→        ├── Product valid?
+   470→   470→        ├── Product active/publicly orderable?
+   471→   471→        └── Quantity valid?
+   472→   472→```
+   473→   473→
+   474→   474→If a product is no longer eligible:
+   475→   475→
+   476→   476→```text id="ph5invalidproduct"
+   477→   477→Do not create an order containing stale/fake product data.
+   478→   478→```
+   479→   479→
+   480→   480→Return a clear safe failure indicating that checkout data changed and the user must refresh/review the cart.
+   481→   481→
+   482→   482→Do not silently replace the product.
+   483→   483→
+   484→   484→Do not use the price stored in local state.
+   485→   485→
+   486→   486→Do not trust cached product information.
+   487→   487→
+   488→   488→---
+   489→   489→
+   490→   490→# 12. Offer and Price Revalidation
+   491→   491→
+   492→   492→The Worker calculates the authoritative order pricing.
+   493→   493→
+   494→   494→The flow is:
+   495→   495→
+   496→   496→```text id="ph5pricing"
+   497→   497→Cart item
+   498→   498→        │
+   499→   499→        ▼
+   500→   500→Current product data
+   501→   501→        │
+   502→   502→        ▼
+   503→   503→Find currently applicable valid offer
+   504→   504→        │
+   505→   505→        ├── Valid offer → apply actual offer rules
+   506→   506→        └── No valid offer → normal current price
+   507→   507→        │
+   508→   508→        ▼
+   509→   509→Calculate authoritative item price
+   510→   510→        │
+   511→   511→        ▼
+   512→   512→Calculate authoritative line total
+   513→   513→        │
+   514→   514→        ▼
+   515→   515→Calculate authoritative order total
+   516→   516→```
+   517→   517→
+   518→   518→Do not trust:
+   519→   519→
+   520→   520→```text
+   521→   521→Frontend subtotal
+   522→   522→Frontend discount
+   523→   523→Frontend offer percentage
+   524→   524→Frontend final total
+   525→   525→Guest/local cached price
+   526→   526→Old cart display price
+   527→   527→```
+   528→   528→
+   529→   529→The Worker must independently calculate the final result.
+   530→   530→
+   531→   531→Do not create a second custom offer engine if the database/Phase 1 model already defines the required offer rules.
+   532→   532→
+   533→   533→Use the actual offer model.
+   534→   534→
+   535→   535→Do not invent stacking rules.
+   536→   536→
+   537→   537→Do not add coupon support.
+   538→   538→
+   539→   539→Do not add payment discounts.
+   540→   540→
+   541→   541→---
+   542→   542→
+   543→   543→# 13. Money Rules
+   544→   544→
+   545→   545→Use a consistent money representation already compatible with the actual database schema.
+   546→   546→
+   547→   547→Do not use JavaScript floating-point arithmetic carelessly for currency totals.
+   548→   548→
+   549→   549→Do not calculate trusted money values with imprecise float accumulation.
+   550→   550→
+   551→   551→Use the existing schema representation and a reliable deterministic calculation method.
+   552→   552→
+   553→   553→The same authoritative calculated values are saved into the order snapshots.
+   554→   554→
+   555→   555→Do not let the browser provide the final amount.
+   556→   556→
+   557→   557→Do not create a large money abstraction library.
+   558→   558→
+   559→   559→Use the smallest correct implementation.
+   560→   560→
+   561→   561→---
+   562→   562→
+   563→   563→# 14. Immutable Order Snapshot
+   564→   564→
+   565→   565→Once an order is created, historical order data must remain meaningful even if the catalog changes later.
+   566→   566→
+   567→   567→The Worker must create the required immutable snapshots.
+   568→   568→
+   569→   569→The order/item data should preserve the actual information required to understand the completed order, including the relevant product and pricing state at the time of order according to the Phase 1 schema.
+   570→   570→
+   571→   571→Conceptually:
+   572→   572→
+   573→   573→```text id="ph5snapshot"
+   574→   574→Current catalog data
+   575→   575→        │
+   576→   576→        ▼
+   577→   577→Worker validates
+   578→   578→        │
+   579→   579→        ▼
+   580→   580→Create order
+   581→   581→        │
+   582→   582→        ▼
+   583→   583→Create immutable order item snapshots
+   584→   584→        │
+   585→   585→        ├── Product identity/reference
+   586→   586→        ├── Product display information required historically
+   587→   587→        ├── Quantity
+   588→   588→        ├── Applied price
+   589→   589→        ├── Applied discount/offer information where applicable
+   590→   590→        └── Line total
+   591→   591→```
+   592→   592→
+   593→   593→Do not make historical order details depend entirely on today's mutable product title, image, or price.
+   594→   594→
+   595→   595→Do not duplicate excessive product data without purpose.
+   596→   596→
+   597→   597→Use the actual Phase 1 schema.
+   598→   598→
+   599→   599→---
+   600→   600→
+   601→   601→# 15. COD Only
+   602→   602→
+   603→   603→Every order created in this phase is:
+   604→   604→
+   605→   605→```text
+   606→   606→COD
+   607→   607→```
+   608→   608→
+   609→   609→The order creation request must not accept arbitrary payment methods.
+   610→   610→
+   611→   611→Do not let the frontend submit:
+   612→   612→
+   613→   613→```text
+   614→   614→paymentMethod: "anything"
+   615→   615→```
+   616→   616→
+   617→   617→and trust it.
+   618→   618→
+   619→   619→The Worker enforces COD-only behavior.
+   620→   620→
+   621→   621→If the schema has a payment method field, set it correctly according to the actual model.
+   622→   622→
+   623→   623→Do not add payment provider integration.
+   624→   624→
+   625→   625→Do not add payment verification.
+   626→   626→
+   627→   627→Do not add payment status machines beyond the existing minimum order/payment state required by the schema.
+   628→   628→
+   629→   629→Do not build future payment architecture.
+   630→   630→
+   631→   631→---
+   632→   632→
+   633→   633→# 16. Worker Order Creation Flow
+   634→   634→
+   635→   635→The final Worker flow must be short, bounded, and deterministic.
+   636→   636→
+   637→   637→A single order creation request should be capable of completing within the intended Worker compute budget.
+   638→   638→
+   639→   639→The Worker must not perform unnecessary sequential work.
+   640→   640→
+   641→   641→The flow is:
+   642→   642→
+   643→   643→```text id="ph5workerflow"
+   644→   644→POST /order creation
+   645→   645→        │
+   646→   646→        ▼
+   647→   647→Validate request structure
+   648→   648→        │
+   649→   649→        ▼
+   650→   650→Validate authenticated user
+   651→   651→        │
+   652→   652→        ▼
+   653→   653→Apply lightweight abuse/rate-limit checks
+   654→   654→        │
+   655→   655→        ▼
+   656→   656→Validate idempotency request
+   657→   657→        │
+   658→   658→        ▼
+   659→   659→Load selected address and verify ownership
+   660→   660→        │
+   661→   661→        ▼
+   662→   662→Load authoritative user cart
+   663→   663→        │
+   664→   664→        ▼
+   665→   665→Load required current products/offers efficiently
+   666→   666→        │
+   667→   667→        ▼
+   668→   668→Validate and calculate totals
+   669→   669→        │
+   670→   670→        ▼
+   671→   671→Create order + immutable snapshots
+   672→   672→        │
+   673→   673→        ▼
+   674→   674→Return success
+   675→   675→```
+   676→   676→
+   677→   677→Do not add:
+   678→   678→
+   679→   679→```text
+   680→   680→Long polling
+   681→   681→Waiting for user action
+   682→   682→Background loops inside request
+   683→   683→Tracking processing
+   684→   684→Analytics processing
+   685→   685→Notification processing
+   686→   686→External payment calls
+   687→   687→Multiple unnecessary network round trips
+   688→   688→```
+   689→   689→
+   690→   690→The Worker should perform only what is required to safely create the order.
+   691→   691→
+   692→   692→---
+   693→   693→
+   694→   694→# 17. One Request, One Atomic Order Attempt
+   695→   695→
+   696→   696→Order creation must behave as one logical operation.
+   697→   697→
+   698→   698→Do not allow this:
+   699→   699→
+   700→   700→```text id="ph5partial"
+   701→   701→Order created
+   702→   702→    │
+   703→   703→    ├── item snapshot fails
+   704→   704→    └── address snapshot fails
+   705→   705→```
+   706→   706→
+   707→   707→leaving a broken partial order.
+   708→   708→
+   709→   709→Use the database's actual transactional/RPC capabilities where necessary.
+   710→   710→
+   711→   711→The final write should be atomic from the application's perspective.
+   712→   712→
+   713→   713→Prefer a database-side transaction/function/RPC for multi-table order creation if that is the cleanest reliable way to create the order, items, snapshots, and related state atomically.
+   714→   714→
+   715→   715→The Worker remains the authority boundary.
+   716→   716→
+   717→   717→Do not move authority to the frontend merely because the transaction executes in Supabase.
+   718→   718→
+   719→   719→The flow may be:
+   720→   720→
+   721→   721→```text id="ph5rpc"
+   722→   722→Browser
+   723→   723→    │
+   724→   724→    ▼
+   725→   725→Worker
+   726→   726→    │
+   727→   727→    ▼
+   728→   728→Privileged/safe server-side Supabase operation
+   729→   729→    │
+   730→   730→    ▼
+   731→   731→Atomic database transaction/function
+   732→   732→```
+   733→   733→
+   734→   734→Use the smallest reliable design compatible with the actual Phase 1 schema and Supabase capabilities.
+   735→   735→
+   736→   736→Do not create a complex microservice architecture.
+   737→   737→
+   738→   738→---
+   739→   739→
+   740→   740→# 18. Service-Role Usage
+   741→   741→
+   742→   742→Privileged database access may be used inside the Worker only where genuinely required for the secure order transaction.
+   743→   743→
+   744→   744→It must never reach:
+   745→   745→
+   746→   746→```text
+   747→   747→Browser
+   748→   748→Next.js public environment
+   749→   749→Client component
+   750→   750→Public source code
+   751→   751→```
+   752→   752→
+   753→   753→If a database RPC/function can safely perform the required atomic operation with tightly controlled permissions, prefer that over exposing broad direct privileged operations.
+   754→   754→
+   755→   755→Do not expose an unrestricted order-creation RPC directly to unauthenticated clients.
+   756→   756→
+   757→   757→The Worker remains the required request entry point.
+   758→   758→
+   759→   759→Do not weaken database permissions merely to simplify implementation.
+   760→   760→
+   761→   761→---
+   762→   762→
+   763→   763→# 19. Idempotency Is Mandatory
+   764→   764→
+   765→   765→Order creation must not create duplicate orders if:
+   766→   766→
+   767→   767→```text id="ph5idempotencycases"
+   768→   768→User double-clicks Place Order
+   769→   769→Mobile network retries
+   770→   770→Browser retries after uncertain response
+   771→   771→Worker response is lost after successful database write
+   772→   772→```
+   773→   773→
+   774→   774→The flow must support an idempotency key or equivalent request identity.
+   775→   775→
+   776→   776→The model is:
+   777→   777→
+   778→   778→```text id="ph5idempotencyflow"
+   779→   779→Browser generates request identity for one order attempt
+   780→   780→        │
+   781→   781→        ▼
+   782→   782→Send to Worker
+   783→   783→        │
+   784→   784→        ▼
+   785→   785→Worker validates/reuses same logical request
+   786→   786→        │
+   787→   787→        ├── Already successfully processed
+   788→   788→        │      └── Return existing successful result
+   789→   789→        │
+   790→   790→        └── Not processed
+   791→   791→               │
+   792→   792→               ▼
+   793→   793→           Create one order
+   794→   794→```
+   795→   795→
+   796→   796→Do not generate a new order on every retry.
+   797→   797→
+   798→   798→Do not rely solely on disabling the button.
+   799→   799→
+   800→   800→The database must participate in enforcing correctness where appropriate.
+   801→   801→
+   802→   802→Keep idempotency scoped correctly to the authenticated user/order attempt.
+   803→   803→
+   804→   804→Do not create a global idempotency system for the entire application.
+   805→   805→
+   806→   806→---
+   807→   807→
+   808→   808→# 20. Checkout Abuse Prevention
+   809→   809→
+   810→   810→Apply practical protection to order creation.
+   811→   811→
+   812→   812→The Worker must protect against obvious repeated order abuse without overengineering.
+   813→   813→
+   814→   814→Use:
+   815→   815→
+   816→   816→```text id="ph5abuse"
+   817→   817→Authenticated identity
+   818→   818→Appropriate rate limiting
+   819→   819→Idempotency
+   820→   820→Strict request validation
+   821→   821→Authoritative server-side data validation
+   822→   822→```
+   823→   823→
+   824→   824→Do not trust client-side checks.
+   825→   825→
+   826→   826→Do not build invasive device fingerprinting.
+   827→   827→
+   828→   828→Do not claim browser signals are perfect identity.
+   829→   829→
+   830→   830→Do not add external infrastructure merely for checkout abuse prevention.
+   831→   831→
+   832→   832→Do not use TiDB for order abuse state.
+   833→   833→
+   834→   834→Use the simplest practical protection compatible with the existing Worker setup.
+   835→   835→
+   836→   836→Keep the Worker request lightweight.
+   837→   837→
+   838→   838→---
+   839→   839→
+   840→   840→# 21. Order Creation Request
+   841→   841→
+   842→   842→The frontend must send only the minimum information genuinely required.
+   843→   843→
+   844→   844→The browser must not send the entire order as authority.
+   845→   845→
+   846→   846→Do not send:
+   847→   847→
+   848→   848→```text id="ph5requestnono"
+   849→   849→Final prices
+   850→   850→Final subtotal
+   851→   851→Final discount
+   852→   852→Final total
+   853→   853→Full product snapshots
+   854→   854→Trusted cart contents as authority
+   855→   855→Arbitrary user ID
+   856→   856→Arbitrary order status
+   857→   857→Arbitrary payment status
+   858→   858→```
+   859→   859→
+   860→   860→The request should contain only the data needed to identify the checkout attempt, such as the selected address and idempotency identity, according to the actual implementation.
+   861→   861→
+   862→   862→The Worker loads the rest authoritatively.
+   863→   863→
+   864→   864→---
+   865→   865→
+   866→   866→# 22. Cart Cleanup After Success
+   867→   867→
+   868→   868→Do not clear the cart before order creation succeeds.
+   869→   869→
+   870→   870→The flow is:
+   871→   871→
+   872→   872→```text id="ph5cartcleanup"
+   873→   873→Worker order attempt
+   874→   874→        │
+   875→   875→        ├── Failure
+   876→   876→        │      └── Cart remains
+   877→   877→        │
+   878→   878→        └── Success
+   879→   879→               │
+   880→   880→               ▼
+   881→   881→        Successful order exists
+   882→   882→               │
+   883→   883→               ▼
+   884→   884→        Remove/clear only the cart items actually ordered
+   885→   885→```
+   886→   886→
+   887→   887→Do not clear the entire cart blindly if the final order intentionally contains only specific valid items.
+   888→   888→
+   889→   889→Use the actual order/cart behavior.
+   890→   890→
+   891→   891→For the normal current flow, if the entire authoritative cart is ordered successfully, clear those ordered entries.
+   892→   892→
+   893→   893→The cleanup must not delete unrelated cart changes made concurrently if that is possible.
+   894→   894→
+   895→   895→Do not use a broad "delete all cart rows" command without ensuring it matches the actual successful order contents.
+   896→   896→
+   897→   897→Prefer correctness.
+   898→   898→
+   899→   899→---
+   900→   900→
+   901→   901→# 23. Failure Behavior
+   902→   902→
+   903→   903→If order creation fails:
+   904→   904→
+   905→   905→```text
+   906→   906→Do not create fake confirmation.
+   907→   907→Do not clear cart.
+   908→   908→Do not pretend the order exists.
+   909→   909→Do not create partial local orders.
+   910→   910→```
+   911→   911→
+   912→   912→Return a safe error.
+   913→   913→
+   914→   914→Keep the cart available for the user to review.
+   915→   915→
+   916→   916→If the failure is caused by stale product/offer data:
+   917→   917→
+   918→   918→```text
+   919→   919→Tell the frontend checkout data changed.
+   920→   920→Refresh/reload the affected authoritative data.
+   921→   921→Allow the user to review before retrying.
+   922→   922→```
+   923→   923→
+   924→   924→Do not silently submit a changed order without user awareness.
+   925→   925→
+   926→   926→Do not create an infinite retry loop.
+   927→   927→
+   928→   928→---
+   929→   929→
+   930→   930→# 24. Successful Order Confirmation
+   931→   931→
+   932→   932→After a confirmed successful Worker response:
+   933→   933→
+   934→   934→```text id="ph5success"
+   935→   935→Order created
+   936→   936→        │
+   937→   937→        ▼
+   938→   938→Update local cart state to match successful cleanup
+   939→   939→        │
+   940→   940→        ▼
+   941→   941→Navigate/show existing order confirmation UI
+   942→   942→        │
+   943→   943→        ▼
+   944→   944→Display real order identifier/data
+   945→   945→```
+   946→   946→
+   947→   947→Do not show a mock order number.
+   948→   948→
+   949→   949→Do not generate a fake frontend confirmation.
+   950→   950→
+   951→   951→Use the real created order result.
+   952→   952→
+   953→   953→Do not immediately create another order if the user refreshes the confirmation page.
+   954→   954→
+   955→   955→Idempotency and the existing order state must prevent duplicate creation.
+   956→   956→
+   957→   957→---
+   958→   958→
+   959→   959→# 25. Order Confirmation Data
+   960→   960→
+   961→   961→Use real order data.
+   962→   962→
+   963→   963→Do not depend on the original checkout state after navigation as the only source of truth.
+   964→   964→
+   965→   965→The confirmation UI must be able to use the real order identity/data according to the existing route structure.
+   966→   966→
+   967→   967→If the existing UI has an order confirmation page, connect it properly.
+   968→   968→
+   969→   969→Do not redesign the route structure without a concrete reason.
+   970→   970→
+   971→   971→Do not create an admin-style order page.
+   972→   972→
+   973→   973→Do not implement full order history beyond the real data integration necessary for confirmation if order-history functionality belongs to a later phase.
+   974→   974→
+   975→   975→Keep this phase focused.
+   976→   976→
+   977→   977→---
+   978→   978→
+   979→   979→# 26. Existing UI Must Stay Intact
+   980→   980→
+   981→   981→Do not redesign:
+   982→   982→
+   983→   983→```text id="ph5uipreserve"
+   984→   984→Checkout layout
+   985→   985→Address selection UI
+   986→   986→Order summary
+   987→   987→COD presentation
+   988→   988→Place order controls
+   989→   989→Loading treatment
+   990→   990→Error treatment
+   991→   991→Confirmation UI
+   992→   992→Mobile layout
+   993→   993→Desktop layout
+   994→   994→Typography
+   995→   995→Spacing
+   996→   996→Color system
+   997→   997→Motion
+   998→   998→```
+   999→   999→
+  1000→  1000→Connect real behavior to the approved design.
+  1001→  1001→
+  1002→  1002→Do not replace it with generic checkout components.
+  1003→  1003→
+  1004→  1004→Do not add unnecessary checkout steps.
+  1005→  1005→
+  1006→  1006→Do not create a multi-step wizard unless the existing approved UI already is one.
+  1007→  1007→
+  1008→  1008→Do not simplify or overcomplicate the UX.
+  1009→  1009→
+  1010→  1010→---
+  1011→  1011→
+  1012→  1012→# 27. Loading Rules
+  1013→  1013→
+  1014→  1014→Preserve the existing global loading architecture.
+  1015→  1015→
+  1016→  1016→Do not use the global page progress bar for order creation.
+  1017→  1017→
+  1018→  1018→Order placement is an explicit local action.
+  1019→  1019→
+  1020→  1020→Use local loading on the actual order action.
+  1021→  1021→
+  1022→  1022→The user must not be able to accidentally create multiple concurrent order attempts.
+  1023→  1023→
+  1024→  1024→However:
+  1025→  1025→
+  1026→  1026→```text
+  1027→  1027→Disabling the button is UX protection.
+  1028→  1028→Idempotency is correctness protection.
+  1029→  1029→```
+  1030→  1030→
+  1031→  1031→You need both where appropriate.
+  1032→  1032→
+  1033→  1033→Do not add fake delays.
+  1034→  1034→
+  1035→  1035→Do not blank the checkout page.
+  1036→  1036→
+  1037→  1037→Do not create an unnecessary full-screen loading page.
+  1038→  1038→
+  1039→  1039→---
+  1040→  1040→
+  1041→  1041→# 28. Server and Client Component Boundaries
+  1042→  1042→
+  1043→  1043→Preserve the rendering architecture.
+  1044→  1044→
+  1045→  1045→The pattern remains:
+  1046→  1046→
+  1047→  1047→```text id="ph5components"
+  1048→  1048→Checkout page
+  1049→  1049→    │
+  1050→  1050→    ├── Server-rendered/static shell
+  1051→  1051→    │
+  1052→  1052→    └── Interactive checkout components
+  1053→  1053→            │
+  1054→  1054→            └── "use client"
+  1055→  1055→```
+  1056→  1056→
+  1057→  1057→Do not put `"use client"` in the page file merely because checkout is interactive.
+  1058→  1058→
+  1059→  1059→Do not make the entire checkout page one giant Client Component unnecessarily.
+  1060→  1060→
+  1061→  1061→Do not create files named only to indicate client status, such as:
+  1062→  1062→
+  1063→  1063→```text
+  1064→  1064→CheckoutClient.tsx
+  1065→  1065→OrderClient.tsx
+  1066→  1066→```
+  1067→  1067→
+  1068→  1068→Use normal meaningful component names.
+  1069→  1069→
+  1070→  1070→Keep static visible content server-rendered where practical.
+  1071→  1071→
+  1072→  1072→---
+  1073→  1073→
+  1074→  1074→# 29. No Direct Frontend Order Writes
+  1075→  1075→
+  1076→  1076→This is absolute.
+  1077→  1077→
+  1078→  1078→The frontend must not directly:
+  1079→  1079→
+  1080→  1080→```text id="ph5nodirect"
+  1081→  1081→Insert orders
+  1082→  1082→Insert order items
+  1083→  1083→Create order snapshots
+  1084→  1084→Set order totals
+  1085→  1085→Set payment method as authoritative
+  1086→  1086→Set order status
+  1087→  1087→Set payment status
+  1088→  1088→Delete another user's order data
+  1089→  1089→```
+  1090→  1090→
+  1091→  1091→Do not use direct Supabase writes as a fallback.
+  1092→  1092→
+  1093→  1093→This is forbidden:
+  1094→  1094→
+  1095→  1095→```ts id="ph5forbiddenfallback"
+  1096→  1096→try {
+  1097→  1097→  await createOrderThroughWorker(...)
+  1098→  1098→} catch {
+  1099→  1099→  await supabase.from("orders").insert(...)
+  1100→  1100→}
+  1101→  1101→```
+  1102→  1102→
+  1103→  1103→No bypass.
+  1104→  1104→
+  1105→  1105→If the Worker fails, order creation fails safely.
+  1106→  1106→
+  1107→  1107→---
+  1108→  1108→
+  1109→  1109→# 30. No Next.js Checkout Backend
+  1110→  1110→
+  1111→  1111→Do not create:
+  1112→  1112→
+  1113→  1113→```text id="ph5nonextapi"
+  1114→  1114→/app/api/checkout
+  1115→  1115→/app/api/orders
+  1116→  1116→/api/checkout
+  1117→  1117→/api/orders
+  1118→  1118→Server Actions for order creation
+  1119→  1119→Route handlers replacing the Worker
+  1120→  1120→```
+  1121→  1121→
+  1122→  1122→Do not move checkout authority into Next.js.
+  1123→  1123→
+  1124→  1124→The required architecture is:
+  1125→  1125→
+  1126→  1126→```text
+  1127→  1127→Frontend
+  1128→  1128→    │
+  1129→  1129→    ▼
+  1130→  1130→Cloudflare Worker
+  1131→  1131→    │
+  1132→  1132→    ▼
+  1133→  1133→Supabase
+  1134→  1134→```
+  1135→  1135→
+  1136→  1136→Keep the Worker separate in:
+  1137→  1137→
+  1138→  1138→```text
+  1139→  1139→/worker
+  1140→  1140→```
+  1141→  1141→
+  1142→  1142→Do not merge it into the frontend.
+  1143→  1143→
+  1144→  1144→---
+  1145→  1145→
+  1146→  1146→# 31. No Tracking in This Phase
+  1147→  1147→
+  1148→  1148→Do not send order events to:
+  1149→  1149→
+  1150→  1150→```text
+  1151→  1151→TrackingServer
+  1152→  1152→ProcessingServer
+  1153→  1153→TiDB
+  1154→  1154→```
+  1155→  1155→
+  1156→  1156→Do not implement tracking merely because orders now exist.
+  1157→  1157→
+  1158→  1158→Order creation and tracking are separate concerns.
+  1159→  1159→
+  1160→  1160→The tracking architecture belongs to later phases.
+  1161→  1161→
+  1162→  1162→Do not add event queues.
+  1163→  1163→
+  1164→  1164→Do not add analytics processing.
+  1165→  1165→
+  1166→  1166→Do not make order creation depend on tracking availability.
+  1167→  1167→
+  1168→  1168→---
+  1169→  1169→
+  1170→  1170→# 32. No Inventory System in This Phase
+  1171→  1171→
+  1172→  1172→Do not invent inventory reservation.
+  1173→  1173→
+  1174→  1174→Do not add:
+  1175→  1175→
+  1176→  1176→```text
+  1177→  1177→Stock reservation timers
+  1178→  1178→Reservation tables
+  1179→  1179→Cart stock locks
+  1180→  1180→Checkout stock locks
+  1181→  1181→Background reservation cleanup
+  1182→  1182→Inventory microservices
+  1183→  1183→```
+  1184→  1184→
+  1185→  1185→Only validate product/order eligibility according to the existing actual product model.
+  1186→  1186→
+  1187→  1187→If stock is not yet part of the established business model, do not fabricate it.
+  1188→  1188→
+  1189→  1189→Do not overengineer.
+  1190→  1190→
+  1191→  1191→---
+  1192→  1192→
+  1193→  1193→# 33. Mock Migration
+  1194→  1194→
+  1195→  1195→Remove checkout/order simulation as real functionality replaces it.
+  1196→  1196→
+  1197→  1197→Audit for:
+  1198→  1198→
+  1199→  1199→```text id="ph5mock"
+  1200→  1200→Fake checkout totals
+  1201→  1201→Hardcoded COD result
+  1202→  1202→Mock order IDs
+  1203→  1203→Random order numbers
+  1204→  1204→Simulated successful checkout
+  1205→  1205→Fake order confirmation
+  1206→  1206→Mock address selection
+  1207→  1207→Demo order arrays
+  1208→  1208→Fake processing delays
+  1209→  1209→```
+  1210→  1210→
+  1211→  1211→The migration flow is:
+  1212→  1212→
+  1213→  1213→```text
+  1214→  1214→Identify mock consumer
+  1215→  1215→        │
+  1216→  1216→        ▼
+  1217→  1217→Connect real implementation
+  1218→  1218→        │
+  1219→  1219→        ▼
+  1220→  1220→Verify real flow
+  1221→  1221→        │
+  1222→  1222→        ▼
+  1223→  1223→Remove obsolete mock code
+  1224→  1224→```
+  1225→  1225→
+  1226→  1226→Do not leave production fallback simulation.
+  1227→  1227→
+  1228→  1228→Do not show a fake success if the real Worker/database action fails.
+  1229→  1229→
+  1230→  1230→---
+  1231→  1231→
+  1232→  1232→# 34. RLS and Database Security
+  1233→  1233→
+  1234→  1234→Verify that users cannot directly manipulate order data outside the intended boundaries.
+  1235→  1235→
+  1236→  1236→The database model must not allow the browser to create arbitrary orders.
+  1237→  1237→
+  1238→  1238→The user should only access order data permitted to their authenticated identity and actual Phase 1 policy model.
+  1239→  1239→
+  1240→  1240→Do not create broad policies.
+  1241→  1241→
+  1242→  1242→Do not expose privileged order writes.
+  1243→  1243→
+  1244→  1244→If the Worker uses privileged access or a tightly controlled database function for creation, keep that authority isolated.
+  1245→  1245→
+  1246→  1246→Do not weaken RLS merely to make the frontend work.
+  1247→  1247→
+  1248→  1248→---
+  1249→  1249→
+  1250→  1250→# 35. Type Safety and Validation
+  1251→  1251→
+  1252→  1252→Use real TypeScript types aligned with the actual schema.
+  1253→  1253→
+  1254→  1254→Do not use `any`.
+  1255→  1255→
+  1256→  1256→Validate:
+  1257→  1257→
+  1258→  1258→```text id="ph5validation"
+  1259→  1259→Checkout request structure
+  1260→  1260→Selected address identity
+  1261→  1261→Idempotency identity
+  1262→  1262→Authenticated request
+  1263→  1263→Worker input
+  1264→  1264→```
+  1265→  1265→
+  1266→  1266→The frontend may validate for UX.
+  1267→  1267→
+  1268→  1268→The Worker validates authoritatively.
+  1269→  1269→
+  1270→  1270→Do not duplicate large validation systems unnecessarily.
+  1271→  1271→
+  1272→  1272→Reuse existing reliable validation utilities if they already exist.
+  1273→  1273→
+  1274→  1274→Keep validation explicit and small.
+  1275→  1275→
+  1276→  1276→---
+  1277→  1277→
+  1278→  1278→# 36. Performance Rules
+  1279→  1279→
+  1280→  1280→The Worker must remain efficient.
+  1281→  1281→
+  1282→  1282→Avoid unnecessary sequential database requests.
+  1283→  1283→
+  1284→  1284→Do not query each product individually if required products can be loaded efficiently together.
+  1285→  1285→
+  1286→  1286→Do not perform redundant reads.
+  1287→  1287→
+  1288→  1288→Do not call the frontend again to obtain authoritative values.
+  1289→  1289→
+  1290→  1290→Do not load unrelated user data.
+  1291→  1291→
+  1292→  1292→Do not invoke external services.
+  1293→  1293→
+  1294→  1294→Do not perform tracking work.
+  1295→  1295→
+  1296→  1296→Do not wait for email or notifications.
+  1297→  1297→
+  1298→  1298→Prefer a small bounded request flow.
+  1299→  1299→
+  1300→  1300→A single normal order creation request must be designed to complete within the intended Worker compute constraints.
+  1301→  1301→
+  1302→  1302→Do not solve simplicity by sacrificing correctness.
+  1303→  1303→
+  1304→  1304→Do not solve correctness by adding unnecessary architecture.
+  1305→  1305→
+  1306→  1306→---
+  1307→  1307→
+  1308→  1308→# 37. Strict No-Drift Rules
+  1309→  1309→
+  1310→  1310→The following are absolute.
+  1311→  1311→
+  1312→  1312→Do not redesign the UI.
+  1313→  1313→
+  1314→  1314→Do not simplify the checkout UI.
+  1315→  1315→
+  1316→  1316→Do not add new checkout steps without requirement.
+  1317→  1317→
+  1318→  1318→Do not implement guest checkout.
+  1319→  1319→
+  1320→  1320→Do not implement online payments.
+  1321→  1321→
+  1322→  1322→Do not implement payment gateways.
+  1323→  1323→
+  1324→  1324→Do not implement UPI.
+  1325→  1325→
+  1326→  1326→Do not add Razorpay.
+  1327→  1327→
+  1328→  1328→Do not add Stripe.
+  1329→  1329→
+  1330→  1330→Do not add PayPal.
+  1331→  1331→
+  1332→  1332→Do not add payment abstractions for future use.
+  1333→  1333→
+  1334→  1334→Do not create Next.js API routes.
+  1335→  1335→
+  1336→  1336→Do not create Server Actions as an order backend.
+  1337→  1337→
+  1338→  1338→Do not move Worker authority into frontend.
+  1339→  1339→
+  1340→  1340→Do not merge `/worker` into Next.js.
+  1341→  1341→
+  1342→  1342→Do not directly insert orders from browser code.
+  1343→  1343→
+  1344→  1344→Do not directly insert order items from browser code.
+  1345→  1345→
+  1346→  1346→Do not create a direct Supabase fallback if the Worker fails.
+  1347→  1347→
+  1348→  1348→Do not trust frontend totals.
+  1349→  1349→
+  1350→  1350→Do not trust frontend prices.
+  1351→  1351→
+  1352→  1352→Do not trust frontend discounts.
+  1353→  1353→
+  1354→  1354→Do not trust frontend cart data as authoritative.
+  1355→  1355→
+  1356→  1356→Do not trust a browser-supplied user ID.
+  1357→  1357→
+  1358→  1358→Do not allow order creation without a valid owned address.
+  1359→  1359→
+  1360→  1360→Do not create orders without immutable historical snapshots.
+  1361→  1361→
+  1362→  1362→Do not create duplicate orders on retry.
+  1363→  1363→
+  1364→  1364→Do not rely solely on button disabling for duplicate prevention.
+  1365→  1365→
+  1366→  1366→Do not clear the cart before confirmed success.
+  1367→  1367→
+  1368→  1368→Do not clear unrelated cart changes blindly.
+  1369→  1369→
+  1370→  1370→Do not create fake confirmations.
+  1371→  1371→
+  1372→  1372→Do not implement inventory reservation.
+  1373→  1373→
+  1374→  1374→Do not implement shipment tracking.
+  1375→  1375→
+  1376→  1376→Do not send tracking events.
+  1377→  1377→
+  1378→  1378→Do not use TiDB.
+  1379→  1379→
+  1380→  1380→Do not implement ProcessingServer logic.
+  1381→  1381→
+  1382→  1382→Do not implement circulation.
+  1383→  1383→
+  1384→  1384→Do not implement admin functionality.
+  1385→  1385→
+  1386→  1386→Do not expose service-role credentials.
+  1387→  1387→
+  1388→  1388→Do not weaken RLS.
+  1389→  1389→
+  1390→  1390→Do not use `any`.
+  1391→  1391→
+  1392→  1392→Do not add unnecessary dependencies.
+  1393→  1393→
+  1394→  1394→Do not create unnecessary abstraction layers.
+  1395→  1395→
+  1396→  1396→Do not add excessive comments.
+  1397→  1397→
+  1398→  1398→Do not write long documentation essays inside source files.
+  1399→  1399→
+  1400→  1400→Prefer the shortest secure, reliable implementation that exactly follows this architecture.
+  1401→  1401→
+  1402→  1402→---
+  1403→  1403→
+  1404→  1404→# 38. Required Verification
+  1405→  1405→
+  1406→  1406→Before declaring Phase 5 complete, verify the real implementation with actual seeded products, offers, addresses, and authenticated test users.
+  1407→  1407→
+  1408→  1408→Verify:
+  1409→  1409→
+  1410→  1410→```text id="ph5verify1"
+  1411→  1411→Unauthenticated user
+  1412→  1412→    ↓
+  1413→  1413→Attempts checkout
+  1414→  1414→    ↓
+  1415→  1415→Cannot create an order
+  1416→  1416→```
+  1417→  1417→
+  1418→  1418→```text id="ph5verify2"
+  1419→  1419→Authenticated user
+  1420→  1420→    ↓
+  1421→  1421→No address
+  1422→  1422→    ↓
+  1423→  1423→Cannot place order until valid address exists
+  1424→  1424→```
+  1425→  1425→
+  1426→  1426→```text id="ph5verify3"
+  1427→  1427→Authenticated user
+  1428→  1428→    ↓
+  1429→  1429→Selects own address
+  1430→  1430→    ↓
+  1431→  1431→Checkout proceeds
+  1432→  1432→```
+  1433→  1433→
+  1434→  1434→```text id="ph5verify4"
+  1435→  1435→Authenticated user
+  1436→  1436→    ↓
+  1437→  1437→Attempts another user's address ID
+  1438→  1438→    ↓
+  1439→  1439→Worker rejects it
+  1440→  1440→```
+  1441→  1441→
+  1442→  1442→```text id="ph5verify5"
+  1443→  1443→Worker loads authoritative cart
+  1444→  1444→    ↓
+  1445→  1445→Product data validated
+  1446→  1446→    ↓
+  1447→  1447→Current prices/offers revalidated
+  1448→  1448→    ↓
+  1449→  1449→Frontend total is not trusted
+  1450→  1450→```
+  1451→  1451→
+  1452→  1452→```text id="ph5verify6"
+  1453→  1453→Valid COD order
+  1454→  1454→    ↓
+  1455→  1455→One Worker request
+  1456→  1456→    ↓
+  1457→  1457→Order created
+  1458→  1458→    ↓
+  1459→  1459→Order items created
+  1460→  1460→    ↓
+  1461→  1461→Address/product/price snapshots created
+  1462→  1462→    ↓
+  1463→  1463→No partial broken order
+  1464→  1464→```
+  1465→  1465→
+  1466→  1466→```text id="ph5verify7"
+  1467→  1467→Same idempotency request retried
+  1468→  1468→    ↓
+  1469→  1469→Only one order exists
+  1470→  1470→    ↓
+  1471→  1471→Existing successful result returned
+  1472→  1472→```
+  1473→  1473→
+  1474→  1474→```text id="ph5verify8"
+  1475→  1475→User double-clicks Place Order
+  1476→  1476→    ↓
+  1477→  1477→No duplicate order
+  1478→  1478→```
+  1479→  1479→
+  1480→  1480→```text id="ph5verify9"
+  1481→  1481→Product/offer changes before Worker validation
+  1482→  1482→    ↓
+  1483→  1483→Worker uses current authoritative state
+  1484→  1484→    ↓
+  1485→  1485→Stale frontend data is not trusted
+  1486→  1486→```
+  1487→  1487→
+  1488→  1488→```text id="ph5verify10"
+  1489→  1489→Order creation fails
+  1490→  1490→    ↓
+  1491→  1491→No fake success
+  1492→  1492→    ↓
+  1493→  1493→Cart remains available
+  1494→  1494→```
+  1495→  1495→
+  1496→  1496→```text id="ph5verify11"
+  1497→  1497→Order creation succeeds
+  1498→  1498→    ↓
+  1499→  1499→Only successfully ordered cart entries are cleaned up
+  1500→  1500→    ↓
+  1501→  1501→No unrelated cart state is destroyed
+  1502→  1502→```
+  1503→  1503→
+  1504→  1504→```text id="ph5verify12"
+  1505→  1505→Confirmation UI
+  1506→  1506→    ↓
+  1507→  1507→Uses real order identifier/data
+  1508→  1508→    ↓
+  1509→  1509→No mock order number
+  1510→  1510→```
+  1511→  1511→
+  1512→  1512→Also verify:
+  1513→  1513→
+  1514→  1514→```text id="ph5verifyfinal"
+  1515→  1515→No payment gateway code exists.
+  1516→  1516→No online payment code exists.
+  1517→  1517→No guest checkout exists.
+  1518→  1518→No direct frontend order creation exists.
+  1519→  1519→No Worker bypass/fallback exists.
+  1520→  1520→No Next.js order API route exists.
+  1521→  1521→No Server Action order backend exists.
+  1522→  1522→No privileged credential reaches the browser.
+  1523→  1523→Order creation remains isolated in /worker.
+  1524→  1524→No tracking system was implemented.
+  1525→  1525→No TiDB access was added.
+  1526→  1526→No inventory reservation system was added.
+  1527→  1527→Existing premium UI remains intact.
+  1528→  1528→Static checkout shell architecture remains intact.
+  1529→  1529→Only required components use "use client".
+  1530→  1530→Mock checkout/order infrastructure is removed.
+  1531→  1531→No Phase 6 or later functionality was implemented.
+  1532→  1532→```
+  1533→  1533→
+  1534→  1534→Fix every issue found before stopping.
+  1535→  1535→
+  1536→  1536→Do not claim completion merely because a button creates a row in the database.
+  1537→  1537→
+  1538→  1538→Verify the complete authority boundary, price revalidation, address ownership, atomic order creation, immutable snapshots, idempotency, cart cleanup, and failure behavior.
+  1539→  1539→
+  1540→  1540→---
+  1541→  1541→
+  1542→  1542→# 39. Required Completion Output
+  1543→  1543→
+  1544→  1544→When Phase 5 is genuinely complete, report only:
+  1545→  1545→
+  1546→  1546→```text
+  1547→  1547→Phase 5 completed
+  1548→  1548→
+  1549→  1549→Implemented:
+  1550→  1550→- ...
+  1551→  1551→
+  1552→  1552→Checkout flow:
+  1553→  1553→- ...
+  1554→  1554→
+  1555→  1555→COD order flow:
+  1556→  1556→- ...
+  1557→  1557→
+  1558→  1558→Worker authority:
+  1559→  1559→- ...
+  1560→  1560→
+  1561→  1561→Authoritative validation:
+  1562→  1562→- ...
+  1563→  1563→
+  1564→  1564→Order snapshots:
+  1565→  1565→- ...
+  1566→  1566→
+  1567→  1567→Idempotency verified:
+  1568→  1568→- ...
+  1569→  1569→
+  1570→  1570→Cart cleanup behavior:
+  1571→  1571→- ...
+  1572→  1572→
+  1573→  1573→Security/RLS boundaries verified:
+  1574→  1574→- ...
+  1575→  1575→
+  1576→  1576→Mock infrastructure removed:
+  1577→  1577→- ...
+  1578→  1578→
+  1579→  1579→Files/folders added or changed:
+  1580→  1580→- ...
+  1581→  1581→
+  1582→  1582→Architecture boundaries preserved:
+  1583→  1583→- ...
+  1584→  1584→
+  1585→  1585→Not implemented because it belongs to later phases:
+  1586→  1586→- ...
+  1587→  1587→```
+  1588→  1588→
+  1589→  1589→Do not start Phase 6.
+  1590→  1590→
+  1591→  1591→Do not continue implementing after this report.
+  1592→  1592→
+  1593→  1593→```
+  1594→  1594→```
+  1595→  1595→

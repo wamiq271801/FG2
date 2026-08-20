@@ -1,0 +1,921 @@
+     1→"use client";
+     2→
+     3→import { useEffect, useState } from "react";
+     4→import { Link } from "@/components/shared/Link";
+     5→import { useRouter } from "next/navigation";
+     6→import { useForm, useWatch } from "react-hook-form";
+     7→import { zodResolver } from "@hookform/resolvers/zod";
+     8→import { z } from "zod";
+     9→import {
+    10→  AlertCircle,
+    11→  Banknote,
+    12→  CreditCard,
+    13→  Loader2,
+    14→  Lock,
+    15→  MapPin,
+    16→  Package,
+    17→  RotateCcw,
+    18→  ShieldCheck,
+    19→  Smartphone,
+    20→  Truck,
+    21→  Zap,
+    22→} from "lucide-react";
+    23→import { toast } from "sonner";
+    24→
+    25→import { useCartContext } from "@/components/cart/CartProvider";
+    26→import { useAuthContext } from "@/components/auth/AuthProvider";
+    27→import { useCart } from "@/lib/cart";
+    28→import { ProductVisual } from "@/components/shared/ProductVisual";
+    29→import { Button } from "@/components/ui/button";
+    30→import { Input } from "@/components/ui/input";
+    31→import { Label } from "@/components/ui/label";
+    32→import { Separator } from "@/components/ui/separator";
+    33→import { Skeleton } from "@/components/ui/skeleton";
+    34→import { Alert, AlertDescription } from "@/components/ui/alert";
+    35→import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+    36→import { formatPrice } from "@/lib/format";
+    37→import { cn } from "@/lib/utils";
+    38→import type { Address } from "@/lib/types";
+    39→
+    40→// ── Constants (kept in sync with /api/checkout) ────────────────────────
+    41→const FREE_SHIPPING_THRESHOLD = 4990;
+    42→const SHIPPING_FLAT = 149;
+    43→const DELIVERY_METHODS = [
+    44→  {
+    45→    id: "standard",
+    46→    label: "Standard",
+    47→    description: "3–5 business days",
+    48→    price: 0,
+    49→    icon: Truck,
+    50→  },
+    51→  {
+    52→    id: "express",
+    53→    label: "Express",
+    54→    description: "1–2 business days",
+    55→    price: 199,
+    56→    icon: Zap,
+    57→  },
+    58→  {
+    59→    id: "sameday",
+    60→    label: "Local delivery · Bahraich",
+    61→    description: "Today, before 9 PM IST",
+    62→    price: 299,
+    63→    icon: Package,
+    64→  },
+    65→] as const;
+    66→
+    67→const PAYMENT_METHODS = [
+    68→  {
+    69→    id: "card",
+    70→    label: "Card",
+    71→    description: "Visa, Mastercard, RuPay, Amex",
+    72→    icon: CreditCard,
+    73→  },
+    74→  {
+    75→    id: "upi",
+    76→    label: "UPI",
+    77→    description: "GPay, PhonePe, Paytm and more",
+    78→    icon: Smartphone,
+    79→  },
+    80→  {
+    81→    id: "cod",
+    82→    label: "Cash on delivery",
+    83→    description: "Pay when it arrives",
+    84→    icon: Banknote,
+    85→  },
+    86→] as const;
+    87→
+    88→// ── Schema ─────────────────────────────────────────────────────────────
+    89→
+    90→// Strip non-digits, then validate. Used inside superRefine.
+    91→function digits(s: string) {
+    92→  return (s ?? "").replace(/\D/g, "");
+    93→}
+    94→
+    95→const schema = z
+    96→  .object({
+    97→    // Contact
+    98→    contactEmail: z.email("Enter a valid email address"),
+    99→    contactPhone: z
+   100→      .string()
+   101→      .min(1, "Phone is required")
+   102→      .refine(
+   103→        (v) => /^(\+91[\-\s]?)?[6-9]\d{9}$/.test((v ?? "").trim()),
+   104→        "Enter a 10-digit Indian mobile number"
+   105→      ),
+   106→    // Delivery address
+   107→    fullName: z.string().min(2, "Please enter the recipient's name"),
+   108→    line1: z.string().min(3, "Address line 1 is required"),
+   109→    line2: z.string().optional(),
+   110→    city: z.string().min(2, "City is required"),
+   111→    state: z.string().min(2, "State is required"),
+   112→    postcode: z
+   113→      .string()
+   114→      .min(1, "PIN code is required")
+   115→      .refine((v) => /^\d{6}$/.test((v ?? "").trim()), "PIN code must be 6 digits"),
+   116→    country: z.string().min(2, "Country is required"),
+   117→    // Delivery method
+   118→    deliveryMethod: z.enum(["standard", "express", "sameday"]),
+   119→    // Payment
+   120→    paymentMethod: z.enum(["card", "upi", "cod"]),
+   121→    cardNumber: z.string().optional(),
+   122→    cardExpiry: z.string().optional(),
+   123→    cardCvv: z.string().optional(),
+   124→    cardName: z.string().optional(),
+   125→    upiId: z.string().optional(),
+   126→  })
+   127→  .superRefine((data, ctx) => {
+   128→    if (data.paymentMethod === "card") {
+   129→      const num = digits(data.cardNumber ?? "");
+   130→      if (num.length < 13 || num.length > 19) {
+   131→        ctx.addIssue({
+   132→          code: "custom",
+   133→          path: ["cardNumber"],
+   134→          message: "Enter a valid 13–19 digit card number",
+   135→        });
+   136→      }
+   137→      if (!/^(0[1-9]|1[0-2])\/([0-9]{2})$/.test((data.cardExpiry ?? "").trim())) {
+   138→        ctx.addIssue({
+   139→          code: "custom",
+   140→          path: ["cardExpiry"],
+   141→          message: "Use MM/YY format",
+   142→        });
+   143→      }
+   144→      if (!/^\d{3,4}$/.test((data.cardCvv ?? "").trim())) {
+   145→        ctx.addIssue({
+   146→          code: "custom",
+   147→          path: ["cardCvv"],
+   148→          message: "CVV must be 3–4 digits",
+   149→        });
+   150→      }
+   151→      if ((data.cardName ?? "").trim().length < 2) {
+   152→        ctx.addIssue({
+   153→          code: "custom",
+   154→          path: ["cardName"],
+   155→          message: "Name on card is required",
+   156→        });
+   157→      }
+   158→    } else if (data.paymentMethod === "upi") {
+   159→      if (!/^[\w.\-]{2,}@[a-zA-Z]{2,}$/.test((data.upiId ?? "").trim())) {
+   160→        ctx.addIssue({
+   161→          code: "custom",
+   162→          path: ["upiId"],
+   163→          message: "Enter a valid UPI ID (e.g. name@oksbi)",
+   164→        });
+   165→      }
+   166→    }
+   167→  });
+   168→
+   169→type FormValues = z.infer<typeof schema>;
+   170→
+   171→type Props = {
+   172→  /** Server-passed saved address from `getMockUser()`. Used by the
+   173→   *  "Use saved address" affordance when the visitor is signed in. */
+   174→  defaultAddress: Address;
+   175→  /** Server-passed saved email. Used for the contact-email prefill. */
+   176→  defaultEmail: string;
+   177→  /** Server-passed saved name. Used for the recipient-name prefill. */
+   178→  defaultName: string;
+   179→};
+   180→
+   181→export function CheckoutForm({
+   182→  defaultAddress,
+   183→  defaultEmail,
+   184→  defaultName,
+   185→}: Props) {
+   186→  const router = useRouter();
+   187→  const { lines, ready, subtotal, count } = useCartContext();
+   188→  const { user, ready: authReady } = useAuthContext();
+   189→  const clear = useCart((s) => s.clear);
+   190→
+   191→  const [submitting, setSubmitting] = useState(false);
+   192→  const [serverError, setServerError] = useState<string | null>(null);
+   193→
+   194→  const {
+   195→    register,
+   196→    handleSubmit,
+   197→    setValue,
+   198→    control,
+   199→    formState: { errors },
+   200→  } = useForm<FormValues>({
+   201→    resolver: zodResolver(schema),
+   202→    defaultValues: {
+   203→      contactEmail: "",
+   204→      contactPhone: "",
+   205→      fullName: "",
+   206→      line1: "",
+   207→      line2: "",
+   208→      city: "",
+   209→      state: "",
+   210→      postcode: "",
+   211→      country: "India",
+   212→      deliveryMethod: "standard",
+   213→      paymentMethod: "card",
+   214→      cardNumber: "",
+   215→      cardExpiry: "",
+   216→      cardCvv: "",
+   217→      cardName: "",
+   218→      upiId: "",
+   219→    },
+   220→  });
+   221→
+   222→  // Watched values drive conditional rendering. useWatch avoids the React
+   223→  // Compiler warning that RHF's `watch()` triggers.
+   224→  const deliveryMethod = useWatch({ control, name: "deliveryMethod" });
+   225→  const paymentMethod = useWatch({ control, name: "paymentMethod" });
+   226→
+   227→  // Redirect to /cart if the cart is empty after hydration. Don't redirect
+   228→  // while !ready to avoid flashing during zustand-persist rehydration, and
+   229→  // don't redirect while submitting (clear() empties the cart during a
+   230→  // successful order placement — the success handler does its own redirect).
+   231→  useEffect(() => {
+   232→    if (ready && lines.length === 0 && !submitting) {
+   233→      router.replace("/cart");
+   234→    }
+   235→  }, [ready, lines.length, submitting, router]);
+   236→
+   237→  function prefillSavedAddress() {
+   238→    setValue("contactEmail", defaultEmail, { shouldDirty: true });
+   239→    setValue("contactPhone", defaultAddress.phone ?? "", { shouldDirty: true });
+   240→    setValue("fullName", defaultName, { shouldDirty: true });
+   241→    setValue("line1", defaultAddress.line1, { shouldDirty: true });
+   242→    setValue("line2", defaultAddress.line2 ?? "", { shouldDirty: true });
+   243→    setValue("city", defaultAddress.city, { shouldDirty: true });
+   244→    setValue("state", defaultAddress.state, { shouldDirty: true });
+   245→    setValue("postcode", defaultAddress.postcode, { shouldDirty: true });
+   246→    setValue("country", defaultAddress.country, { shouldDirty: true });
+   247→    toast.success("Saved address applied", {
+   248→      description: `${defaultAddress.label} · ${defaultAddress.city}, ${defaultAddress.state}`,
+   249→    });
+   250→  }
+   251→
+   252→  // Derived totals — the delivery-method surcharge is added on top of the
+   253→  // standard shipping rule. The server is the final authority; this is just
+   254→  // for the live order summary.
+   255→  const baseShipping =
+   256→    subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FLAT;
+   257→  const deliverySurcharge =
+   258→    DELIVERY_METHODS.find((m) => m.id === deliveryMethod)?.price ?? 0;
+   259→  const shipping = deliveryMethod === "standard" ? baseShipping : deliverySurcharge;
+   260→  const total = subtotal + shipping;
+   261→
+   262→  async function onSubmit(values: FormValues) {
+   263→    setServerError(null);
+   264→    setSubmitting(true);
+   265→    try {
+   266→      // Map cart lines to the server-authoritative shape: only slug, variant,
+   267→      // quantity. Prices are NEVER sent — the server re-derives them from
+   268→      // the catalog.
+   269→      const items = lines.map((l) => ({
+   270→        slug: l.slug,
+   271→        ...(l.variant ? { variant: l.variant } : {}),
+   272→        quantity: l.quantity,
+   273→      }));
+   274→
+   275→      const address = {
+   276→        fullName: values.fullName,
+   277→        line1: values.line1,
+   278→        line2: values.line2,
+   279→        city: values.city,
+   280→        state: values.state,
+   281→        postcode: values.postcode,
+   282→        country: values.country,
+   283→        phone: values.contactPhone,
+   284→      };
+   285→
+   286→      const paymentLabel = buildPaymentLabel(values);
+   287→
+   288→      const res = await fetch("/api/checkout", {
+   289→        method: "POST",
+   290→        headers: { "Content-Type": "application/json" },
+   291→        body: JSON.stringify({ items, address, payment: paymentLabel }),
+   292→      });
+   293→      const data = (await res.json().catch(() => ({}))) as
+   294→        | { order?: { id: string } }
+   295→        | { error?: string };
+   296→
+   297→      if (!res.ok || !("order" in data) || !data.order) {
+   298→        const err = (data as { error?: string }).error;
+   299→        setServerError(err ?? "We couldn't place your order. Please try again.");
+   300→        setSubmitting(false);
+   301→        return;
+   302→      }
+   303→
+   304→      // Success — clear the cart and route to the confirmation page.
+   305→      clear();
+   306→      toast.success("Order placed", {
+   307→        description: `Confirmation ${data.order.id}`,
+   308→      });
+   309→      router.push(`/checkout/success?order=${encodeURIComponent(data.order.id)}`);
+   310→    } catch {
+   311→      setServerError("Network error. Please try again.");
+   312→      setSubmitting(false);
+   313→    }
+   314→  }
+   315→
+   316→  // ── Loading / empty gate ───────────────────────────────────────────
+   317→  if (!ready) {
+   318→    return <CheckoutSkeleton />;
+   319→  }
+   320→
+   321→  if (lines.length === 0 && !submitting) {
+   322→    // Redirect is fired by the effect above; render a minimal state in the
+   323→    // meantime so the visitor doesn't see a half-formed checkout.
+   324→    return (
+   325→      <div
+   326→        className="mt-10 flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/60 px-6 py-16 text-center"
+   327→        aria-busy="true"
+   328→        aria-label="Redirecting to your bag"
+   329→      >
+   330→        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-foreground/60">
+   331→          <Loader2 className="h-5 w-5 animate-spin" />
+   332→        </div>
+   333→        <p className="mt-3 text-sm text-muted-foreground">
+   334→          Your bag is empty — redirecting you back…
+   335→        </p>
+   336→      </div>
+   337→    );
+   338→  }
+   339→
+   340→  // ── Render the populated checkout ──────────────────────────────────
+   341→  return (
+   342→    <form
+   343→      onSubmit={handleSubmit(onSubmit)}
+   344→      noValidate
+   345→      aria-label="Checkout form"
+   346→      className="mt-8 grid gap-8 lg:grid-cols-[1fr_22rem]"
+   347→    >
+   348→      {/* ── Left: form sections ─────────────────────────────────────── */}
+   349→      <div className="space-y-6">
+   350→        {serverError && (
+   351→          <Alert variant="destructive" role="alert">
+   352→            <AlertCircle className="h-4 w-4" />
+   353→            <AlertDescription>{serverError}</AlertDescription>
+   354→          </Alert>
+   355→        )}
+   356→
+   357→        {/* 1. Contact */}
+   358→        <FormSection
+   359→          step={1}
+   360→          title="Contact"
+   361→          description="We'll send your order confirmation and updates here."
+   362→        >
+   363→          <div className="grid gap-4 sm:grid-cols-2">
+   364→            <Field
+   365→              id="checkout-email"
+   366→              label="Email"
+   367→              error={errors.contactEmail?.message}
+   368→              autoComplete="email"
+   369→              inputMode="email"
+   370→              placeholder="you@example.com"
+   371→              register={register("contactEmail")}
+   372→            />
+   373→            <Field
+   374→              id="checkout-phone"
+   375→              label="Phone"
+   376→              error={errors.contactPhone?.message}
+   377→              autoComplete="tel"
+   378→              inputMode="tel"
+   379→              placeholder="88587 63010"
+   380→              register={register("contactPhone")}
+   381→            />
+   382→          </div>
+   383→        </FormSection>
+   384→
+   385→        {/* 2. Delivery address */}
+   386→        <FormSection
+   387→          step={2}
+   388→          title="Delivery address"
+   389→          description="Where should we ship your order?"
+   390→        >
+   391→          {/* Saved-address affordance */}
+   392→          {authReady && user ? (
+   393→            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-copper/25 bg-copper/[0.04] p-3">
+   394→              <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+   395→                <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-copper" />
+   396→                <span>
+   397→                  <span className="font-medium text-foreground">
+   398→                    {defaultAddress.label}
+   399→                  </span>{" "}
+   400→                  · {defaultAddress.line1}
+   401→                  {defaultAddress.line2 ? `, ${defaultAddress.line2}` : ""},{" "}
+   402→                  {defaultAddress.city} {defaultAddress.postcode}
+   403→                </span>
+   404→              </p>
+   405→              <Button
+   406→                type="button"
+   407→                variant="outline"
+   408→                size="sm"
+   409→                onClick={prefillSavedAddress}
+   410→                className="press shrink-0"
+   411→              >
+   412→                Use saved address
+   413→              </Button>
+   414→            </div>
+   415→          ) : authReady ? (
+   416→            <div className="mb-4 flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-muted/30 p-3 text-xs">
+   417→              <p className="text-muted-foreground">
+   418→                Signed-in customers can prefill their saved address.
+   419→              </p>
+   420→              <Link
+   421→                href="/auth/signin"
+   422→                className="font-medium text-copper hover:underline"
+   423→              >
+   424→                Sign in
+   425→              </Link>
+   426→            </div>
+   427→          ) : null}
+   428→
+   429→          <div className="space-y-4">
+   430→            <Field
+   431→              id="checkout-name"
+   432→              label="Full name"
+   433→              error={errors.fullName?.message}
+   434→              autoComplete="name"
+   435→              placeholder="Recipient's full name"
+   436→              register={register("fullName")}
+   437→            />
+   438→            <Field
+   439→              id="checkout-line1"
+   440→              label="Address line 1"
+   441→              error={errors.line1?.message}
+   442→              autoComplete="address-line1"
+   443→              placeholder="Flat / house no., building, street"
+   444→              register={register("line1")}
+   445→            />
+   446→            <Field
+   447→              id="checkout-line2"
+   448→              label="Address line 2 (optional)"
+   449→              error={errors.line2?.message}
+   450→              autoComplete="address-line2"
+   451→              placeholder="Landmark, area, unit"
+   452→              register={register("line2")}
+   453→            />
+   454→            <div className="grid gap-4 sm:grid-cols-2">
+   455→              <Field
+   456→                id="checkout-city"
+   457→                label="City"
+   458→                error={errors.city?.message}
+   459→                autoComplete="address-level2"
+   460→                placeholder="Bahraich"
+   461→                register={register("city")}
+   462→              />
+   463→              <Field
+   464→                id="checkout-state"
+   465→                label="State"
+   466→                error={errors.state?.message}
+   467→                autoComplete="address-level1"
+   468→                placeholder="Maharashtra"
+   469→                register={register("state")}
+   470→              />
+   471→            </div>
+   472→            <div className="grid gap-4 sm:grid-cols-2">
+   473→              <Field
+   474→                id="checkout-postcode"
+   475→                label="PIN code"
+   476→                error={errors.postcode?.message}
+   477→                autoComplete="postal-code"
+   478→                inputMode="numeric"
+   479→                placeholder="271801"
+   480→                register={register("postcode")}
+   481→              />
+   482→              <Field
+   483→                id="checkout-country"
+   484→                label="Country"
+   485→                error={errors.country?.message}
+   486→                autoComplete="country-name"
+   487→                register={register("country")}
+   488→              />
+   489→            </div>
+   490→          </div>
+   491→        </FormSection>
+   492→
+   493→        {/* 3. Delivery method */}
+   494→        <FormSection
+   495→          step={3}
+   496→          title="Delivery method"
+   497→          description="Choose how fast you'd like it."
+   498→        >
+   499→          <RadioGroup
+   500→            value={deliveryMethod}
+   501→            onValueChange={(v) =>
+   502→              setValue("deliveryMethod", v as FormValues["deliveryMethod"], {
+   503→                shouldDirty: true,
+   504→              })
+   505→            }
+   506→            className="grid gap-2.5"
+   507→          >
+   508→            {DELIVERY_METHODS.map((m) => (
+   509→              <PaymentRadioCard
+   510→                key={m.id}
+   511→                value={m.id}
+   512→                checked={deliveryMethod === m.id}
+   513→                icon={<m.icon className="h-4 w-4" />}
+   514→                title={m.label}
+   515→                description={m.description}
+   516→                aside={
+   517→                  m.price === 0 ? (
+   518→                    <span className="text-sm font-medium text-copper">Free</span>
+   519→                  ) : (
+   520→                    <span className="font-mono text-sm">{formatPrice(m.price)}</span>
+   521→                  )
+   522→                }
+   523→              />
+   524→            ))}
+   525→          </RadioGroup>
+   526→        </FormSection>
+   527→
+   528→        {/* 4. Payment */}
+   529→        <FormSection
+   530→          step={4}
+   531→          title="Payment"
+   532→          description="All payments are encrypted. We never store your card details."
+   533→        >
+   534→          <RadioGroup
+   535→            value={paymentMethod}
+   536→            onValueChange={(v) =>
+   537→              setValue("paymentMethod", v as FormValues["paymentMethod"], {
+   538→                shouldDirty: true,
+   539→              })
+   540→            }
+   541→            className="grid gap-2.5"
+   542→          >
+   543→            {PAYMENT_METHODS.map((m) => (
+   544→              <PaymentRadioCard
+   545→                key={m.id}
+   546→                value={m.id}
+   547→                checked={paymentMethod === m.id}
+   548→                icon={<m.icon className="h-4 w-4" />}
+   549→                title={m.label}
+   550→                description={m.description}
+   551→              />
+   552→            ))}
+   553→          </RadioGroup>
+   554→
+   555→          {/* Conditional payment fields */}
+   556→          <div className="mt-4 space-y-4">
+   557→            {paymentMethod === "card" && (
+   558→              <div className="grid gap-4 sm:grid-cols-2">
+   559→                <Field
+   560→                  id="checkout-card-number"
+   561→                  label="Card number"
+   562→                  error={errors.cardNumber?.message}
+   563→                  inputMode="numeric"
+   564→                  autoComplete="cc-number"
+   565→                  placeholder="4242 4242 4242 4242"
+   566→                  className="sm:col-span-2"
+   567→                  register={register("cardNumber")}
+   568→                />
+   569→                <Field
+   570→                  id="checkout-card-name"
+   571→                  label="Name on card"
+   572→                  error={errors.cardName?.message}
+   573→                  autoComplete="cc-name"
+   574→                  placeholder="As printed on the card"
+   575→                  className="sm:col-span-2"
+   576→                  register={register("cardName")}
+   577→                />
+   578→                <Field
+   579→                  id="checkout-card-expiry"
+   580→                  label="Expiry (MM/YY)"
+   581→                  error={errors.cardExpiry?.message}
+   582→                  inputMode="numeric"
+   583→                  autoComplete="cc-exp"
+   584→                  placeholder="08/27"
+   585→                  register={register("cardExpiry")}
+   586→                />
+   587→                <Field
+   588→                  id="checkout-card-cvv"
+   589→                  label="CVV"
+   590→                  error={errors.cardCvv?.message}
+   591→                  inputMode="numeric"
+   592→                  autoComplete="cc-csc"
+   593→                  placeholder="•••"
+   594→                  register={register("cardCvv")}
+   595→                />
+   596→              </div>
+   597→            )}
+   598→
+   599→            {paymentMethod === "upi" && (
+   600→              <Field
+   601→                id="checkout-upi"
+   602→                label="UPI ID"
+   603→                error={errors.upiId?.message}
+   604→                inputMode="email"
+   605→                placeholder="name@oksbi"
+   606→                hint="Enter the UPI ID linked to your bank account."
+   607→                register={register("upiId")}
+   608→              />
+   609→            )}
+   610→
+   611→            {paymentMethod === "cod" && (
+   612→              <div className="rounded-lg border border-border/70 bg-muted/30 p-3 text-sm leading-relaxed text-muted-foreground">
+   613→                Pay in cash when your order arrives. Please keep exact change
+   614→                ready — our delivery partner may not carry change for large
+   615→                amounts.
+   616→              </div>
+   617→            )}
+   618→          </div>
+   619→        </FormSection>
+   620→
+   621→        {/* Trust footer for the form column */}
+   622→        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+   623→          <span className="inline-flex items-center gap-1.5">
+   624→            <Lock className="h-3.5 w-3.5 text-copper" />
+   625→            256-bit SSL encryption
+   626→          </span>
+   627→          <span className="inline-flex items-center gap-1.5">
+   628→            <ShieldCheck className="h-3.5 w-3.5 text-copper" />
+   629→            We never store card details
+   630→          </span>
+   631→          <span className="inline-flex items-center gap-1.5">
+   632→            <RotateCcw className="h-3.5 w-3.5 text-copper" />
+   633→            7-day returns
+   634→          </span>
+   635→        </div>
+   636→      </div>
+   637→
+   638→      {/* ── Right: sticky order summary ──────────────────────────────── */}
+   639→      <aside className="lg:sticky lg:top-24 lg:self-start" aria-label="Order summary">
+   640→        <div className="rounded-xl border border-border/70 bg-card p-5">
+   641→          <h2 className="font-display text-xl tracking-tight">Order summary</h2>
+   642→
+   643→          {/* Items */}
+   644→          <ul className="mt-4 space-y-3">
+   645→            {lines.map((line) => (
+   646→              <li key={line.key} className="flex items-start gap-3">
+   647→                <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md border border-border/70 bg-muted">
+   648→                  <ProductVisual
+   649→                    visualKey={line.visualKey}
+   650→                    accent={line.accent}
+   651→                    className="h-full w-full"
+   652→                  />
+   653→                  <span
+   654→                    className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-foreground px-1 text-[10px] font-medium text-background"
+   655→                    aria-label={`Quantity ${line.quantity}`}
+   656→                  >
+   657→                    {line.quantity}
+   658→                  </span>
+   659→                </div>
+   660→                <div className="min-w-0 flex-1">
+   661→                  <p className="line-clamp-1 text-sm font-medium leading-tight">
+   662→                    {line.name}
+   663→                  </p>
+   664→                  {line.variant && (
+   665→                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+   666→                      {line.variant}
+   667→                    </p>
+   668→                  )}
+   669→                </div>
+   670→                <span className="font-mono text-xs tabular-nums">
+   671→                  {formatPrice(line.unitPrice * line.quantity)}
+   672→                </span>
+   673→              </li>
+   674→            ))}
+   675→          </ul>
+   676→
+   677→          <Separator className="my-4" />
+   678→
+   679→          {/* Totals */}
+   680→          <dl className="space-y-2 text-sm">
+   681→            <div className="flex items-baseline justify-between">
+   682→              <dt className="text-muted-foreground">
+   683→                Subtotal ({count} {count === 1 ? "item" : "items"})
+   684→              </dt>
+   685→              <dd className="font-medium tabular-nums">{formatPrice(subtotal)}</dd>
+   686→            </div>
+   687→            <div className="flex items-baseline justify-between">
+   688→              <dt className="text-muted-foreground">Shipping</dt>
+   689→              <dd className="font-medium tabular-nums">
+   690→                {shipping === 0 ? (
+   691→                  <span className="text-copper">Free</span>
+   692→                ) : (
+   693→                  formatPrice(shipping)
+   694→                )}
+   695→              </dd>
+   696→            </div>
+   697→          </dl>
+   698→
+   699→          <Separator className="my-3" />
+   700→
+   701→          <div className="flex items-baseline justify-between">
+   702→            <span className="font-display text-base font-medium">Total</span>
+   703→            <span className="font-display text-2xl font-medium tracking-tight tabular-nums">
+   704→              {formatPrice(total)}
+   705→            </span>
+   706→          </div>
+   707→          <p className="mt-1 text-[11px] text-muted-foreground">
+   708→            Inclusive of all taxes. GST shown on invoice.
+   709→          </p>
+   710→
+   711→          <Button
+   712→            type="submit"
+   713→            disabled={submitting}
+   714→            className="press mt-5 w-full bg-foreground text-background hover:bg-foreground/90"
+   715→            size="lg"
+   716→          >
+   717→            {submitting ? (
+   718→              <>
+   719→                <Loader2 className="animate-spin" />
+   720→                Placing order…
+   721→              </>
+   722→            ) : (
+   723→              <>
+   724→                <Lock className="h-4 w-4" />
+   725→                Place order · {formatPrice(total)}
+   726→              </>
+   727→            )}
+   728→          </Button>
+   729→
+   730→          <p className="mt-3 text-center text-[11px] text-muted-foreground">
+   731→            By placing your order you agree to our{" "}
+   732→            <Link href="/terms" className="underline hover:text-foreground">
+   733→              Terms
+   734→            </Link>{" "}
+   735→            and{" "}
+   736→            <Link href="/privacy" className="underline hover:text-foreground">
+   737→              Privacy Policy
+   738→            </Link>
+   739→            .
+   740→          </p>
+   741→        </div>
+   742→      </aside>
+   743→    </form>
+   744→  );
+   745→}
+   746→
+   747→// ── Helpers ────────────────────────────────────────────────────────────
+   748→
+   749→function buildPaymentLabel(values: FormValues): string {
+   750→  if (values.paymentMethod === "card") {
+   751→    const num = digits(values.cardNumber ?? "");
+   752→    const last4 = num.slice(-4);
+   753→    return last4 ? `Card ending ${last4}` : "Card payment";
+   754→  }
+   755→  if (values.paymentMethod === "upi") {
+   756→    const id = (values.upiId ?? "").trim();
+   757→    return id ? `UPI · ${id}` : "UPI";
+   758→  }
+   759→  return "Cash on delivery";
+   760→}
+   761→
+   762→// ── Sub-components ────────────────────────────────────────────────────
+   763→
+   764→function FormSection({
+   765→  step,
+   766→  title,
+   767→  description,
+   768→  children,
+   769→}: {
+   770→  step: number;
+   771→  title: string;
+   772→  description?: string;
+   773→  children: React.ReactNode;
+   774→}) {
+   775→  return (
+   776→    <section
+   777→      aria-labelledby={`section-${step}-title`}
+   778→      className="rounded-xl border border-border/70 bg-card p-5"
+   779→    >
+   780→      <div className="flex items-start gap-3">
+   781→        <span
+   782→          aria-hidden="true"
+   783→          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-copper/10 font-mono text-xs font-medium text-copper"
+   784→        >
+   785→          {step}
+   786→        </span>
+   787→        <div className="min-w-0 flex-1">
+   788→          <h2
+   789→            id={`section-${step}-title`}
+   790→            className="font-display text-xl tracking-tight"
+   791→          >
+   792→            {title}
+   793→          </h2>
+   794→          {description && (
+   795→            <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
+   796→          )}
+   797→        </div>
+   798→      </div>
+   799→      <div className="mt-4">{children}</div>
+   800→    </section>
+   801→  );
+   802→}
+   803→
+   804→function Field({
+   805→  id,
+   806→  label,
+   807→  error,
+   808→  hint,
+   809→  className,
+   810→  register,
+   811→  ...inputProps
+   812→}: {
+   813→  id: string;
+   814→  label: string;
+   815→  error?: string;
+   816→  hint?: string;
+   817→  className?: string;
+   818→  register: ReturnType<ReturnType<typeof useForm<FormValues>>["register"]>;
+   819→} & Omit<React.ComponentProps<typeof Input>, "id">) {
+   820→  const describedBy = error
+   821→    ? `${id}-error`
+   822→    : hint
+   823→    ? `${id}-hint`
+   824→    : undefined;
+   825→  return (
+   826→    <div className={cn("space-y-1.5", className)}>
+   827→      <Label htmlFor={id}>{label}</Label>
+   828→      <Input
+   829→        id={id}
+   830→        aria-invalid={!!error}
+   831→        aria-describedby={describedBy}
+   832→        {...register}
+   833→        {...inputProps}
+   834→      />
+   835→      {hint && !error && (
+   836→        <p id={`${id}-hint`} className="text-xs text-muted-foreground">
+   837→          {hint}
+   838→        </p>
+   839→      )}
+   840→      {error && (
+   841→        <p id={`${id}-error`} role="alert" className="text-sm text-destructive">
+   842→          {error}
+   843→        </p>
+   844→      )}
+   845→    </div>
+   846→  );
+   847→}
+   848→
+   849→function PaymentRadioCard({
+   850→  value,
+   851→  checked,
+   852→  icon,
+   853→  title,
+   854→  description,
+   855→  aside,
+   856→}: {
+   857→  value: string;
+   858→  checked: boolean;
+   859→  icon: React.ReactNode;
+   860→  title: string;
+   861→  description?: string;
+   862→  aside?: React.ReactNode;
+   863→}) {
+   864→  // The Label wraps the radio + content so the entire card is clickable.
+   865→  // `has-[:checked]:` selectors drive the selected visual state.
+   866→  return (
+   867→    <Label
+   868→      htmlFor={`radio-${value}`}
+   869→      className={cn(
+   870→        "flex cursor-pointer items-center gap-3 rounded-lg border border-border/70 bg-card p-3.5 transition-colors press",
+   871→        "hover:bg-muted/40",
+   872→        checked && "border-copper/50 bg-copper/[0.04]"
+   873→      )}
+   874→    >
+   875→      <RadioGroupItem
+   876→        id={`radio-${value}`}
+   877→        value={value}
+   878→        className="data-[state=checked]:border-copper"
+   879→      />
+   880→      <span className="flex h-8 w-8 items-center justify-center rounded-md bg-muted text-foreground/70">
+   881→        {icon}
+   882→      </span>
+   883→      <span className="min-w-0 flex-1">
+   884→        <span className="block text-sm font-medium leading-tight">{title}</span>
+   885→        {description && (
+   886→          <span className="mt-0.5 block text-xs text-muted-foreground">
+   887→            {description}
+   888→          </span>
+   889→        )}
+   890→      </span>
+   891→      {aside && <span className="shrink-0">{aside}</span>}
+   892→    </Label>
+   893→  );
+   894→}
+   895→
+   896→// ── Loading skeleton ───────────────────────────────────────────────────
+   897→
+   898→function CheckoutSkeleton() {
+   899→  return (
+   900→    <div
+   901→      className="mt-8 grid gap-8 lg:grid-cols-[1fr_22rem]"
+   902→      aria-busy="true"
+   903→      aria-label="Loading checkout"
+   904→    >
+   905→      <div className="space-y-4">
+   906→        {Array.from({ length: 3 }).map((_, i) => (
+   907→          <div
+   908→            key={i}
+   909→            className="space-y-3 rounded-xl border border-border/70 bg-card p-5"
+   910→          >
+   911→            <Skeleton className="h-6 w-40" />
+   912→            <Skeleton className="h-9 w-full" />
+   913→            <Skeleton className="h-9 w-2/3" />
+   914→          </div>
+   915→        ))}
+   916→      </div>
+   917→      <Skeleton className="h-80 w-full rounded-xl" />
+   918→    </div>
+   919→  );
+   920→}
+   921→

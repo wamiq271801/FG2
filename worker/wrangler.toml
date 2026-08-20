@@ -1,0 +1,15 @@
+name = "fusiongadgets-worker"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+workers_dev = false
+
+# Secrets (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, WORKER_INTEGRITY_SECRET,
+# rate-limit vars) are NOT listed here. Set them via:
+#   wrangler secret put SUPABASE_URL
+#   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+#   wrangler secret put WORKER_INTEGRITY_SECRET
+# Local dev uses worker/.dev.vars (gitignored).
+
+# Phase 1: deployed as a placeholder. Routes are defined in src/index.ts but
+# only return 501 until their Phase is implemented. This keeps the boundary
+# real and deployable without enabling any sensitive action prematurely.

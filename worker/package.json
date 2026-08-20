@@ -1,0 +1,14 @@
+{
+  "name": "fusiongadgets-worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloudflare Worker — sensitive-operation gate for Fusion Gadgets. Boundary only in Phase 1.",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  }
+}

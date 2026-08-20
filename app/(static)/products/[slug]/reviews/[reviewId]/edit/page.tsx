@@ -1,0 +1,92 @@
+import type { Metadata } from "next";
+import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
+import { getProductBySlug } from "@/modules/catalog/data";
+import { getReviewById } from "@/modules/review/data";
+import { ProductVisual } from "@/components/shared/ProductVisual";
+import { ReviewForm } from "@/components/review/ReviewForm";
+import { ReviewEditGate } from "./ReviewEditGate";
+
+export const revalidate = 0;
+
+type Params = Promise<{ slug: string; reviewId: string }>;
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Params;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const product = await getProductBySlug(slug);
+  if (!product) return {};
+  return {
+    title: `Edit review · ${product.name}`,
+    robots: { index: false, follow: true },
+    alternates: { canonical: `/products/${slug}/reviews` },
+  };
+}
+
+export default async function EditReviewPage({ params }: { params: Params }) {
+  const { slug, reviewId } = await params;
+  const product = await getProductBySlug(slug);
+  if (!product) notFound();
+
+  const review = await getReviewById(reviewId);
+  if (!review) notFound();
+
+  const primaryImage = product.images[0];
+
+  return (
+    <main className="container-edge py-8 lg:py-12">
+      <nav className="mb-6 text-sm text-muted-foreground" aria-label="Breadcrumb">
+        <Link href={`/product/${product.slug}`} className="hover:text-foreground">
+          {product.name}
+        </Link>{" "}
+        <span aria-hidden>›</span>{" "}
+        <Link href={`/products/${product.slug}/reviews`} className="hover:text-foreground">
+          Reviews
+        </Link>{" "}
+        <span aria-hidden>›</span> Edit
+      </nav>
+
+      <div className="mx-auto max-w-2xl">
+        <header className="mb-8 flex items-center gap-4">
+          {primaryImage ? (
+            <img
+              src={primaryImage}
+              alt={product.name}
+              className="h-20 w-20 rounded-lg border border-border object-cover"
+            />
+          ) : (
+            <ProductVisual
+              visualKey={product.visualKey}
+              accent={product.accent}
+              className="h-20 w-20 rounded-lg border border-border"
+            />
+          )}
+          <div>
+            <h1 className="font-display text-2xl tracking-tight">Edit your review</h1>
+            <p className="text-sm text-muted-foreground">{product.name}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              FGPN {product.fgpNumber}
+            </p>
+          </div>
+        </header>
+
+        <ReviewEditGate
+          review={review}
+          renderForm={() => (
+            <ReviewForm
+              mode={{
+                kind: "edit",
+                reviewId: review.id,
+                initial: { rating: review.rating, title: review.title, body: review.body },
+              }}
+              slug={product.slug}
+            />
+          )}
+        />
+      </div>
+    </main>
+  );
+}

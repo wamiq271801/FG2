@@ -1,0 +1,1515 @@
+-- ============================================================
+-- Fusion Gadgets — apply everything (idempotent).
+-- Run this in the Supabase Dashboard SQL Editor.
+-- Drops any conflicting tables first, then creates schema + RLS + seed + test auth.
+-- ============================================================
+
+-- 1. DROP conflicting/old tables (reverse dependency order, IF EXISTS = safe)
+DROP TABLE IF EXISTS circulation_entries CASCADE;
+DROP TABLE IF EXISTS circulation_versions CASCADE;
+DROP TABLE IF EXISTS order_timeline CASCADE;
+DROP TABLE IF EXISTS order_items CASCADE;
+DROP TABLE IF EXISTS orders CASCADE;
+DROP TABLE IF EXISTS wishlist_items CASCADE;
+DROP TABLE IF EXISTS cart_items CASCADE;
+DROP TABLE IF EXISTS addresses CASCADE;
+DROP TABLE IF EXISTS profiles CASCADE;
+DROP TABLE IF EXISTS offer_products CASCADE;
+DROP TABLE IF EXISTS offers CASCADE;
+DROP TABLE IF EXISTS product_reviews CASCADE;
+DROP TABLE IF EXISTS product_related CASCADE;
+DROP TABLE IF EXISTS product_badges CASCADE;
+DROP TABLE IF EXISTS product_includes CASCADE;
+DROP TABLE IF EXISTS product_highlights CASCADE;
+DROP TABLE IF EXISTS product_specs CASCADE;
+DROP TABLE IF EXISTS product_variants CASCADE;
+DROP TABLE IF EXISTS product_images CASCADE;
+DROP TABLE IF EXISTS products CASCADE;
+DROP TABLE IF EXISTS brands CASCADE;
+DROP TABLE IF EXISTS categories CASCADE;
+
+-- 2. DROP old triggers/functions
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP FUNCTION IF EXISTS handle_new_auth_user() CASCADE;
+DROP FUNCTION IF EXISTS set_updated_at() CASCADE;
+
+-- 3. DROP old enums
+DROP TYPE IF EXISTS availability_enum CASCADE;
+DROP TYPE IF EXISTS product_visual_key_enum CASCADE;
+DROP TYPE IF EXISTS currency_enum CASCADE;
+DROP TYPE IF EXISTS order_status_enum CASCADE;
+DROP TYPE IF EXISTS payment_method_enum CASCADE;
+DROP TYPE IF EXISTS payment_status_enum CASCADE;
+DROP TYPE IF EXISTS offer_status_enum CASCADE;
+DROP TYPE IF EXISTS onboarding_state_enum CASCADE;
+DROP TYPE IF EXISTS circulation_surface_enum CASCADE;
+DROP TYPE IF EXISTS circulation_version_status_enum CASCADE;
+
+
+-- ============================================================
+-- SCHEMA
+-- ============================================================
+-- Fusion Gadgets — Phase 1 schema foundation.
+-- Run on a fresh Supabase Postgres project. Idempotent-safe for catalog tables
+-- (uses CREATE TYPE ... DO $$ / CREATE TABLE IF NOT EXISTS where reasonable).
+--
+-- Design rules followed:
+--  - Money stored as integer (whole rupees) to match the existing UI (en-IN, 0 fractions).
+--  - Catalog tables (categories/brands/products/...) use stable slug/text primary keys.
+--  - User-owned tables use uuid PKs and a user_id FK -> auth.users(id).
+--  - Order items store historical snapshots so past orders never depend on current product rows.
+--  - No JSON blobs for relational data; no speculative columns.
+
+-- =========================================================================
+-- ENUMS
+-- =========================================================================
+DO $$ BEGIN
+  CREATE TYPE availability_enum AS ENUM ('in-stock', 'low-stock', 'out-of-stock', 'preorder');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE product_visual_key_enum AS ENUM (
+    'headphones','earbuds','speaker','keyboard','mouse','watch',
+    'camera','lens','drone','charger','cable','stand','lamp',
+    'backpack','controller','mic','monitor','tracker'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE currency_enum AS ENUM ('INR');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE order_status_enum AS ENUM (
+    'processing','confirmed','shipped','out-for-delivery','delivered','cancelled','returned'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  -- COD-only for production checkout, but the enum records the methods the UI already supports
+  -- so later phases don't need an ALTER. Card/UPI remain non-production for now.
+  CREATE TYPE payment_method_enum AS ENUM ('cod','card','upi');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE payment_status_enum AS ENUM ('pending','paid','failed','refunded');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE offer_status_enum AS ENUM ('draft','scheduled','active','expired');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE onboarding_state_enum AS ENUM ('incomplete','complete');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE circulation_surface_enum AS ENUM (
+    'home_trending','home_new_arrivals','home_featured','home_on_sale','shop_default'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE circulation_version_status_enum AS ENUM ('building','published','archived');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- =========================================================================
+-- UPDATED_AT TRIGGER FUNCTION (shared)
+-- =========================================================================
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+-- =========================================================================
+-- CATALOG: categories
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS categories (
+  slug           text PRIMARY KEY,
+  name           text NOT NULL,
+  tagline        text NOT NULL,
+  description    text NOT NULL,
+  intro          text NOT NULL,
+  image          text NOT NULL,
+  accent         text NOT NULL,
+  subcategories  text[] NOT NULL DEFAULT '{}',
+  featured       text[] NOT NULL DEFAULT '{}',   -- product slugs
+  seo_note       text NOT NULL,
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  updated_at     timestamptz NOT NULL DEFAULT now()
+);
+
+-- =========================================================================
+-- CATALOG: brands
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS brands (
+  slug        text PRIMARY KEY,
+  name        text NOT NULL,
+  country     text NOT NULL,           -- free text ("India", "Sweden")
+  blurb       text NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+
+-- =========================================================================
+-- CATALOG: products
+-- Public read-only. No public write policies (see 0002_rls_policies.sql).
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS products (
+  slug          text PRIMARY KEY,
+  name          text NOT NULL,
+  subtitle      text NOT NULL,
+  brand_slug    text NOT NULL REFERENCES brands(slug) ON DELETE RESTRICT,
+  category_slug text NOT NULL REFERENCES categories(slug) ON DELETE RESTRICT,
+  subcategory   text,
+  tagline       text NOT NULL,
+  description   text NOT NULL,
+  story         text NOT NULL DEFAULT '',
+  price         integer NOT NULL CHECK (price >= 0),
+  compare_at    integer CHECK (compare_at IS NULL OR compare_at >= 0),
+  currency      currency_enum NOT NULL DEFAULT 'INR',
+  visual_key    product_visual_key_enum NOT NULL,
+  accent        text NOT NULL,
+  availability  availability_enum NOT NULL DEFAULT 'in-stock',
+  stock         integer CHECK (stock IS NULL OR stock >= 0),
+  rating        numeric(2,1) NOT NULL DEFAULT 0 CHECK (rating >= 0 AND rating <= 5),
+  review_count  integer NOT NULL DEFAULT 0 CHECK (review_count >= 0),
+  shipping      text NOT NULL DEFAULT '',
+  warranty      text NOT NULL DEFAULT '',
+  added_at      date NOT NULL DEFAULT CURRENT_DATE,
+  is_active     boolean NOT NULL DEFAULT true,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT products_compare_at_gt_price CHECK (compare_at IS NULL OR compare_at > price)
+);
+CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_slug) WHERE is_active;
+CREATE INDEX IF NOT EXISTS idx_products_brand ON products(brand_slug) WHERE is_active;
+CREATE INDEX IF NOT EXISTS idx_products_availability ON products(availability) WHERE is_active;
+CREATE INDEX IF NOT EXISTS idx_products_added_at ON products(added_at DESC) WHERE is_active;
+CREATE INDEX IF NOT EXISTS idx_products_active ON products(is_active);
+
+-- =========================================================================
+-- CATALOG: product_images (multiple ordered URLs, first = primary)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS product_images (
+  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  product_slug text NOT NULL REFERENCES products(slug) ON DELETE CASCADE,
+  url          text NOT NULL,
+  position     integer NOT NULL DEFAULT 0 CHECK (position >= 0),
+  is_primary   boolean NOT NULL DEFAULT false,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(product_slug, position),
+  UNIQUE(product_slug, is_primary) DEFERRABLE INITIALLY DEFERRED  -- at most one primary
+);
+CREATE INDEX IF NOT EXISTS idx_product_images_product ON product_images(product_slug, position);
+
+-- =========================================================================
+-- CATALOG: product_variants
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS product_variants (
+  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  product_slug text NOT NULL REFERENCES products(slug) ON DELETE CASCADE,
+  variant_id   text NOT NULL,          -- e.g. "graphite"
+  name         text NOT NULL,
+  price_delta  integer DEFAULT 0,
+  swatch       text,
+  in_stock     boolean NOT NULL DEFAULT true,
+  position     integer NOT NULL DEFAULT 0 CHECK (position >= 0),
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(product_slug, variant_id)
+);
+CREATE INDEX IF NOT EXISTS idx_product_variants_product ON product_variants(product_slug, position);
+
+-- =========================================================================
+-- CATALOG: product_specs (label/value list)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS product_specs (
+  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  product_slug text NOT NULL REFERENCES products(slug) ON DELETE CASCADE,
+  label        text NOT NULL,
+  value        text NOT NULL,
+  position     integer NOT NULL DEFAULT 0 CHECK (position >= 0),
+  UNIQUE(product_slug, position)
+);
+CREATE INDEX IF NOT EXISTS idx_product_specs_product ON product_specs(product_slug, position);
+
+-- =========================================================================
+-- CATALOG: product_highlights (ordered bullet list)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS product_highlights (
+  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  product_slug text NOT NULL REFERENCES products(slug) ON DELETE CASCADE,
+  body         text NOT NULL,
+  position     integer NOT NULL DEFAULT 0 CHECK (position >= 0),
+  UNIQUE(product_slug, position)
+);
+CREATE INDEX IF NOT EXISTS idx_product_highlights_product ON product_highlights(product_slug, position);
+
+-- =========================================================================
+-- CATALOG: product_includes ("what's in the box")
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS product_includes (
+  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  product_slug text NOT NULL REFERENCES products(slug) ON DELETE CASCADE,
+  body         text NOT NULL,
+  position     integer NOT NULL DEFAULT 0 CHECK (position >= 0),
+  UNIQUE(product_slug, position)
+);
+CREATE INDEX IF NOT EXISTS idx_product_includes_product ON product_includes(product_slug, position);
+
+-- =========================================================================
+-- CATALOG: product_badges (ordered display labels)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS product_badges (
+  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  product_slug text NOT NULL REFERENCES products(slug) ON DELETE CASCADE,
+  badge        text NOT NULL,
+  position     integer NOT NULL DEFAULT 0 CHECK (position >= 0),
+  UNIQUE(product_slug, position)
+);
+CREATE INDEX IF NOT EXISTS idx_product_badges_product ON product_badges(product_slug, position);
+
+-- =========================================================================
+-- CATALOG: product_related (self-referential M:N)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS product_related (
+  product_slug    text NOT NULL REFERENCES products(slug) ON DELETE CASCADE,
+  related_slug    text NOT NULL REFERENCES products(slug) ON DELETE CASCADE,
+  position        integer NOT NULL DEFAULT 0 CHECK (position >= 0),
+  PRIMARY KEY (product_slug, related_slug),
+  CHECK (product_slug <> related_slug)
+);
+
+-- =========================================================================
+-- CATALOG: product_reviews (editorial seed; author is free text for now)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS product_reviews (
+  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  product_slug text NOT NULL REFERENCES products(slug) ON DELETE CASCADE,
+  author        text NOT NULL,
+  rating        integer NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  review_date   date NOT NULL,
+  title         text NOT NULL,
+  body          text NOT NULL,
+  verified      boolean NOT NULL DEFAULT true,
+  position      integer NOT NULL DEFAULT 0 CHECK (position >= 0),
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(product_slug, position)
+);
+CREATE INDEX IF NOT EXISTS idx_product_reviews_product ON product_reviews(product_slug, position);
+
+-- =========================================================================
+-- OFFERS
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS offers (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug        text NOT NULL UNIQUE,
+  title       text NOT NULL,
+  description text NOT NULL,
+  badge       text NOT NULL,
+  terms       text NOT NULL,
+  starts_at   timestamptz,
+  ends_at     timestamptz,
+  status      offer_status_enum NOT NULL DEFAULT 'draft',
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT offers_date_order CHECK (
+    starts_at IS NULL OR ends_at IS NULL OR ends_at > starts_at
+  )
+);
+CREATE INDEX IF NOT EXISTS idx_offers_status ON offers(status);
+CREATE INDEX IF NOT EXISTS idx_offers_dates ON offers(starts_at, ends_at);
+
+CREATE TABLE IF NOT EXISTS offer_products (
+  offer_id     uuid NOT NULL REFERENCES offers(id) ON DELETE CASCADE,
+  product_slug text NOT NULL REFERENCES products(slug) ON DELETE CASCADE,
+  position     integer NOT NULL DEFAULT 0 CHECK (position >= 0),
+  PRIMARY KEY (offer_id, product_slug)
+);
+CREATE INDEX IF NOT EXISTS idx_offer_products_offer ON offer_products(offer_id, position);
+CREATE INDEX IF NOT EXISTS idx_offer_products_product ON offer_products(product_slug);
+
+-- =========================================================================
+-- USER-OWNED: profiles (1:1 with auth.users)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS profiles (
+  id                         uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email                      text NOT NULL UNIQUE,
+  full_name                  text,
+  phone                      text,
+  avatar_url                 text,
+  onboarding_state           onboarding_state_enum NOT NULL DEFAULT 'incomplete',
+  pref_newsletter            boolean NOT NULL DEFAULT true,
+  pref_product_updates       boolean NOT NULL DEFAULT true,
+  pref_order_updates         boolean NOT NULL DEFAULT true,
+  member_since               date NOT NULL DEFAULT CURRENT_DATE,
+  created_at                 timestamptz NOT NULL DEFAULT now(),
+  updated_at                 timestamptz NOT NULL DEFAULT now()
+);
+
+-- =========================================================================
+-- USER-OWNED: addresses (optional before checkout)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS addresses (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  label       text NOT NULL,
+  line1       text NOT NULL,
+  line2       text,
+  city        text NOT NULL,
+  state       text NOT NULL,
+  postcode    text NOT NULL,
+  country     text NOT NULL,
+  phone       text NOT NULL,
+  is_default  boolean NOT NULL DEFAULT false,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_addresses_user ON addresses(user_id);
+-- At most one default address per user:
+CREATE UNIQUE INDEX IF NOT EXISTS idx_addresses_default_per_user
+  ON addresses(user_id) WHERE is_default;
+
+-- =========================================================================
+-- USER-OWNED: cart_items
+-- variant_id '' denotes "no variant" so the uniqueness constraint is clean.
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS cart_items (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  product_slug text NOT NULL REFERENCES products(slug) ON DELETE CASCADE,
+  variant_id   text NOT NULL DEFAULT '',
+  quantity     integer NOT NULL CHECK (quantity BETWEEN 1 AND 99),
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(user_id, product_slug, variant_id)
+);
+CREATE INDEX IF NOT EXISTS idx_cart_items_user ON cart_items(user_id);
+
+-- =========================================================================
+-- USER-OWNED: wishlist_items (one entry per product per user)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS wishlist_items (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  product_slug text NOT NULL REFERENCES products(slug) ON DELETE CASCADE,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(user_id, product_slug)
+);
+CREATE INDEX IF NOT EXISTS idx_wishlist_items_user ON wishlist_items(user_id);
+
+-- =========================================================================
+-- ORDERS (historical truth, COD-only for production)
+-- order_items store snapshots; product_slug is a soft reference (ON DELETE SET NULL)
+-- so deleting a product never breaks historical rendering.
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS orders (
+  id                 text PRIMARY KEY,            -- "FG-YYYY-NNNN"
+  user_id            uuid NOT NULL REFERENCES profiles(id) ON DELETE RESTRICT,
+  status             order_status_enum NOT NULL DEFAULT 'processing',
+  payment_method     payment_method_enum NOT NULL DEFAULT 'cod',
+  payment_status     payment_status_enum NOT NULL DEFAULT 'pending',
+  currency           currency_enum NOT NULL DEFAULT 'INR',
+  subtotal           integer NOT NULL CHECK (subtotal >= 0),
+  discount_total     integer NOT NULL DEFAULT 0 CHECK (discount_total >= 0),
+  shipping_total     integer NOT NULL DEFAULT 0 CHECK (shipping_total >= 0),
+  tax_total          integer NOT NULL DEFAULT 0 CHECK (tax_total >= 0),
+  total              integer NOT NULL CHECK (total >= 0),
+  -- delivery address snapshot (independent of current saved address)
+  ship_label         text NOT NULL,
+  ship_line1         text NOT NULL,
+  ship_line2         text,
+  ship_city          text NOT NULL,
+  ship_state         text NOT NULL,
+  ship_postcode      text NOT NULL,
+  ship_country       text NOT NULL,
+  ship_phone         text NOT NULL,
+  tracking_number    text,
+  estimated_delivery date,
+  placed_at          timestamptz NOT NULL DEFAULT now(),
+  created_at         timestamptz NOT NULL DEFAULT now(),
+  updated_at         timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id, placed_at DESC);
+
+CREATE TABLE IF NOT EXISTS order_items (
+  id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  order_id      text NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  product_slug  text REFERENCES products(slug) ON DELETE SET NULL,
+  -- historical snapshots (always populated; survive product deletion)
+  product_name  text NOT NULL,
+  variant_name  text,
+  visual_key    product_visual_key_enum NOT NULL,
+  accent        text NOT NULL,
+  quantity      integer NOT NULL CHECK (quantity >= 1),
+  unit_price    integer NOT NULL CHECK (unit_price >= 0),
+  line_discount integer NOT NULL DEFAULT 0 CHECK (line_discount >= 0),
+  line_total    integer NOT NULL CHECK (line_total >= 0),
+  UNIQUE(order_id, product_slug, variant_name)
+);
+CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
+
+CREATE TABLE IF NOT EXISTS order_timeline (
+  id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  order_id    text NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  step_label  text NOT NULL,
+  step_date   timestamptz,
+  step_index  integer NOT NULL CHECK (step_index >= 0),
+  done        boolean NOT NULL DEFAULT false,
+  UNIQUE(order_id, step_index)
+);
+CREATE INDEX IF NOT EXISTS idx_order_timeline_order ON order_timeline(order_id, step_index);
+
+-- =========================================================================
+-- PUBLISHED CIRCULATION (ready-to-consume output for Next.js ISR)
+-- Only complete published versions are read by the storefront. A 'building'
+-- version that crashes mid-build is simply ignored; the previous 'published'
+-- version remains current until a new one succeeds.
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS circulation_versions (
+  id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  version       bigint NOT NULL,            -- monotonic version number
+  status        circulation_version_status_enum NOT NULL DEFAULT 'building',
+  built_at      timestamptz NOT NULL DEFAULT now(),
+  published_at  timestamptz
+);
+CREATE INDEX IF NOT EXISTS idx_circulation_versions_status ON circulation_versions(status);
+-- Only one published version at a time:
+CREATE UNIQUE INDEX IF NOT EXISTS idx_circulation_single_published
+  ON circulation_versions((1)) WHERE status = 'published';
+
+CREATE TABLE IF NOT EXISTS circulation_entries (
+  version_id    bigint NOT NULL REFERENCES circulation_versions(id) ON DELETE CASCADE,
+  surface       circulation_surface_enum NOT NULL,
+  product_slug  text NOT NULL REFERENCES products(slug) ON DELETE CASCADE,
+  position      integer NOT NULL CHECK (position >= 0),
+  score         numeric(10,4),
+  PRIMARY KEY (version_id, surface, position),
+  UNIQUE(version_id, surface, product_slug)
+);
+CREATE INDEX IF NOT EXISTS idx_circulation_entries_surface
+  ON circulation_entries(surface, position);
+
+-- =========================================================================
+-- updated_at TRIGGERS (one per table with updated_at)
+-- =========================================================================
+CREATE TRIGGER trg_categories_updated_at BEFORE UPDATE ON categories
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_brands_updated_at BEFORE UPDATE ON brands
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_products_updated_at BEFORE UPDATE ON products
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_product_variants_updated_at BEFORE UPDATE ON product_variants
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_offers_updated_at BEFORE UPDATE ON offers
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_profiles_updated_at BEFORE UPDATE ON profiles
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_addresses_updated_at BEFORE UPDATE ON addresses
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_cart_items_updated_at BEFORE UPDATE ON cart_items
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_orders_updated_at BEFORE UPDATE ON orders
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- =========================================================================
+-- AUTH -> PROFILE auto-create (fires on Supabase Auth signup, including
+-- signups initiated by the Worker via the service-role admin API).
+-- New profiles start with onboarding_state='incomplete'.
+-- =========================================================================
+CREATE OR REPLACE FUNCTION handle_new_auth_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO profiles (id, email)
+  VALUES (NEW.id, COALESCE(NEW.email, ''))
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION handle_new_auth_user();
+
+-- ============================================================
+-- RLS POLICIES
+-- ============================================================
+-- Fusion Gadgets — Phase 1 Row-Level Security.
+-- Run AFTER 0001_schema.sql. Enables RLS on every table and defines ownership
+-- policies. Catalog/offers/circulation are public-read, NO public write.
+-- User-owned tables enforce auth.uid() ownership. Orders are user-read-only
+-- (creation is Worker-protected in a later phase).
+
+-- =========================================================================
+-- CATALOG: public read, NO user write
+-- (No INSERT/UPDATE/DELETE policy => denied to anon+authenticated. Only the
+--  service_role / postgres roles bypass RLS, which is exactly the intended
+--  admin boundary.)
+-- =========================================================================
+ALTER TABLE categories            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE brands                ENABLE ROW LEVEL SECURITY;
+ALTER TABLE products              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE product_images        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE product_variants      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE product_specs         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE product_highlights    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE product_includes      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE product_badges        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE product_related       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE product_reviews       ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "categories_public_read"   ON categories         FOR SELECT USING (true);
+CREATE POLICY "brands_public_read"       ON brands             FOR SELECT USING (true);
+CREATE POLICY "products_public_read"     ON products           FOR SELECT USING (true);
+CREATE POLICY "product_images_read"      ON product_images     FOR SELECT USING (true);
+CREATE POLICY "product_variants_read"    ON product_variants   FOR SELECT USING (true);
+CREATE POLICY "product_specs_read"       ON product_specs      FOR SELECT USING (true);
+CREATE POLICY "product_highlights_read"  ON product_highlights FOR SELECT USING (true);
+CREATE POLICY "product_includes_read"    ON product_includes   FOR SELECT USING (true);
+CREATE POLICY "product_badges_read"      ON product_badges     FOR SELECT USING (true);
+CREATE POLICY "product_related_read"     ON product_related    FOR SELECT USING (true);
+CREATE POLICY "product_reviews_read"     ON product_reviews    FOR SELECT USING (true);
+
+-- =========================================================================
+-- OFFERS: public read of active/expired for storefront display.
+-- No user write. Status filtering happens in queries; the policy just allows
+-- the read so the UI can render lifecycle states (active/ended) from status+dates.
+-- =========================================================================
+ALTER TABLE offers         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE offer_products ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "offers_public_read"         ON offers         FOR SELECT USING (true);
+CREATE POLICY "offer_products_public_read" ON offer_products FOR SELECT USING (true);
+
+-- =========================================================================
+-- PROFILES: a user reads and updates ONLY their own profile row.
+-- No DELETE (profile lifetime tied to auth.users via ON DELETE CASCADE).
+-- No INSERT (created by the auth trigger).
+-- =========================================================================
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "profiles_self_read"   ON profiles FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "profiles_self_update" ON profiles FOR UPDATE USING (auth.uid() = id)
+  WITH CHECK (auth.uid() = id);
+
+-- =========================================================================
+-- ADDRESSES: full ownership CRUD (read/insert/update/delete own).
+-- =========================================================================
+ALTER TABLE addresses ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "addresses_owner_all" ON addresses
+  FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- =========================================================================
+-- CART ITEMS: full ownership CRUD.
+-- =========================================================================
+ALTER TABLE cart_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "cart_items_owner_all" ON cart_items
+  FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- =========================================================================
+-- WISHLIST ITEMS: full ownership CRUD.
+-- (UNIQUE(user_id, product_slug) already prevents duplicate ownership at the
+--  database level; this policy only enforces the user boundary.)
+-- =========================================================================
+ALTER TABLE wishlist_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "wishlist_items_owner_all" ON wishlist_items
+  FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- =========================================================================
+-- ORDERS: user can READ their own orders only.
+-- NO user INSERT/UPDATE/DELETE — order creation is a Worker-protected sensitive
+-- operation (Phase 5). The service_role bypasses RLS to insert orders.
+-- =========================================================================
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "orders_owner_read" ON orders
+  FOR SELECT USING (auth.uid() = user_id);
+
+ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "order_items_owner_read" ON order_items
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM orders
+      WHERE orders.id = order_items.order_id
+        AND orders.user_id = auth.uid()
+    )
+  );
+
+ALTER TABLE order_timeline ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "order_timeline_owner_read" ON order_timeline
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM orders
+      WHERE orders.id = order_timeline.order_id
+        AND orders.user_id = auth.uid()
+    )
+  );
+
+-- =========================================================================
+-- CIRCULATION: public read of PUBLISHED versions only.
+-- Building/archived versions are invisible to the storefront so a half-written
+-- result is never exposed. No user write (processor uses service_role).
+-- =========================================================================
+ALTER TABLE circulation_versions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE circulation_entries  ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "circulation_versions_published_read" ON circulation_versions
+  FOR SELECT USING (status = 'published');
+
+CREATE POLICY "circulation_entries_published_read" ON circulation_entries
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM circulation_versions v
+      WHERE v.id = circulation_entries.version_id
+        AND v.status = 'published'
+    )
+  );
+
+-- ============================================================
+-- SEED DATA
+-- ============================================================
+-- ============================================================
+-- Fusion Gadgets — seed data (GENERATED, do not hand-edit).
+-- Source: direct seed data (catalog mock removed in Phase 7)
+-- Idempotent: re-running is safe (ON CONFLICT DO NOTHING / replace).
+-- ============================================================
+BEGIN;
+
+TRUNCATE TABLE
+  circulation_entries, circulation_versions,
+  order_timeline, order_items, orders,
+  wishlist_items, cart_items, addresses, profiles,
+  offer_products, offers,
+  product_reviews, product_related, product_badges, product_includes,
+  product_highlights, product_specs, product_variants, product_images, products,
+  categories, brands
+  RESTART IDENTITY CASCADE;
+
+-- brands
+INSERT INTO brands (slug,name,country,blurb) VALUES ('fusion-audio','Fusion Audio Lab','India','In-house audio division tuned in Bahraich.');
+INSERT INTO brands (slug,name,country,blurb) VALUES ('halo','Halo','Sweden','Reference-grade headphones from Gothenburg.');
+INSERT INTO brands (slug,name,country,blurb) VALUES ('echo','Echo','Taiwan','Everyday listening, made precise.');
+INSERT INTO brands (slug,name,country,blurb) VALUES ('pebble','Pebble Sound','India','Portable speakers built for the Indian summer.');
+INSERT INTO brands (slug,name,country,blurb) VALUES ('type-co','Type & Co.','Japan','Mechanical keyboards with a quiet obsession.');
+INSERT INTO brands (slug,name,country,blurb) VALUES ('glide','Glide','USA','Pointing devices for long days.');
+INSERT INTO brands (slug,name,country,blurb) VALUES ('vista','Vista Display','South Korea','Colour-accurate panels for makers.');
+INSERT INTO brands (slug,name,country,blurb) VALUES ('arc','Arc','India','Machined aluminium desk goods.');
+INSERT INTO brands (slug,name,country,blurb) VALUES ('pulse','Pulse','Finland','Wearables that respect your attention.');
+INSERT INTO brands (slug,name,country,blurb) VALUES ('lumen','Lumen','Japan','Cameras and optics since 1971.');
+INSERT INTO brands (slug,name,country,blurb) VALUES ('spark','Spark Power','India','Gallium-nitride charging, compact by design.');
+INSERT INTO brands (slug,name,country,blurb) VALUES ('aura','Aura','Denmark','Lighting for focused work.');
+INSERT INTO brands (slug,name,country,blurb) VALUES ('slate','Slate','India','Walnut and ash desk furniture.');
+INSERT INTO brands (slug,name,country,blurb) VALUES ('drift','Drift','USA','Controllers and game accessories.');
+INSERT INTO brands (slug,name,country,blurb) VALUES ('compass','Compass','India','Carry goods for people who travel light.');
+
+-- categories
+INSERT INTO categories (slug,name,tagline,description,intro,image,accent,subcategories,featured,seo_note) VALUES ('audio','Audio','Headphones, earbuds & speakers','Tuned for long listening sessions — from reference-grade over-ears to pocketable earbuds and speakers built for the balcony.','Audio is where Fusion began. Every product here is auditioned in our Bahraich listening room before it earns a shelf.','/images/cat-audio.jpg','oklch(0.62 0.13 55)',ARRAY['Headphones','Earbuds','Speakers'],ARRAY['halo-one-wireless','echo-pro-anc-earbuds','pebble-field-speaker'],'Shop premium headphones, wireless earbuds and Bluetooth speakers at Fusion Gadgets. Curated audio gear with active noise cancellation, hi-res certification and a 2-year warranty.');
+INSERT INTO categories (slug,name,tagline,description,intro,image,accent,subcategories,featured,seo_note) VALUES ('keyboards','Keyboards','Mechanical keyboards & keycaps','Gasket-mounted boards, hot-swap switches and keycaps you''ll want to photograph. Built for the kind of typing you look forward to.','A good keyboard is the most personal piece of tech you own. These are the ones our team actually uses every day.','/images/cat-keyboards.jpg','oklch(0.52 0.09 150)',ARRAY['Full-size','Compact','Keycaps','Switches'],ARRAY['type-75-mechanical','artisan-keycap-tide'],'Buy mechanical keyboards online in India — gasket-mounted, hot-swappable, with PBT keycaps and tactile switches. Free shipping on keyboards above ₹4,990.');
+INSERT INTO categories (slug,name,tagline,description,intro,image,accent,subcategories,featured,seo_note) VALUES ('computing','Computing','Mice, monitors & desk hubs','The supporting cast: precise pointers, colour-accurate displays, and the aluminium stand that makes your laptop feel permanent.','Small upgrades that change how a desk feels. Mice that disappear in the hand, monitors that tell the truth about colour.','/images/cat-computing.jpg','oklch(0.45 0.06 230)',ARRAY['Mice','Monitors','Stands','Docks'],ARRAY['glide-pro-wireless','vista-27-4k-monitor','arc-aluminium-stand'],'Premium computer accessories — wireless mice, 4K monitors, Thunderbolt docks and aluminium laptop stands. Curated for designers and developers.');
+INSERT INTO categories (slug,name,tagline,description,intro,image,accent,subcategories,featured,seo_note) VALUES ('wearables','Wearables','Smartwatches & fitness trackers','Watches that respect your attention. Heart rate, sleep, and notifications — without the noise of a phone on your wrist.','Wearables should tell you less, better. These track what matters and stay out of the way the rest of the time.','/images/cat-wearables.jpg','oklch(0.58 0.16 340)',ARRAY['Smartwatches','Trackers','Bands'],ARRAY['pulse-2-smartwatch','pulse-fit-tracker'],'Shop smartwatches and fitness trackers with AMOLED displays, GPS and 7-day battery life. Available with EMI options and a 1-year warranty.');
+INSERT INTO categories (slug,name,tagline,description,intro,image,accent,subcategories,featured,seo_note) VALUES ('cameras','Cameras','Cameras & lenses','Compact cameras for everyday moments and mirrorless bodies for the work that matters. Lenses chosen for character, not just sharpness.','Cameras that make you want to carry them. The best camera is the one in your bag — these earn the bag space.','/images/cat-cameras.jpg','oklch(0.45 0.04 250)',ARRAY['Compact','Mirrorless','Lenses'],ARRAY['lumen-x100-compact','lumen-35mm-lens'],'Buy cameras and prime lenses from Lumen — compact shooters, mirrorless bodies and fast primes with India warranty and 0% EMI.');
+INSERT INTO categories (slug,name,tagline,description,intro,image,accent,subcategories,featured,seo_note) VALUES ('power','Power','Chargers & cables','GaN chargers that fold away, cables that don''t fray, and enough ports to charge the whole desk from one wall socket.','Unsexy, essential, and quietly the thing you''ll use most often. Buy the good ones once.','/images/cat-power.jpg','oklch(0.72 0.14 80)',ARRAY['Chargers','Cables','Hubs'],ARRAY['spark-65w-gan-charger','coil-usbc-cable'],'GaN chargers, braided USB-C cables and multi-port desk chargers. Fast charging for laptops, phones and accessories.');
+INSERT INTO categories (slug,name,tagline,description,intro,image,accent,subcategories,featured,seo_note) VALUES ('desks','Desks','Lamps, stands & risers','Lighting that flatters the work, walnut risers that lift the monitor to eye level, and the small objects that make a desk feel yours.','The desk is a workspace, not a warehouse. These earn their place by being useful and beautiful.','/images/cat-desks.jpg','oklch(0.55 0.08 60)',ARRAY['Lamps','Stands','Risers'],ARRAY['aura-led-desk-lamp','slate-walnut-riser'],'Designer desk accessories — LED task lamps, walnut monitor risers and machined aluminium stands. Curated for focused, beautiful workspaces.');
+INSERT INTO categories (slug,name,tagline,description,intro,image,accent,subcategories,featured,seo_note) VALUES ('gaming-carry','Gaming & Carry','Controllers, headsets & bags','Controllers with real triggers, headsets you can wear for a raid, and bags that carry a laptop and a weekend.','Play hard, carry smart. The gear that survives commutes and tournaments alike.','/images/cat-carry.jpg','oklch(0.60 0.15 16)',ARRAY['Controllers','Headsets','Backpacks','Slings'],ARRAY['drift-wireless-controller','compass-tech-backpack'],'Wireless controllers, gaming headsets, tech backpacks and sling bags. Built for gamers and travellers who want one bag for everything.');
+
+-- products + images/variants/specs/highlights/includes/badges/related/reviews
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('halo-one-wireless','Halo One Wireless Headphones','Over-ear · ANC · 40h battery','halo','audio','Headphones','Reference tuning, finally wireless.','The Halo One brings studio reference sound to a wireless over-ear. Adaptive ANC, 40-hour battery, and memory-foam earcups wrapped in protein leather.','We auditioned eleven flagship headphones before settling on the Halo One. What sold us wasn''t a spec — it was the midrange. Voices sit exactly where they should, neither pushed forward nor recessed. The ANC is class-leading for the price, and the 40-hour battery means you''ll forget the charger on a long trip and survive it. Includes a hard travel case and a 1.5m braided USB-C cable.',24990,29990,'INR','headphones','oklch(0.62 0.13 55)','in-stock',42,4.7,318,'Ships within 24 hours. Free delivery across India in 2–4 days.','2-year manufacturer warranty. 7-day return window.','2024-08-12',true);
+INSERT INTO product_images (product_slug,url,position,is_primary) VALUES ('halo-one-wireless','/images/p-halo-one-wireless.jpg',0,true);
+INSERT INTO product_variants (product_slug,variant_id,name,price_delta,swatch,in_stock,position) VALUES ('halo-one-wireless','graphite','Graphite',0,'#3a3a3a',true,0);
+INSERT INTO product_variants (product_slug,variant_id,name,price_delta,swatch,in_stock,position) VALUES ('halo-one-wireless','sand','Sand',0,'#c8b89a',true,1);
+INSERT INTO product_variants (product_slug,variant_id,name,price_delta,swatch,in_stock,position) VALUES ('halo-one-wireless','copper','Burnished Copper',0,'#b07a45',true,2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('halo-one-wireless','Driver','40mm dynamic',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('halo-one-wireless','Frequency response','8 Hz – 40 kHz',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('halo-one-wireless','ANC','Adaptive hybrid',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('halo-one-wireless','Battery','40h (ANC on)',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('halo-one-wireless','Charging','USB-C, 10 min = 5h',4);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('halo-one-wireless','Weight','252 g',5);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('halo-one-wireless','Codecs','LDAC, aptX HD, AAC, SBC',6);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('halo-one-wireless','Warranty','2 years',7);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('halo-one-wireless','Adaptive hybrid ANC tuned for Indian commute noise',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('halo-one-wireless','LDAC + aptX HD for hi-res wireless',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('halo-one-wireless','Multipoint pairing to two devices',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('halo-one-wireless','Hard travel case included',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('halo-one-wireless','Halo One headphones',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('halo-one-wireless','Hard travel case',1);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('halo-one-wireless','USB-C charging cable',2);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('halo-one-wireless','3.5mm audio cable',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('halo-one-wireless','Quick start guide',4);
+INSERT INTO product_badges (product_slug,badge,position) VALUES ('halo-one-wireless','Sale',0);
+INSERT INTO product_badges (product_slug,badge,position) VALUES ('halo-one-wireless','Editor''s pick',1);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('halo-one-wireless','halo-studio-reference',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('halo-one-wireless','echo-pro-anc-earbuds',1) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('halo-one-wireless','pebble-field-speaker',2) ON CONFLICT DO NOTHING;
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('halo-one-wireless','Ananya R.',5,'2024-11-02','Best headphones I''ve owned','The ANC on the daily commute is genuinely uncanny. Midrange is the star — vocals sound present without being shouty. Worth every rupee.',true,0);
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('halo-one-wireless','Karthik M.',4,'2024-10-18','Almost perfect','Sound is reference-grade. Only nitpick: the touch controls take a week to learn. Battery is exactly as advertised.',true,1);
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('halo-one-wireless','Priya S.',5,'2024-09-30','Comfortable for 8-hour days','I edit podcasts in these. Zero fatigue after a full workday. The case is a nice touch.',true,2);
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('halo-studio-reference','Halo Studio Reference','Open-back · Wired · Studio','halo','audio','Headphones','Open-back, for the honest mix.','An open-back reference headphone for mixing, mastering, and the kind of listening where you want to hear everything — including the room.','Open-back headphones are a commitment: they leak sound and they let sound in. What you get in return is a soundstage that closed-backs simply cannot match. The Studio Reference is tuned flat, with a slight treble lift that reveals sibilance and harshness in a mix. Not for the commute. Built for the desk.',44500,NULL,'INR','headphones','oklch(0.45 0.04 250)','in-stock',14,4.9,87,'Ships within 24 hours. Free insured delivery in 2–4 days.','2-year manufacturer warranty.','2024-06-20',true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('halo-studio-reference','Driver','50mm bio-cellulose',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('halo-studio-reference','Frequency response','5 Hz – 45 kHz',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('halo-studio-reference','Impedance','80Ω',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('halo-studio-reference','Cable','2.5m detachable, 1/4" adapter',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('halo-studio-reference','Weight','298 g',4);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('halo-studio-reference','Type','Open-back, over-ear',5);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('halo-studio-reference','Flat reference tuning for mixing',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('halo-studio-reference','Detachable OFC copper cable',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('halo-studio-reference','Velour earpads, replaceable',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('halo-studio-reference','Hand-assembled in Gothenburg',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('halo-studio-reference','Halo Studio headphones',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('halo-studio-reference','Detachable cable',1);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('halo-studio-reference','1/4" adapter',2);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('halo-studio-reference','Velour pad spare set',3);
+INSERT INTO product_badges (product_slug,badge,position) VALUES ('halo-studio-reference','Editor''s pick',0);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('halo-studio-reference','halo-one-wireless',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('halo-studio-reference','lumen-35mm-lens',1) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('halo-studio-reference','vista-27-4k-monitor',2) ON CONFLICT DO NOTHING;
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('halo-studio-reference','Studio Bahraich',5,'2024-10-04','My new mixing reference','Replaced a pair that cost twice as much. The midrange honesty is remarkable. Revealed masking issues I''d missed for months.',true,0);
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('echo-pro-anc-earbuds','Echo Pro ANC Earbuds','In-ear · ANC · 8h + 24h case','echo','audio','Earbuds','Pocketable quiet.','True wireless earbuds with adaptive ANC, a snug fit that survives a run, and a case small enough to forget in a pocket.','The Echo Pro is the earbud we recommend to people who hate earbuds. The nozzle is short and angled to sit flush, the ANC is genuinely useful on a flight, and the case charges wirelessly. Eight hours per charge means you''ll rarely need the case during the day.',14990,NULL,'INR','earbuds','oklch(0.60 0.13 55)','in-stock',86,4.5,542,'Ships within 24 hours. Free delivery in 2–4 days.','1-year warranty. 7-day returns.','2024-09-05',true);
+INSERT INTO product_images (product_slug,url,position,is_primary) VALUES ('echo-pro-anc-earbuds','/images/p-echo-pro-anc-earbuds.jpg',0,true);
+INSERT INTO product_variants (product_slug,variant_id,name,price_delta,swatch,in_stock,position) VALUES ('echo-pro-anc-earbuds','white','Chalk',0,'#ece8e0',true,0);
+INSERT INTO product_variants (product_slug,variant_id,name,price_delta,swatch,in_stock,position) VALUES ('echo-pro-anc-earbuds','black','Ink',0,'#222222',true,1);
+INSERT INTO product_variants (product_slug,variant_id,name,price_delta,swatch,in_stock,position) VALUES ('echo-pro-anc-earbuds','copper','Copper',0,'#b07a45',false,2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('echo-pro-anc-earbuds','Driver','11mm dynamic',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('echo-pro-anc-earbuds','ANC','Adaptive, -42 dB',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('echo-pro-anc-earbuds','Battery','8h buds / 24h case',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('echo-pro-anc-earbuds','Charging','USB-C + Qi wireless',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('echo-pro-anc-earbuds','Water resistance','IPX5',4);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('echo-pro-anc-earbuds','Codecs','aptX, AAC, SBC',5);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('echo-pro-anc-earbuds','Adaptive ANC with transparency mode',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('echo-pro-anc-earbuds','Wireless charging case',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('echo-pro-anc-earbuds','IPX5 sweat resistance',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('echo-pro-anc-earbuds','Multipoint pairing',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('echo-pro-anc-earbuds','Echo Pro earbuds',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('echo-pro-anc-earbuds','Charging case',1);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('echo-pro-anc-earbuds','USB-C cable',2);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('echo-pro-anc-earbuds','4 silicone tip sizes',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('echo-pro-anc-earbuds','Warranty card',4);
+INSERT INTO product_badges (product_slug,badge,position) VALUES ('echo-pro-anc-earbuds','New',0);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('echo-pro-anc-earbuds','halo-one-wireless',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('echo-pro-anc-earbuds','echo-lite-earbuds',1) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('echo-pro-anc-earbuds','pebble-mini-speaker',2) ON CONFLICT DO NOTHING;
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('echo-pro-anc-earbuds','Devika P.',5,'2024-11-12','Finally earbuds that fit','I''ve returned three pairs of earbuds this year. These stay in through a 10k run and the ANC is real.',true,0);
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('echo-pro-anc-earbuds','Rohit V.',4,'2024-10-22','Great value','Sound is warm and full. Mic is only okay in wind. Case is tiny, which I love.',true,1);
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('echo-lite-earbuds','Echo Lite Earbuds','In-ear · 6h + 18h case','echo','audio','Earbuds','The everyday pair.','Reliable wireless earbuds without the flagship tax. Clear sound, a comfortable fit, and a case that fits any pocket.','undefined',6990,NULL,'INR','earbuds','oklch(0.72 0.14 80)','low-stock',7,4.3,921,'Ships within 24 hours. Free delivery in 2–4 days.','1-year warranty.','2024-07-15',true);
+INSERT INTO product_images (product_slug,url,position,is_primary) VALUES ('echo-lite-earbuds','/images/p-echo-lite-earbuds.jpg',0,true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('echo-lite-earbuds','Driver','10mm dynamic',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('echo-lite-earbuds','Battery','6h buds / 18h case',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('echo-lite-earbuds','Charging','USB-C',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('echo-lite-earbuds','Water resistance','IPX4',3);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('echo-lite-earbuds','Balanced tuning',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('echo-lite-earbuds','USB-C fast charge',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('echo-lite-earbuds','Touch controls',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('echo-lite-earbuds','Low-latency game mode',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('echo-lite-earbuds','Echo Lite earbuds',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('echo-lite-earbuds','Charging case',1);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('echo-lite-earbuds','USB-C cable',2);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('echo-lite-earbuds','3 silicone tip sizes',3);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('echo-lite-earbuds','echo-pro-anc-earbuds',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('echo-lite-earbuds','pebble-mini-speaker',1) ON CONFLICT DO NOTHING;
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('echo-lite-earbuds','Meera J.',4,'2024-11-01','Solid daily driver','No complaints for the price. Sound is clean, fit is comfortable. Case feels a little light but works.',true,0);
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('pebble-mini-speaker','Pebble Mini Bluetooth Speaker','Portable · 12h · IP67','pebble','audio','Speakers','Pocket-sized, balcony-loud.','A rugged, waterproof Bluetooth speaker that punches well above its size. Strap it to a bag, drop it in a pool, take it camping.','undefined',8490,NULL,'INR','speaker','oklch(0.60 0.13 55)','in-stock',53,4.4,263,'Ships within 24 hours. Free delivery in 2–4 days.','1-year warranty.','2024-08-01',true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pebble-mini-speaker','Output','10W RMS',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pebble-mini-speaker','Battery','12h at 50% volume',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pebble-mini-speaker','Water resistance','IP67',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pebble-mini-speaker','Bluetooth','5.3, 30m range',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pebble-mini-speaker','Weight','310 g',4);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('pebble-mini-speaker','IP67 dust and waterproof',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('pebble-mini-speaker','Stereo pairing of two units',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('pebble-mini-speaker','Built-in strap',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('pebble-mini-speaker','USB-C charging',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('pebble-mini-speaker','Pebble Mini speaker',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('pebble-mini-speaker','USB-C cable',1);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('pebble-mini-speaker','Carry strap',2);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('pebble-mini-speaker','pebble-field-speaker',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('pebble-mini-speaker','echo-pro-anc-earbuds',1) ON CONFLICT DO NOTHING;
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('pebble-mini-speaker','Aditya K.',5,'2024-10-09','Survived a Goa trip','Sand, salt water, drops — still going. Sound is surprisingly full for the size.',true,0);
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('pebble-field-speaker','Pebble Field Speaker','Portable · 20h · Stereo pair','pebble','audio','Speakers','Built for the long evening.','A larger portable speaker with a passive radiator for real bass, 20-hour battery, and the ability to pair two for stereo.','undefined',12990,NULL,'INR','speaker','oklch(0.55 0.08 60)','in-stock',28,4.6,141,'Ships within 24 hours. Free delivery in 2–4 days.','1-year warranty.','2024-07-22',true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pebble-field-speaker','Output','30W RMS',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pebble-field-speaker','Battery','20h at 50% volume',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pebble-field-speaker','Water resistance','IP67',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pebble-field-speaker','Bluetooth','5.3',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pebble-field-speaker','Weight','740 g',4);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('pebble-field-speaker','30W with passive radiator',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('pebble-field-speaker','Stereo pair two units',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('pebble-field-speaker','20-hour battery',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('pebble-field-speaker','USB-C power bank mode',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('pebble-field-speaker','Pebble Field speaker',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('pebble-field-speaker','USB-C cable',1);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('pebble-field-speaker','Carry strap',2);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('pebble-field-speaker','pebble-mini-speaker',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('pebble-field-speaker','halo-one-wireless',1) ON CONFLICT DO NOTHING;
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('pebble-field-speaker','Nikhil T.',5,'2024-09-21','Real bass, real battery','Fills a rooftop. Battery genuinely lasts a long evening. Pairing two is a revelation.',true,0);
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('resonance-bookshelf','Resonance Bookshelf Speaker (Pair)','Passive · Bookshelf · Walnut','fusion-audio','audio','Speakers','Honest sound, real wood.','A pair of passive bookshelf speakers in solid walnut. Pair with the Spark amp or any receiver for a proper living-room system.','undefined',38990,NULL,'INR','speaker','oklch(0.45 0.06 230)','out-of-stock',0,4.8,34,'Made to order. Ships in 2–3 weeks.','5-year warranty on cabinets, 2-year on drivers.','2024-05-10',true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('resonance-bookshelf','Type','2-way passive',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('resonance-bookshelf','Drivers','5" woofer + 1" silk tweeter',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('resonance-bookshelf','Impedance','6Ω',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('resonance-bookshelf','Cabinet','Solid walnut, hand-finished',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('resonance-bookshelf','Weight','6.8 kg each',4);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('resonance-bookshelf','Solid walnut cabinets',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('resonance-bookshelf','Silk dome tweeter',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('resonance-bookshelf','Front-firing bass port',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('resonance-bookshelf','Sold as a matched pair',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('resonance-bookshelf','2 bookshelf speakers',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('resonance-bookshelf','Grilles',1);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('resonance-bookshelf','Foam isolation pads',2);
+INSERT INTO product_badges (product_slug,badge,position) VALUES ('resonance-bookshelf','Made to order',0);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('resonance-bookshelf','spark-100w-desk-charger',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('resonance-bookshelf','halo-studio-reference',1) ON CONFLICT DO NOTHING;
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('type-75-mechanical','Type 75 Mechanical Keyboard','75% · Gasket mount · Hot-swap','type-co','keyboards','Compact','The board that ended our search.','A 75% gasket-mounted mechanical keyboard with hot-swap switches, PBT keycaps, and a knob you''ll actually use. Wireless or wired.','The Type 75 is the keyboard half our team uses daily. The gasket mount gives a soft, cushioned bottom-out that''s addictive. Hot-swap sockets mean you can change switches without soldering. The knob controls volume by default — remap it to anything. Connects over USB-C, Bluetooth, or 2.4GHz.',18990,NULL,'INR','keyboard','oklch(0.52 0.09 150)','in-stock',31,4.8,204,'Ships within 24 hours. Free delivery in 2–4 days.','2-year warranty.','2024-08-30',true);
+INSERT INTO product_images (product_slug,url,position,is_primary) VALUES ('type-75-mechanical','/images/p-type-75-mechanical.jpg',0,true);
+INSERT INTO product_variants (product_slug,variant_id,name,price_delta,swatch,in_stock,position) VALUES ('type-75-mechanical','matcha','Matcha',0,'#7c8b5a',true,0);
+INSERT INTO product_variants (product_slug,variant_id,name,price_delta,swatch,in_stock,position) VALUES ('type-75-mechanical','ink','Ink',0,'#222222',true,1);
+INSERT INTO product_variants (product_slug,variant_id,name,price_delta,swatch,in_stock,position) VALUES ('type-75-mechanical','cream','Cream',0,'#e8e2d4',true,2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('type-75-mechanical','Layout','75%, 84 keys',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('type-75-mechanical','Mount','Gasket-mounted',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('type-75-mechanical','Switches','Hot-swap, pre-lubed tactile',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('type-75-mechanical','Keycaps','PBT double-shot, Cherry profile',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('type-75-mechanical','Connectivity','USB-C / Bluetooth / 2.4GHz',4);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('type-75-mechanical','Battery','4000mAh, ~4 weeks',5);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('type-75-mechanical','RGB','South-facing per-key',6);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('type-75-mechanical','Gasket-mounted for soft typing feel',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('type-75-mechanical','Hot-swap switches — change without soldering',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('type-75-mechanical','Tri-mode connectivity',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('type-75-mechanical','Aluminium plate, PBT keycaps',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('type-75-mechanical','Type 75 keyboard',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('type-75-mechanical','USB-C cable',1);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('type-75-mechanical','Switch puller',2);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('type-75-mechanical','Keycap puller',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('type-75-mechanical','2 spare switches',4);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('type-75-mechanical','Carry sleeve',5);
+INSERT INTO product_badges (product_slug,badge,position) VALUES ('type-75-mechanical','Editor''s pick',0);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('type-75-mechanical','type-65-compact',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('type-75-mechanical','artisan-keycap-tide',1) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('type-75-mechanical','glide-pro-wireless',2) ON CONFLICT DO NOTHING;
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('type-75-mechanical','Tanvi B.',5,'2024-11-08','Endgame keyboard','I''ve owned seven keyboards. This is the one I stopped at. Sound is thocky, feel is cushioned. The knob is genuinely useful.',true,0);
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('type-75-mechanical','Sahil D.',5,'2024-10-15','Worth the wait','Hot-swapped to linears in 10 minutes. Bluetooth to my iPad and Mac simultaneously. Magic.',true,1);
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('type-65-compact','Type 65 Compact Keyboard','65% · Hot-swap · Wireless','type-co','keyboards','Compact','Small board, full feel.','A 65% keyboard that gives up the function row but keeps the arrow keys. Same gasket mount, same hot-swap, smaller footprint.','undefined',14500,NULL,'INR','keyboard','oklch(0.60 0.13 55)','low-stock',5,4.6,118,'Ships within 24 hours. Free delivery in 2–4 days.','2-year warranty.','2024-07-01',true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('type-65-compact','Layout','65%, 67 keys',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('type-65-compact','Mount','Gasket-mounted',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('type-65-compact','Switches','Hot-swap, pre-lubed linear',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('type-65-compact','Keycaps','PBT dye-sublimated',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('type-65-compact','Connectivity','USB-C / Bluetooth',4);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('type-65-compact','Battery','3000mAh',5);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('type-65-compact','Compact 65% with arrows',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('type-65-compact','Hot-swap switches',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('type-65-compact','Bluetooth + USB-C',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('type-65-compact','PBT keycaps',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('type-65-compact','Type 65 keyboard',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('type-65-compact','USB-C cable',1);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('type-65-compact','Keycap puller',2);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('type-65-compact','type-75-mechanical',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('type-65-compact','glide-travel-mouse',1) ON CONFLICT DO NOTHING;
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('type-65-compact','Ishaan G.',4,'2024-10-02','Perfect for small desks','Exactly the size I wanted. Only wish it had 2.4GHz like the 75. Otherwise lovely.',true,0);
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('linear-switch-pack','Linear Switch Pack (110)','Hot-swap · Pre-lubed','type-co','keyboards','Switches','Change the way your board feels.','A pack of 110 pre-lubed linear switches, enough for a full-size board. Factory-lubed for a smooth, quiet keystroke.','undefined',1490,NULL,'INR','keyboard','oklch(0.72 0.14 80)','in-stock',120,4.5,67,'Ships within 24 hours.','30-day satisfaction guarantee.','2024-06-12',true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('linear-switch-pack','Type','Linear',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('linear-switch-pack','Actuation','45g',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('linear-switch-pack','Travel','4mm',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('linear-switch-pack','Quantity','110 switches',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('linear-switch-pack','Lubed','Factory, Krytox 205',4);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('linear-switch-pack','110 switches — enough for full-size',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('linear-switch-pack','Pre-lubed for smooth feel',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('linear-switch-pack','5-pin, clip to 3-pin',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('linear-switch-pack','Compatible with all hot-swap boards',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('linear-switch-pack','110 switches',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('linear-switch-pack','Switch puller',1);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('linear-switch-pack','type-75-mechanical',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('linear-switch-pack','type-65-compact',1) ON CONFLICT DO NOTHING;
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('artisan-keycap-tide','Artisan Keycap Set — Tide','Resin · Escape key · Hand-poured','type-co','keyboards','Keycaps','One key, a lot of character.','A hand-poured resin artisan keycap inspired by a tide pool. Each one is unique. Fits the escape key on any MX-compatible board.','undefined',3990,NULL,'INR','keyboard','oklch(0.58 0.16 340)','in-stock',22,4.9,41,'Ships within 48 hours.','Replace if damaged in transit.','2024-09-10',true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('artisan-keycap-tide','Profile','OEM, MX-compatible',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('artisan-keycap-tide','Material','Resin, hand-poured',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('artisan-keycap-tide','Key','Escape (1u)',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('artisan-keycap-tide','Compatibility','MX stem',3);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('artisan-keycap-tide','Hand-poured, each unique',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('artisan-keycap-tide','Tide-pool blue resin with copper flake',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('artisan-keycap-tide','MX-compatible stem',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('artisan-keycap-tide','Fits any escape key',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('artisan-keycap-tide','1 artisan keycap',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('artisan-keycap-tide','Display tin',1);
+INSERT INTO product_badges (product_slug,badge,position) VALUES ('artisan-keycap-tide','Handmade',0);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('artisan-keycap-tide','type-75-mechanical',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('artisan-keycap-tide','type-65-compact',1) ON CONFLICT DO NOTHING;
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('artisan-keycap-tide','Rhea M.',5,'2024-10-25','Even better in person','Photographs don''t do it justice. The copper flake catches light beautifully. A tiny luxury.',true,0);
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('glide-pro-wireless','Glide Pro Wireless Mouse','Ergo · 2.4GHz + BT · 4000Hz','glide','computing','Mice','Disappears in the hand.','A lightweight ergonomic wireless mouse with a 4000Hz polling rate, magnetic charging dock, and a shape that suits palm and claw grips.','undefined',9990,NULL,'INR','mouse','oklch(0.45 0.06 230)','in-stock',47,4.6,188,'Ships within 24 hours. Free delivery in 2–4 days.','2-year warranty.','2024-08-18',true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('glide-pro-wireless','Sensor','26K DPI optical',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('glide-pro-wireless','Polling','Up to 4000Hz wireless',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('glide-pro-wireless','Weight','74 g',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('glide-pro-wireless','Battery','90h, USB-C',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('glide-pro-wireless','Connectivity','2.4GHz / Bluetooth',4);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('glide-pro-wireless','Buttons','6 programmable',5);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('glide-pro-wireless','4000Hz wireless polling',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('glide-pro-wireless','74g lightweight shell',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('glide-pro-wireless','Magnetic charging dock',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('glide-pro-wireless','Optical switches, no double-click',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('glide-pro-wireless','Glide Pro mouse',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('glide-pro-wireless','Magnetic charging dock',1);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('glide-pro-wireless','USB-C cable',2);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('glide-pro-wireless','2.4GHz dongle',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('glide-pro-wireless','Glide feet spare',4);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('glide-pro-wireless','glide-travel-mouse',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('glide-pro-wireless','type-75-mechanical',1) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('glide-pro-wireless','vista-27-4k-monitor',2) ON CONFLICT DO NOTHING;
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('glide-pro-wireless','Farah Q.',5,'2024-11-03','Replaced my MX Master','Lighter, faster, and the dock means it''s always charged. The shape works for my claw grip.',true,0);
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('glide-travel-mouse','Glide Travel Mouse','Compact · USB-C · Silent','glide','computing','Mice','Quiet, compact, capable.','A slim, silent-click mouse that slips into a laptop sleeve. USB-C charging and Bluetooth for two devices.','undefined',4490,NULL,'INR','mouse','oklch(0.72 0.14 80)','in-stock',64,4.3,233,'Ships within 24 hours.','1-year warranty.','2024-07-08',true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('glide-travel-mouse','Sensor','4000 DPI optical',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('glide-travel-mouse','Buttons','3, silent-click',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('glide-travel-mouse','Connectivity','Bluetooth, dual device',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('glide-travel-mouse','Battery','60h, USB-C',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('glide-travel-mouse','Weight','92 g',4);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('glide-travel-mouse','Silent clicks for cafes and meetings',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('glide-travel-mouse','Dual-device Bluetooth',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('glide-travel-mouse','USB-C charging',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('glide-travel-mouse','Fits a sleeve pocket',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('glide-travel-mouse','Glide Travel mouse',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('glide-travel-mouse','USB-C cable',1);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('glide-travel-mouse','glide-pro-wireless',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('glide-travel-mouse','arc-aluminium-stand',1) ON CONFLICT DO NOTHING;
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('vista-27-4k-monitor','Vista 27 4K Monitor','27" · 4K · USB-C 90W','vista','computing','Monitors','Colour you can trust.','A 27-inch 4K USB-C monitor with 99% DCI-P3, factory calibration, and 90W power delivery to charge a laptop over a single cable.','undefined',39990,44990,'INR','monitor','oklch(0.45 0.06 230)','in-stock',19,4.7,96,'Ships within 24 hours. Free insured delivery in 3–5 days.','3-year warranty incl. panel.','2024-06-25',true);
+INSERT INTO product_images (product_slug,url,position,is_primary) VALUES ('vista-27-4k-monitor','/images/p-vista-27-4k-monitor.jpg',0,true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('vista-27-4k-monitor','Panel','27" IPS, 4K UHD',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('vista-27-4k-monitor','Colour','99% DCI-P3, Delta E < 2',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('vista-27-4k-monitor','Refresh','60Hz',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('vista-27-4k-monitor','Ports','USB-C 90W, 2× HDMI, DP, USB hub',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('vista-27-4k-monitor','Stand','Height, tilt, swivel, pivot',4);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('vista-27-4k-monitor','Brightness','400 nits',5);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('vista-27-4k-monitor','99% DCI-P3 factory-calibrated',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('vista-27-4k-monitor','90W USB-C single-cable setup',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('vista-27-4k-monitor','Height-adjustable stand',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('vista-27-4k-monitor','VESA mount compatible',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('vista-27-4k-monitor','Vista 27 monitor',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('vista-27-4k-monitor','USB-C cable',1);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('vista-27-4k-monitor','HDMI cable',2);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('vista-27-4k-monitor','Power cable',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('vista-27-4k-monitor','Calibration report',4);
+INSERT INTO product_badges (product_slug,badge,position) VALUES ('vista-27-4k-monitor','Sale',0);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('vista-27-4k-monitor','arc-aluminium-stand',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('vista-27-4k-monitor','glide-pro-wireless',1) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('vista-27-4k-monitor','dock-12-thunderbolt',2) ON CONFLICT DO NOTHING;
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('vista-27-4k-monitor','Design Studio BLR',5,'2024-10-20','Colour-accurate out of the box','Delta E report matched our hardware calibrator within 0.3. One cable to the laptop. Recommend.',true,0);
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('arc-aluminium-stand','Arc Aluminium Laptop Stand','Machined · Anodised · Foldable','arc','computing','Stands','Lift the laptop, save the neck.','A foldable laptop stand machined from a single sheet of anodised aluminium. Raises the screen to eye level and folds flat for travel.','undefined',6990,NULL,'INR','stand','oklch(0.55 0.08 60)','in-stock',88,4.5,312,'Ships within 24 hours.','2-year warranty.','2024-07-19',true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('arc-aluminium-stand','Material','Anodised aluminium',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('arc-aluminium-stand','Folded','23 × 6 × 1.2 cm',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('arc-aluminium-stand','Height','12–18 cm adjustable',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('arc-aluminium-stand','Load','Up to 5 kg',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('arc-aluminium-stand','Weight','240 g',4);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('arc-aluminium-stand','Machined aluminium, no plastic',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('arc-aluminium-stand','Folds flat for travel',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('arc-aluminium-stand','Silicone grip pads',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('arc-aluminium-stand','Supports up to 16" laptops',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('arc-aluminium-stand','Arc stand',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('arc-aluminium-stand','Carry pouch',1);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('arc-aluminium-stand','vista-27-4k-monitor',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('arc-aluminium-stand','glide-travel-mouse',1) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('arc-aluminium-stand','aura-led-desk-lamp',2) ON CONFLICT DO NOTHING;
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('dock-12-thunderbolt','Dock 12 Thunderbolt Hub','12-in-1 · 100W PD · 8K','arc','computing','Docks','One cable, the whole desk.','A 12-in-1 Thunderbolt dock that turns one cable into power, dual 4K displays, gigabit ethernet, SD card, and seven USB ports.','undefined',22990,NULL,'INR','charger','oklch(0.45 0.06 230)','in-stock',26,4.4,73,'Ships within 24 hours.','2-year warranty.','2024-05-30',true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('dock-12-thunderbolt','Host','Thunderbolt 4 / USB4',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('dock-12-thunderbolt','Power','100W passthrough',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('dock-12-thunderbolt','Video','1× 8K or 2× 4K @ 60Hz',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('dock-12-thunderbolt','Ports','3× USB-A, 2× USB-C, SD, microSD, ethernet, 3.5mm',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('dock-12-thunderbolt','Ethernet','Gigabit',4);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('dock-12-thunderbolt','Single-cable desk setup',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('dock-12-thunderbolt','Dual 4K display support',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('dock-12-thunderbolt','100W laptop charging',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('dock-12-thunderbolt','SD card reader built in',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('dock-12-thunderbolt','Dock 12',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('dock-12-thunderbolt','Thunderbolt cable',1);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('dock-12-thunderbolt','Power adapter',2);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('dock-12-thunderbolt','vista-27-4k-monitor',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('dock-12-thunderbolt','glide-pro-wireless',1) ON CONFLICT DO NOTHING;
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('pulse-2-smartwatch','Pulse 2 Smartwatch','AMOLED · GPS · 7-day','pulse','wearables','Smartwatches','Tells you less, better.','A smartwatch with a bright AMOLED display, built-in GPS, and a seven-day battery. Notifications without the noise.','Pulse 2 is a watch first, smartwatch second. The display is bright enough to read in direct sun, the GPS locks in seconds, and the battery genuinely lasts a week. It filters notifications so you see what matters and skips the rest. No app store full of junk — just the things a watch should do, done well.',21990,24990,'INR','watch','oklch(0.58 0.16 340)','in-stock',38,4.6,287,'Ships within 24 hours. Free delivery in 2–4 days.','1-year warranty.','2024-09-20',true);
+INSERT INTO product_images (product_slug,url,position,is_primary) VALUES ('pulse-2-smartwatch','/images/p-pulse-2-smartwatch.jpg',0,true);
+INSERT INTO product_variants (product_slug,variant_id,name,price_delta,swatch,in_stock,position) VALUES ('pulse-2-smartwatch','graphite','Graphite',0,'#3a3a3a',true,0);
+INSERT INTO product_variants (product_slug,variant_id,name,price_delta,swatch,in_stock,position) VALUES ('pulse-2-smartwatch','champagne','Champagne',0,'#c9b089',true,1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pulse-2-smartwatch','Display','1.4" AMOLED, 1000 nits',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pulse-2-smartwatch','Battery','7 days typical, 14 days low-power',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pulse-2-smartwatch','GPS','Dual-band, multi-GNSS',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pulse-2-smartwatch','Water resistance','5 ATM',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pulse-2-smartwatch','Sensors','HR, SpO2, temp, accelerometer, compass',4);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pulse-2-smartwatch','Case','43mm, titanium',5);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('pulse-2-smartwatch','Dual-band GPS for accurate runs',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('pulse-2-smartwatch','1000-nit always-on AMOLED',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('pulse-2-smartwatch','7-day battery',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('pulse-2-smartwatch','Titanium case, 43mm',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('pulse-2-smartwatch','Pulse 2 watch',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('pulse-2-smartwatch','Silicone band',1);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('pulse-2-smartwatch','Magnetic charger',2);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('pulse-2-smartwatch','Quick start guide',3);
+INSERT INTO product_badges (product_slug,badge,position) VALUES ('pulse-2-smartwatch','Sale',0);
+INSERT INTO product_badges (product_slug,badge,position) VALUES ('pulse-2-smartwatch','New',1);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('pulse-2-smartwatch','pulse-fit-tracker',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('pulse-2-smartwatch','pulse-lite-band',1) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('pulse-2-smartwatch','halo-one-wireless',2) ON CONFLICT DO NOTHING;
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('pulse-2-smartwatch','Sana R.',5,'2024-11-10','Battery claims are real','A full week with always-on display and a 3 GPS runs. GPS is accurate even in dense city streets.',true,0);
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('pulse-fit-tracker','Pulse Fit Tracker','Band · 14-day · Sleep','pulse','wearables','Trackers','The quiet tracker.','A slim fitness band focused on sleep, recovery, and daily movement. Two-week battery, lightweight, unobtrusive.','undefined',8990,NULL,'INR','tracker','oklch(0.52 0.09 150)','in-stock',71,4.4,198,'Ships within 24 hours.','1-year warranty.','2024-07-28',true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pulse-fit-tracker','Display','1.1" AMOLED',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pulse-fit-tracker','Battery','14 days',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pulse-fit-tracker','Water resistance','5 ATM',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pulse-fit-tracker','Sensors','HR, SpO2, accelerometer',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pulse-fit-tracker','Weight','18 g',4);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('pulse-fit-tracker','14-day battery',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('pulse-fit-tracker','Sleep and recovery scoring',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('pulse-fit-tracker','Lightweight 18g band',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('pulse-fit-tracker','Smart notifications',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('pulse-fit-tracker','Pulse Fit band',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('pulse-fit-tracker','Magnetic charger',1);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('pulse-fit-tracker','Spare strap',2);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('pulse-fit-tracker','pulse-2-smartwatch',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('pulse-fit-tracker','pulse-lite-band',1) ON CONFLICT DO NOTHING;
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('pulse-lite-band','Pulse Lite Band','Band · 21-day · Basic','pulse','wearables','Bands','Just the essentials.','An entry band that does steps, sleep, and heart rate for three weeks on a charge. The least watch, for the least money.','undefined',3990,NULL,'INR','tracker','oklch(0.72 0.14 80)','low-stock',4,4.1,412,'Ships within 24 hours.','1-year warranty.','2024-06-05',true);
+INSERT INTO product_images (product_slug,url,position,is_primary) VALUES ('pulse-lite-band','/images/p-pulse-lite-band.jpg',0,true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pulse-lite-band','Display','0.96" LCD',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pulse-lite-band','Battery','21 days',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pulse-lite-band','Water resistance','IP68',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('pulse-lite-band','Sensors','HR, accelerometer',3);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('pulse-lite-band','21-day battery',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('pulse-lite-band','Steps, sleep, HR',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('pulse-lite-band','IP68 water resistance',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('pulse-lite-band','Affordable',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('pulse-lite-band','Pulse Lite band',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('pulse-lite-band','Charging cable',1);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('pulse-lite-band','pulse-fit-tracker',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('pulse-lite-band','pulse-2-smartwatch',1) ON CONFLICT DO NOTHING;
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('lumen-x100-compact','Lumen X100 Compact Camera','Compact · 26MP · f/2 lens','lumen','cameras','Compact','The camera you''ll actually carry.','A fixed-lens compact camera with a large sensor, a fast prime lens, and dials for everything. The camera that lives in your bag.','The X100 is the camera that ruined point-and-shoots for us. A big APS-C sensor behind a sharp f/2 prime, with physical dials for shutter, aperture, and exposure comp. Leaf shutter means silent shooting and flash sync at any speed. Hybrid optical/electronic viewfinder. This is the camera you take everywhere because it fits everywhere.',74990,NULL,'INR','camera','oklch(0.45 0.04 250)','in-stock',9,4.9,58,'Ships within 24 hours. Free insured delivery in 3–5 days.','2-year India warranty.','2024-08-05',true);
+INSERT INTO product_images (product_slug,url,position,is_primary) VALUES ('lumen-x100-compact','/images/p-lumen-x100-compact.jpg',0,true);
+INSERT INTO product_variants (product_slug,variant_id,name,price_delta,swatch,in_stock,position) VALUES ('lumen-x100-compact','silver','Silver',0,'#d8d4cc',true,0);
+INSERT INTO product_variants (product_slug,variant_id,name,price_delta,swatch,in_stock,position) VALUES ('lumen-x100-compact','black','Black',0,'#1f1f1f',true,1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-x100-compact','Sensor','26.1MP APS-C X-Trans',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-x100-compact','Lens','23mm f/2 (35mm equiv.)',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-x100-compact','Viewfinder','Hybrid OVF/EVF',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-x100-compact','Shutter','Leaf, silent',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-x100-compact','Video','4K/30p',4);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-x100-compact','Weight','446 g',5);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('lumen-x100-compact','Large APS-C sensor in a compact body',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('lumen-x100-compact','Fast fixed f/2 prime lens',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('lumen-x100-compact','Physical dials for shutter & aperture',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('lumen-x100-compact','Hybrid viewfinder',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('lumen-x100-compact','Lumen X100 camera',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('lumen-x100-compact','Battery',1);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('lumen-x100-compact','USB-C cable',2);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('lumen-x100-compact','Strap',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('lumen-x100-compact','Lens cap',4);
+INSERT INTO product_badges (product_slug,badge,position) VALUES ('lumen-x100-compact','Editor''s pick',0);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('lumen-x100-compact','lumen-35mm-lens',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('lumen-x100-compact','lumen-mirrorless-body',1) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('lumen-x100-compact','halo-studio-reference',2) ON CONFLICT DO NOTHING;
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('lumen-x100-compact','Aria F.',5,'2024-10-30','Ruined other cameras for me','The hybrid viewfinder alone is worth it. Dials make shooting tactile again. Carries like a phone, shoots like a real camera.',true,0);
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('lumen-mirrorless-body','Lumen Mirrorless Body','Full-frame · 33MP · IBIS','lumen','cameras','Mirrorless','The serious body.','A full-frame mirrorless body with 33 megapixels, in-body stabilisation, and dual card slots. The body for working photographers.','undefined',112000,NULL,'INR','camera','oklch(0.45 0.06 230)','in-stock',6,4.8,47,'Ships within 24 hours. Free insured delivery in 3–5 days.','2-year India warranty.','2024-05-15',true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-mirrorless-body','Sensor','33MP full-frame BSI',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-mirrorless-body','Stabilisation','5-axis IBIS, 7 stops',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-mirrorless-body','Burst','20 fps electronic',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-mirrorless-body','Video','6K/30p, 4K/120p',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-mirrorless-body','Cards','Dual SD UHS-II',4);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-mirrorless-body','Viewfinder','9.44M-dot OLED',5);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('lumen-mirrorless-body','33MP full-frame sensor',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('lumen-mirrorless-body','7-stop in-body stabilisation',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('lumen-mirrorless-body','Dual card slots',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('lumen-mirrorless-body','Weather-sealed body',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('lumen-mirrorless-body','Lumen body',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('lumen-mirrorless-body','Battery',1);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('lumen-mirrorless-body','USB-C cable',2);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('lumen-mirrorless-body','Body cap',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('lumen-mirrorless-body','Strap',4);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('lumen-mirrorless-body','lumen-35mm-lens',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('lumen-mirrorless-body','lumen-50mm-lens',1) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('lumen-mirrorless-body','lumen-x100-compact',2) ON CONFLICT DO NOTHING;
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('lumen-35mm-lens','Lumen 35mm f/1.8 Lens','Prime · Full-frame · AF','lumen','cameras','Lenses','The everyday prime.','A compact 35mm f/1.8 prime for the Lumen mirrorless system. Sharp wide open, small enough to leave on the body.','undefined',28990,NULL,'INR','lens','oklch(0.60 0.13 55)','in-stock',17,4.7,89,'Ships within 24 hours.','2-year warranty.','2024-06-18',true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-35mm-lens','Focal length','35mm',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-35mm-lens','Aperture','f/1.8 – f/22',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-35mm-lens','Elements','11 in 9 groups',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-35mm-lens','Filter','55mm',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-35mm-lens','Weight','290 g',4);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-35mm-lens','Mount','Lumen M',5);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('lumen-35mm-lens','Compact everyday prime',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('lumen-35mm-lens','Sharp at f/1.8',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('lumen-35mm-lens','Fast, quiet autofocus',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('lumen-35mm-lens','Weather-sealed',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('lumen-35mm-lens','Lumen 35mm lens',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('lumen-35mm-lens','Lens hood',1);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('lumen-35mm-lens','Front & rear caps',2);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('lumen-35mm-lens','Pouch',3);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('lumen-35mm-lens','lumen-mirrorless-body',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('lumen-35mm-lens','lumen-50mm-lens',1) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('lumen-35mm-lens','lumen-x100-compact',2) ON CONFLICT DO NOTHING;
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('lumen-35mm-lens','Wedding Co.',5,'2024-10-12','Glued to my body','90% of my work shot on this. Sharp, light, fast. Bokeh is smooth.',true,0);
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('lumen-50mm-lens','Lumen 50mm f/1.4 Lens','Prime · Full-frame · AF','lumen','cameras','Lenses','The character prime.','A fast 50mm f/1.4 prime with a 9-blade aperture for smooth bokeh. The lens for portraits and low light.','undefined',44500,NULL,'INR','lens','oklch(0.45 0.04 250)','preorder',0,4.8,52,'Pre-order — ships in 2–3 weeks.','2-year warranty.','2024-09-01',true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-50mm-lens','Focal length','50mm',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-50mm-lens','Aperture','f/1.4 – f/16',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-50mm-lens','Aperture blades','11, rounded',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-50mm-lens','Filter','67mm',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-50mm-lens','Weight','410 g',4);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('lumen-50mm-lens','Mount','Lumen M',5);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('lumen-50mm-lens','Fast f/1.4 aperture',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('lumen-50mm-lens','11-blade rounded aperture',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('lumen-50mm-lens','Sharp with gentle falloff',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('lumen-50mm-lens','Portrait favourite',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('lumen-50mm-lens','Lumen 50mm lens',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('lumen-50mm-lens','Lens hood',1);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('lumen-50mm-lens','Front & rear caps',2);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('lumen-50mm-lens','Pouch',3);
+INSERT INTO product_badges (product_slug,badge,position) VALUES ('lumen-50mm-lens','Pre-order',0);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('lumen-50mm-lens','lumen-mirrorless-body',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('lumen-50mm-lens','lumen-35mm-lens',1) ON CONFLICT DO NOTHING;
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('spark-65w-gan-charger','Spark 65W GaN Charger','65W · 2 USB-C · Foldable','spark','power','Chargers','One charger for the whole bag.','A 65W gallium-nitride charger with two USB-C ports and folding pins. Charges a laptop, phone, and earbuds — from one socket.','undefined',3990,NULL,'INR','charger','oklch(0.72 0.14 80)','in-stock',154,4.7,612,'Ships within 24 hours.','1.5-year warranty.','2024-07-12',true);
+INSERT INTO product_images (product_slug,url,position,is_primary) VALUES ('spark-65w-gan-charger','/images/p-spark-65w-gan-charger.jpg',0,true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('spark-65w-gan-charger','Output','65W total, 2× USB-C',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('spark-65w-gan-charger','Tech','GaN II',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('spark-65w-gan-charger','Protocols','PD 3.0, PPS, QC 4+',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('spark-65w-gan-charger','Pins','Folding, Indian plug',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('spark-65w-gan-charger','Weight','98 g',4);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('spark-65w-gan-charger','65W — charges most laptops',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('spark-65w-gan-charger','Two USB-C ports',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('spark-65w-gan-charger','Folding pins for travel',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('spark-65w-gan-charger','GaN runs cool',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('spark-65w-gan-charger','Spark 65W charger',0);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('spark-65w-gan-charger','spark-100w-desk-charger',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('spark-65w-gan-charger','coil-usbc-cable',1) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('spark-65w-gan-charger','coil-cable-pack',2) ON CONFLICT DO NOTHING;
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('spark-65w-gan-charger','Travel N.',5,'2024-11-06','Replaced three chargers','One plug, laptop + phone + earbuds. Foldable pins mean it doesn''t stab everything in my bag.',true,0);
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('spark-100w-desk-charger','Spark 100W Desk Charger','100W · 4 ports · Desktop','spark','power','Chargers','One brick for the desk.','A 100W desktop charging station with four ports (3 USB-C, 1 USB-A) and a 1.5m cable. Powers a laptop, monitor, phone, and earbuds.','undefined',5990,NULL,'INR','charger','oklch(0.45 0.06 230)','in-stock',73,4.6,234,'Ships within 24 hours.','1.5-year warranty.','2024-06-22',true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('spark-100w-desk-charger','Output','100W total',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('spark-100w-desk-charger','Ports','3× USB-C, 1× USB-A',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('spark-100w-desk-charger','Cable','1.5m attached',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('spark-100w-desk-charger','Protocols','PD 3.1, PPS, QC 5',3);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('spark-100w-desk-charger','100W across four ports',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('spark-100w-desk-charger','Powers a laptop and accessories',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('spark-100w-desk-charger','Desktop form factor',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('spark-100w-desk-charger','Intelligent power distribution',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('spark-100w-desk-charger','Spark 100W charger',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('spark-100w-desk-charger','Indian plug adapter',1);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('spark-100w-desk-charger','spark-65w-gan-charger',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('spark-100w-desk-charger','coil-usbc-cable',1) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('spark-100w-desk-charger','dock-12-thunderbolt',2) ON CONFLICT DO NOTHING;
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('coil-usbc-cable','Coil USB-C Cable (2m)','Braided · 100W · Coiled','spark','power','Cables','The cable that doesn''t tangle.','A 2-metre coiled USB-C cable that stretches when you need it and retracts when you don''t. 100W power and USB 2.0 data.','undefined',1290,NULL,'INR','cable','oklch(0.60 0.13 55)','in-stock',240,4.5,388,'Ships within 24 hours.','2-year warranty.','2024-07-30',true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('coil-usbc-cable','Length','0.5m coiled, 2m stretched',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('coil-usbc-cable','Power','100W PD',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('coil-usbc-cable','Data','USB 2.0, 480 Mbps',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('coil-usbc-cable','Build','Nylon braided, metal housings',3);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('coil-usbc-cable','Coiled — stretches to 2m',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('coil-usbc-cable','100W power delivery',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('coil-usbc-cable','Nylon braided, metal ends',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('coil-usbc-cable','Tangle-free in the car',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('coil-usbc-cable','Coil USB-C cable',0);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('coil-usbc-cable','spark-65w-gan-charger',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('coil-usbc-cable','coil-cable-pack',1) ON CONFLICT DO NOTHING;
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('coil-cable-pack','Coil Braided Cable Pack','3 cables · USB-C & Lightning','spark','power','Cables','Spare cables, done right.','A pack of three braided cables — USB-C to USB-C, USB-C to Lightning, and USB-C to USB-A. For the desk, the bag, and the bedside.','undefined',2490,NULL,'INR','cable','oklch(0.72 0.14 80)','in-stock',132,4.4,156,'Ships within 24 hours.','2-year warranty.','2024-08-08',true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('coil-cable-pack','Cables','USB-C to C, USB-C to Lightning, USB-C to A',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('coil-cable-pack','Length','1.2m each',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('coil-cable-pack','Power','Up to 60W',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('coil-cable-pack','Build','Braided nylon',3);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('coil-cable-pack','Three cables for every device',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('coil-cable-pack','Braided nylon sheath',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('coil-cable-pack','Metal housings',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('coil-cable-pack','Ties included',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('coil-cable-pack','3 cables',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('coil-cable-pack','Cable ties',1);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('coil-cable-pack','coil-usbc-cable',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('coil-cable-pack','spark-65w-gan-charger',1) ON CONFLICT DO NOTHING;
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('aura-led-desk-lamp','Aura LED Desk Lamp','CRI 95 · Stepless dimming','aura','desks','Lamps','Light that flatters the work.','A desk lamp with a CRI 95 panel, stepless colour temperature, and a counterbalanced arm that holds any position.','undefined',11990,NULL,'INR','lamp','oklch(0.72 0.14 80)','in-stock',41,4.7,142,'Ships within 24 hours. Free delivery in 2–4 days.','2-year warranty.','2024-07-25',true);
+INSERT INTO product_images (product_slug,url,position,is_primary) VALUES ('aura-led-desk-lamp','/images/p-aura-led-desk-lamp.jpg',0,true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('aura-led-desk-lamp','Panel','CRI 95, flicker-free',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('aura-led-desk-lamp','Temperature','2700K – 6500K stepless',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('aura-led-desk-lamp','Brightness','300 – 1000 lux',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('aura-led-desk-lamp','Arm','Counterbalanced, 3 joints',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('aura-led-desk-lamp','Ports','1× USB-C 15W passthrough',4);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('aura-led-desk-lamp','CRI 95 — colour-accurate light',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('aura-led-desk-lamp','Stepless colour and brightness',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('aura-led-desk-lamp','Counterbalanced arm',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('aura-led-desk-lamp','USB-C port for charging',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('aura-led-desk-lamp','Aura lamp',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('aura-led-desk-lamp','Power adapter',1);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('aura-led-desk-lamp','Desk clamp',2);
+INSERT INTO product_badges (product_slug,badge,position) VALUES ('aura-led-desk-lamp','Editor''s pick',0);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('aura-led-desk-lamp','slate-walnut-riser',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('aura-led-desk-lamp','arc-aluminium-stand',1) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('aura-led-desk-lamp','vista-27-4k-monitor',2) ON CONFLICT DO NOTHING;
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('aura-led-desk-lamp','Illustrator',5,'2024-10-19','Colour I can trust at 2am','CRI 95 makes a real difference for colour work. Arm stays where I put it. The USB port is a bonus.',true,0);
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('aura-warm-globe','Aura Warm Globe Light','Ambient · 2700K · USB-C','aura','desks','Lamps','A warm pool for late hours.','A small ambient globe that casts a warm 2700K glow. USB-C powered, tap to dim. The light that makes a desk feel like a room.','undefined',4990,NULL,'INR','lamp','oklch(0.60 0.13 55)','low-stock',3,4.3,78,'Ships within 24 hours.','1-year warranty.','2024-08-14',true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('aura-warm-globe','Colour','2700K warm',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('aura-warm-globe','Power','USB-C',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('aura-warm-globe','Control','Tap to dim, 3 levels',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('aura-warm-globe','Material','Frosted glass, aluminium base',3);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('aura-warm-globe','Warm 2700K ambient glow',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('aura-warm-globe','USB-C powered',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('aura-warm-globe','Tap-to-dim control',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('aura-warm-globe','Frosted glass diffuser',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('aura-warm-globe','Aura Warm Globe',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('aura-warm-globe','USB-C cable',1);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('aura-warm-globe','aura-led-desk-lamp',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('aura-warm-globe','slate-walnut-riser',1) ON CONFLICT DO NOTHING;
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('slate-walnut-riser','Slate Walnut Monitor Riser','Solid walnut · Hand-finished','slate','desks','Risers','Lift the monitor, warm the desk.','A solid walnut monitor riser with hidden cable channels and a soft cork base. Lifts a monitor 8cm and looks like furniture.','undefined',7990,NULL,'INR','stand','oklch(0.55 0.08 60)','in-stock',35,4.8,96,'Ships within 24 hours. Free delivery in 2–4 days.','5-year warranty.','2024-07-04',true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('slate-walnut-riser','Material','Solid walnut, hand-oiled',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('slate-walnut-riser','Dimensions','60 × 22 × 8 cm',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('slate-walnut-riser','Load','Up to 20 kg',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('slate-walnut-riser','Cable management','Hidden channel',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('slate-walnut-riser','Base','Cork, non-slip',4);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('slate-walnut-riser','Solid walnut, hand-finished',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('slate-walnut-riser','Hidden cable channel',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('slate-walnut-riser','Lifts monitor 8cm',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('slate-walnut-riser','Cork base protects desk',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('slate-walnut-riser','Slate riser',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('slate-walnut-riser','Felt feet spares',1);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('slate-walnut-riser','aura-led-desk-lamp',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('slate-walnut-riser','arc-aluminium-stand',1) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('slate-walnut-riser','vista-27-4k-monitor',2) ON CONFLICT DO NOTHING;
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('slate-walnut-riser','Neha V.',5,'2024-10-08','Better than the photos','Real walnut, properly oiled. The cable channel actually hides cables. Worth it.',true,0);
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('drift-wireless-controller','Drift Wireless Controller','2.4GHz · Hall-effect · PC/Switch','drift','gaming-carry','Controllers','Drift-proof, by design.','A wireless controller with Hall-effect sticks that cannot develop stick drift, mappable back paddles, and a 40-hour battery.','undefined',6990,NULL,'INR','controller','oklch(0.60 0.15 16)','in-stock',58,4.6,274,'Ships within 24 hours.','1-year warranty.','2024-09-15',true);
+INSERT INTO product_images (product_slug,url,position,is_primary) VALUES ('drift-wireless-controller','/images/p-drift-wireless-controller.jpg',0,true);
+INSERT INTO product_variants (product_slug,variant_id,name,price_delta,swatch,in_stock,position) VALUES ('drift-wireless-controller','midnight','Midnight',0,'#1f2230',true,0);
+INSERT INTO product_variants (product_slug,variant_id,name,price_delta,swatch,in_stock,position) VALUES ('drift-wireless-controller','copper','Copper',0,'#b07a45',true,1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('drift-wireless-controller','Sticks','Hall-effect, drift-free',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('drift-wireless-controller','Triggers','Hall-effect, hair mode',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('drift-wireless-controller','Connectivity','2.4GHz / Bluetooth / USB-C',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('drift-wireless-controller','Battery','40h',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('drift-wireless-controller','Back paddles','4, mappable',4);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('drift-wireless-controller','Compatibility','PC, Switch, Android',5);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('drift-wireless-controller','Hall-effect sticks — no drift',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('drift-wireless-controller','4 mappable back paddles',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('drift-wireless-controller','Hair-trigger mode',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('drift-wireless-controller','Works on PC, Switch, mobile',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('drift-wireless-controller','Drift controller',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('drift-wireless-controller','2.4GHz dongle',1);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('drift-wireless-controller','USB-C cable',2);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('drift-wireless-controller','Phone clip',3);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('drift-wireless-controller','echo-gaming-headset',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('drift-wireless-controller','compass-tech-backpack',1) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('drift-wireless-controller','glide-pro-wireless',2) ON CONFLICT DO NOTHING;
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('drift-wireless-controller','Gamer BLR',5,'2024-11-09','Hall effect for the win','No drift after 200 hours. Paddles are positioned perfectly. Worth twice a normal controller.',true,0);
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('echo-gaming-headset','Echo Gaming Headset','Over-ear · 50mm · Detachable mic','echo','gaming-carry','Headsets','Hear footsteps, not the room.','A gaming headset with 50mm drivers, spatial audio, and a detachable broadcast-grade mic. Comfortable for marathon sessions.','undefined',13990,NULL,'INR','headphones','oklch(0.60 0.15 16)','in-stock',44,4.5,167,'Ships within 24 hours.','1-year warranty.','2024-08-22',true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('echo-gaming-headset','Driver','50mm neodymium',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('echo-gaming-headset','Mic','Detachable cardioid',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('echo-gaming-headset','Connectivity','USB-C / 3.5mm',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('echo-gaming-headset','Battery','50h wireless',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('echo-gaming-headset','Surround','Spatial audio, 7.1',4);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('echo-gaming-headset','50mm drivers for positional audio',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('echo-gaming-headset','Detachable broadcast mic',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('echo-gaming-headset','50-hour wireless battery',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('echo-gaming-headset','Dual USB-C and 3.5mm',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('echo-gaming-headset','Echo Gaming headset',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('echo-gaming-headset','Detachable mic',1);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('echo-gaming-headset','USB-C dongle',2);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('echo-gaming-headset','3.5mm cable',3);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('echo-gaming-headset','drift-wireless-controller',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('echo-gaming-headset','halo-one-wireless',1) ON CONFLICT DO NOTHING;
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('compass-tech-backpack','Compass Tech Backpack','20L · 16" laptop · Weatherproof','compass','gaming-carry','Backpacks','One bag, the whole week.','A 20-litre weatherproof tech backpack with a 16-inch laptop sleeve, hidden anti-theft pocket, and a luggage pass-through.','undefined',9990,11990,'INR','backpack','oklch(0.45 0.04 250)','in-stock',62,4.7,211,'Ships within 24 hours. Free delivery in 2–4 days.','Lifetime warranty on stitching.','2024-07-10',true);
+INSERT INTO product_images (product_slug,url,position,is_primary) VALUES ('compass-tech-backpack','/images/p-compass-tech-backpack.jpg',0,true);
+INSERT INTO product_variants (product_slug,variant_id,name,price_delta,swatch,in_stock,position) VALUES ('compass-tech-backpack','black','Ink',0,'#1f1f24',true,0);
+INSERT INTO product_variants (product_slug,variant_id,name,price_delta,swatch,in_stock,position) VALUES ('compass-tech-backpack','olive','Olive',0,'#5b5a3e',true,1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('compass-tech-backpack','Capacity','20L',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('compass-tech-backpack','Laptop','Up to 16"',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('compass-tech-backpack','Material','Recycled ripstop, DWR',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('compass-tech-backpack','Strap','Luggage pass-through',3);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('compass-tech-backpack','Pockets','9, incl. hidden anti-theft',4);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('compass-tech-backpack','Weatherproof recycled ripstop',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('compass-tech-backpack','16" laptop sleeve',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('compass-tech-backpack','Hidden anti-theft pocket',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('compass-tech-backpack','Luggage pass-through strap',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('compass-tech-backpack','Compass backpack',0);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('compass-tech-backpack','Removable organiser pouch',1);
+INSERT INTO product_badges (product_slug,badge,position) VALUES ('compass-tech-backpack','Sale',0);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('compass-tech-backpack','compass-sling',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('compass-tech-backpack','drift-wireless-controller',1) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('compass-tech-backpack','spark-65w-gan-charger',2) ON CONFLICT DO NOTHING;
+INSERT INTO product_reviews (product_slug,author,rating,review_date,title,body,verified,position) VALUES ('compass-tech-backpack','Anil S.',5,'2024-10-27','Carries everything','Laptop, charger, keyboard, camera, change of clothes — all fit. Hidden pocket actually works. Strap is comfy.',true,0);
+INSERT INTO products (slug,name,subtitle,brand_slug,category_slug,subcategory,tagline,description,story,price,compare_at,currency,visual_key,accent,availability,stock,rating,review_count,shipping,warranty,added_at,is_active) VALUES ('compass-sling','Compass Sling Bag','4L · Weatherproof · Minimal','compass','gaming-carry','Slings','Just the essentials, on the chest.','A compact 4-litre sling for a phone, wallet, power bank, and a small camera. Weatherproof, reversible strap.','undefined',4490,NULL,'INR','backpack','oklch(0.60 0.13 55)','in-stock',89,4.4,134,'Ships within 24 hours.','Lifetime warranty on stitching.','2024-08-02',true);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('compass-sling','Capacity','4L',0);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('compass-sling','Material','Recycled ripstop, DWR',1);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('compass-sling','Strap','Reversible, left/right',2);
+INSERT INTO product_specs (product_slug,label,value,position) VALUES ('compass-sling','Pockets','4, incl. hidden',3);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('compass-sling','Compact 4L everyday sling',0);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('compass-sling','Weatherproof ripstop',1);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('compass-sling','Reversible strap',2);
+INSERT INTO product_highlights (product_slug,body,position) VALUES ('compass-sling','Hidden security pocket',3);
+INSERT INTO product_includes (product_slug,body,position) VALUES ('compass-sling','Compass sling',0);
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('compass-sling','compass-tech-backpack',0) ON CONFLICT DO NOTHING;
+INSERT INTO product_related (product_slug,related_slug,position) VALUES ('compass-sling','pebble-mini-speaker',1) ON CONFLICT DO NOTHING;
+
+-- offers
+INSERT INTO offers (slug,title,description,badge,terms,starts_at,ends_at,status) VALUES ('festive-edit','The Festive Edit','A curated drop of our most-gifted tech, with up to 17% off.','Up to 17% off','Discounts applied at checkout. Valid on in-stock items only. Cannot be combined with other offers.',(now() + interval '-10 days'),(now() + interval '30 days'),'active');
+INSERT INTO offers (slug,title,description,badge,terms,status) VALUES ('audio-bundle','Sound, Together','Pair headphones and a speaker and save on the set.','Bundle save','Bundle pricing applied when both items are in cart.','active');
+INSERT INTO offers (slug,title,description,badge,terms,status) VALUES ('desk-refresh','Desk Refresh','The three upgrades that change a desk.','Editor''s bundle','Editor''s picks. Items available separately.','active');
+INSERT INTO offers (slug,title,description,badge,terms,starts_at,ends_at,status) VALUES ('winter-clearance','Winter Clearance','Last chance on selected gear at our lowest prices.','Final sale','Clearance items are non-returnable. While stocks last.',(now() + interval '-90 days'),(now() + interval '-30 days'),'expired');
+
+-- offer_products
+INSERT INTO offer_products (offer_id,product_slug,position) SELECT id,'halo-one-wireless',0 FROM offers WHERE slug='festive-edit' ON CONFLICT DO NOTHING;
+INSERT INTO offer_products (offer_id,product_slug,position) SELECT id,'pulse-2-smartwatch',1 FROM offers WHERE slug='festive-edit' ON CONFLICT DO NOTHING;
+INSERT INTO offer_products (offer_id,product_slug,position) SELECT id,'compass-tech-backpack',2 FROM offers WHERE slug='festive-edit' ON CONFLICT DO NOTHING;
+INSERT INTO offer_products (offer_id,product_slug,position) SELECT id,'vista-27-4k-monitor',3 FROM offers WHERE slug='festive-edit' ON CONFLICT DO NOTHING;
+INSERT INTO offer_products (offer_id,product_slug,position) SELECT id,'halo-one-wireless',0 FROM offers WHERE slug='audio-bundle' ON CONFLICT DO NOTHING;
+INSERT INTO offer_products (offer_id,product_slug,position) SELECT id,'pebble-field-speaker',1 FROM offers WHERE slug='audio-bundle' ON CONFLICT DO NOTHING;
+INSERT INTO offer_products (offer_id,product_slug,position) SELECT id,'vista-27-4k-monitor',0 FROM offers WHERE slug='desk-refresh' ON CONFLICT DO NOTHING;
+INSERT INTO offer_products (offer_id,product_slug,position) SELECT id,'aura-led-desk-lamp',1 FROM offers WHERE slug='desk-refresh' ON CONFLICT DO NOTHING;
+INSERT INTO offer_products (offer_id,product_slug,position) SELECT id,'slate-walnut-riser',2 FROM offers WHERE slug='desk-refresh' ON CONFLICT DO NOTHING;
+INSERT INTO offer_products (offer_id,product_slug,position) SELECT id,'pebble-mini-speaker',0 FROM offers WHERE slug='winter-clearance' ON CONFLICT DO NOTHING;
+INSERT INTO offer_products (offer_id,product_slug,position) SELECT id,'coil-cable-pack',0 FROM offers WHERE slug='winter-clearance' ON CONFLICT DO NOTHING;
+INSERT INTO offer_products (offer_id,product_slug,position) SELECT id,'glide-travel-mouse',0 FROM offers WHERE slug='winter-clearance' ON CONFLICT DO NOTHING;
+
+-- profiles (dev test users; create matching auth.users via seed-auth.sql)
+INSERT INTO profiles (id,email,full_name,phone,onboarding_state,pref_newsletter,pref_product_updates,pref_order_updates,member_since) VALUES ('00000000-0000-0000-0000-000000000001','riya.sharma@example.com','Riya Sharma','+91 88587 63010','complete',true,true,true,'2023-03-14');
+INSERT INTO profiles (id,email,full_name,phone,onboarding_state,member_since) VALUES ('00000000-0000-0000-0000-000000000002','onboarding@example.com','Test Onboarding','+91 90000 00000','incomplete',CURRENT_DATE);
+
+-- addresses (for the complete user)
+INSERT INTO addresses (id,user_id,label,line1,line2,city,state,postcode,country,phone,is_default) VALUES (gen_random_uuid(),'00000000-0000-0000-0000-000000000001','Home','Flat 402, Sea Breeze Apartments','Bahraich','Bahraich','Uttar Pradesh','271801','India','+91 88587 63010',true);
+INSERT INTO addresses (id,user_id,label,line1,line2,city,state,postcode,country,phone,is_default) VALUES (gen_random_uuid(),'00000000-0000-0000-0000-000000000001','Office','5th floor, Maker Maxity','Civil Lines','Bahraich','Uttar Pradesh','271801','India','+91 88587 63010',false);
+
+-- orders (for the complete user; COD pending until delivery)
+INSERT INTO orders (id,user_id,status,payment_method,payment_status,currency,subtotal,discount_total,shipping_total,tax_total,total,ship_label,ship_line1,ship_line2,ship_city,ship_state,ship_postcode,ship_country,ship_phone,tracking_number,estimated_delivery,placed_at) VALUES ('FG-2041-8821','00000000-0000-0000-0000-000000000001','delivered','cod','paid','INR',26280,0,0,0,26280,'Home','Flat 402, Sea Breeze Apartments','Bahraich','Bahraich','Uttar Pradesh','271801','India','+91 88587 63010','TRK 8841 2290 IN','2024-11-12','2024-11-08T10:24:00Z');
+INSERT INTO order_items (order_id,product_slug,product_name,variant_name,visual_key,accent,quantity,unit_price,line_discount,line_total) VALUES ('FG-2041-8821','halo-one-wireless','Halo One Wireless Headphones','Sand','headphones','oklch(0.62 0.13 55)',1,24990,0,24990);
+INSERT INTO order_items (order_id,product_slug,product_name,variant_name,visual_key,accent,quantity,unit_price,line_discount,line_total) VALUES ('FG-2041-8821','coil-usbc-cable','Coil USB-C Cable (2m)',NULL,'cable','oklch(0.60 0.13 55)',1,1290,0,1290);
+INSERT INTO order_timeline (order_id,step_label,step_date,step_index,done) VALUES ('FG-2041-8821','Order placed','2024-11-08',0,true);
+INSERT INTO order_timeline (order_id,step_label,step_date,step_index,done) VALUES ('FG-2041-8821','Packed','2024-11-08',1,true);
+INSERT INTO order_timeline (order_id,step_label,step_date,step_index,done) VALUES ('FG-2041-8821','Shipped','2024-11-09',2,true);
+INSERT INTO order_timeline (order_id,step_label,step_date,step_index,done) VALUES ('FG-2041-8821','Out for delivery','2024-11-12',3,true);
+INSERT INTO order_timeline (order_id,step_label,step_date,step_index,done) VALUES ('FG-2041-8821','Delivered','2024-11-12',4,true);
+INSERT INTO orders (id,user_id,status,payment_method,payment_status,currency,subtotal,discount_total,shipping_total,tax_total,total,ship_label,ship_line1,ship_line2,ship_city,ship_state,ship_postcode,ship_country,ship_phone,tracking_number,estimated_delivery,placed_at) VALUES ('FG-2041-8640','00000000-0000-0000-0000-000000000001','delivered','cod','paid','INR',28980,0,0,0,28980,'Home','Flat 402, Sea Breeze Apartments','Bahraich','Bahraich','Uttar Pradesh','271801','India','+91 88587 63010','TRK 8810 4471 IN','2024-10-26','2024-10-22T15:11:00Z');
+INSERT INTO order_items (order_id,product_slug,product_name,variant_name,visual_key,accent,quantity,unit_price,line_discount,line_total) VALUES ('FG-2041-8640','type-75-mechanical','Type 75 Mechanical Keyboard','Matcha','keyboard','oklch(0.52 0.09 150)',1,18990,0,18990);
+INSERT INTO order_items (order_id,product_slug,product_name,variant_name,visual_key,accent,quantity,unit_price,line_discount,line_total) VALUES ('FG-2041-8640','glide-pro-wireless','Glide Pro Wireless Mouse',NULL,'mouse','oklch(0.45 0.06 230)',1,9990,0,9990);
+INSERT INTO order_timeline (order_id,step_label,step_date,step_index,done) VALUES ('FG-2041-8640','Order placed','2024-10-22',0,true);
+INSERT INTO order_timeline (order_id,step_label,step_date,step_index,done) VALUES ('FG-2041-8640','Packed','2024-10-22',1,true);
+INSERT INTO order_timeline (order_id,step_label,step_date,step_index,done) VALUES ('FG-2041-8640','Shipped','2024-10-23',2,true);
+INSERT INTO order_timeline (order_id,step_label,step_date,step_index,done) VALUES ('FG-2041-8640','Out for delivery','2024-10-26',3,true);
+INSERT INTO order_timeline (order_id,step_label,step_date,step_index,done) VALUES ('FG-2041-8640','Delivered','2024-10-26',4,true);
+INSERT INTO orders (id,user_id,status,payment_method,payment_status,currency,subtotal,discount_total,shipping_total,tax_total,total,ship_label,ship_line1,ship_line2,ship_city,ship_state,ship_postcode,ship_country,ship_phone,tracking_number,estimated_delivery,placed_at) VALUES ('FG-2042-9001','00000000-0000-0000-0000-000000000001','shipped','cod','pending','INR',21990,3000,0,0,18990,'Office','5th floor, Maker Maxity','Civil Lines','Bahraich','Uttar Pradesh','271801','India','+91 88587 63010','TRK 8901 0033 IN','2024-11-22','2024-11-18T09:02:00Z');
+INSERT INTO order_items (order_id,product_slug,product_name,variant_name,visual_key,accent,quantity,unit_price,line_discount,line_total) VALUES ('FG-2042-9001','pulse-2-smartwatch','Pulse 2 Smartwatch','Graphite','watch','oklch(0.58 0.16 340)',1,21990,0,21990);
+INSERT INTO order_timeline (order_id,step_label,step_date,step_index,done) VALUES ('FG-2042-9001','Order placed','2024-11-18',0,true);
+INSERT INTO order_timeline (order_id,step_label,step_date,step_index,done) VALUES ('FG-2042-9001','Packed','2024-11-18',1,true);
+INSERT INTO order_timeline (order_id,step_label,step_date,step_index,done) VALUES ('FG-2042-9001','Shipped','2024-11-19',2,true);
+INSERT INTO order_timeline (order_id,step_label,step_date,step_index,done) VALUES ('FG-2042-9001','Out for delivery','2024-11-22',3,false);
+INSERT INTO order_timeline (order_id,step_label,step_date,step_index,done) VALUES ('FG-2042-9001','Delivered','2024-11-22',4,false);
+INSERT INTO orders (id,user_id,status,payment_method,payment_status,currency,subtotal,discount_total,shipping_total,tax_total,total,ship_label,ship_line1,ship_line2,ship_city,ship_state,ship_postcode,ship_country,ship_phone,tracking_number,estimated_delivery,placed_at) VALUES ('FG-2042-9155','00000000-0000-0000-0000-000000000001','processing','cod','pending','INR',103980,0,0,0,103980,'Home','Flat 402, Sea Breeze Apartments','Bahraich','Bahraich','Uttar Pradesh','271801','India','+91 88587 63010',NULL,'2024-11-26','2024-11-20T18:47:00Z');
+INSERT INTO order_items (order_id,product_slug,product_name,variant_name,visual_key,accent,quantity,unit_price,line_discount,line_total) VALUES ('FG-2042-9155','lumen-x100-compact','Lumen X100 Compact Camera','Silver','camera','oklch(0.45 0.04 250)',1,74990,0,74990);
+INSERT INTO order_items (order_id,product_slug,product_name,variant_name,visual_key,accent,quantity,unit_price,line_discount,line_total) VALUES ('FG-2042-9155','lumen-35mm-lens','Lumen 35mm f/1.8 Lens',NULL,'lens','oklch(0.60 0.13 55)',1,28990,0,28990);
+INSERT INTO order_timeline (order_id,step_label,step_date,step_index,done) VALUES ('FG-2042-9155','Order placed','2024-11-20',0,true);
+INSERT INTO order_timeline (order_id,step_label,step_date,step_index,done) VALUES ('FG-2042-9155','Packed','2024-11-21',1,false);
+INSERT INTO order_timeline (order_id,step_label,step_date,step_index,done) VALUES ('FG-2042-9155','Shipped','2024-11-21',2,false);
+INSERT INTO order_timeline (order_id,step_label,step_date,step_index,done) VALUES ('FG-2042-9155','Out for delivery','2024-11-26',3,false);
+INSERT INTO order_timeline (order_id,step_label,step_date,step_index,done) VALUES ('FG-2042-9155','Delivered','2024-11-26',4,false);
+
+-- circulation: one seed published version (dev control data, not real algorithm output)
+INSERT INTO circulation_versions (version,status,built_at,published_at) VALUES (1,'published',(now() + interval '-1 days'),(now() + interval '-1 days'));
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'home_trending','echo-lite-earbuds',0,5.0000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'home_trending','spark-65w-gan-charger',1,4.9000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'home_trending','echo-pro-anc-earbuds',2,4.8000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'home_trending','pulse-lite-band',3,4.7000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'home_trending','coil-usbc-cable',4,4.6000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'home_trending','halo-one-wireless',5,4.5000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'home_new_arrivals','pulse-2-smartwatch',0,5.0000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'home_new_arrivals','drift-wireless-controller',1,4.9000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'home_new_arrivals','artisan-keycap-tide',2,4.8000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'home_new_arrivals','echo-pro-anc-earbuds',3,4.7000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'home_new_arrivals','lumen-50mm-lens',4,4.6000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'home_new_arrivals','type-75-mechanical',5,4.5000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'home_featured','halo-one-wireless',0,5.0000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'home_featured','halo-studio-reference',1,4.9000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'home_featured','type-75-mechanical',2,4.8000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'home_featured','lumen-x100-compact',3,4.7000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'home_featured','aura-led-desk-lamp',4,4.6000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'home_on_sale','halo-one-wireless',0,5.0000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'home_on_sale','vista-27-4k-monitor',1,4.9000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'home_on_sale','pulse-2-smartwatch',2,4.8000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'home_on_sale','compass-tech-backpack',3,4.7000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','echo-lite-earbuds',0,5.0000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','spark-65w-gan-charger',1,4.9000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','echo-pro-anc-earbuds',2,4.8000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','pulse-lite-band',3,4.7000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','coil-usbc-cable',4,4.6000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','halo-one-wireless',5,4.5000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','arc-aluminium-stand',6,4.4000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','pulse-2-smartwatch',7,4.3000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','drift-wireless-controller',8,4.2000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','pebble-mini-speaker',9,4.1000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','spark-100w-desk-charger',10,4.0000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','glide-travel-mouse',11,3.9000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','compass-tech-backpack',12,3.8000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','type-75-mechanical',13,3.7000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','pulse-fit-tracker',14,3.6000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','glide-pro-wireless',15,3.5000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','echo-gaming-headset',16,3.4000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','coil-cable-pack',17,3.3000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','aura-led-desk-lamp',18,3.2000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','pebble-field-speaker',19,3.1000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','compass-sling',20,3.0000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','type-65-compact',21,2.9000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','vista-27-4k-monitor',22,2.8000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','slate-walnut-riser',23,2.7000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','lumen-35mm-lens',24,2.6000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','halo-studio-reference',25,2.5000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','aura-warm-globe',26,2.4000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','dock-12-thunderbolt',27,2.3000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','linear-switch-pack',28,2.2000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','lumen-x100-compact',29,2.1000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','lumen-50mm-lens',30,2.0000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','lumen-mirrorless-body',31,1.9000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','artisan-keycap-tide',32,1.8000 FROM circulation_versions WHERE status='published' LIMIT 1;
+INSERT INTO circulation_entries (version_id,surface,product_slug,position,score) SELECT id,'shop_default','resonance-bookshelf',33,1.7000 FROM circulation_versions WHERE status='published' LIMIT 1;
+
+COMMIT;
+
+-- NOTE: to log in as the test users during development, run supabase/seed-auth.sql
+-- which inserts matching auth.users rows (passwords documented there).
+-- ============================================================
+-- DEV ONLY — creates auth.users rows matching the profiles seeded by seed.sql.
+-- This lets you actually log in during local development/testing.
+-- DO NOT run in production. Passwords below are intentionally weak and public.
+--
+-- Test users:
+--   riya.sharma@example.com  /  fusion123       (onboarding complete, has orders)
+--   onboarding@example.com   /  onboard123      (onboarding incomplete)
+--
+-- The on_auth_user_created trigger (0001_schema.sql) will try to insert a profile
+-- for each new auth.users row; seed.sql already seeded those profile rows, so the
+-- trigger's INSERT ... ON CONFLICT DO NOTHING is a no-op and the seeded profile
+-- (with the right onboarding_state) is kept.
+-- ============================================================
+BEGIN;
+
+INSERT INTO auth.users (
+  instance_id, id, aud, role, email, encrypted_password,
+  email_confirmed_at, phone, phone_confirmed_at,
+  confirmation_token, recovery_token, email_change_token_new, phone_change_token,
+  email_change, email_change_token_current, phone_change,
+  created_at, updated_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data,
+  is_sso_user, deleted_at
+) VALUES
+(
+  '00000000-0000-0000-0000-000000000000',
+  '00000000-0000-0000-0000-000000000001',
+  'authenticated', 'authenticated',
+  'riya.sharma@example.com',
+  crypt('fusion123', gen_salt('bf')),
+  now(), NULL, NULL,
+  '', '', '', '',
+  '', '', '',
+  now(), now(), NULL,
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  '{"full_name":"Riya Sharma"}'::jsonb,
+  false, NULL
+),
+(
+  '00000000-0000-0000-0000-000000000000',
+  '00000000-0000-0000-0000-000000000002',
+  'authenticated', 'authenticated',
+  'onboarding@example.com',
+  crypt('onboard123', gen_salt('bf')),
+  now(), NULL, NULL,
+  '', '', '', '',
+  '', '', '',
+  now(), now(), NULL,
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  '{"full_name":"Test Onboarding"}'::jsonb,
+  false, NULL
+)
+ON CONFLICT (id) DO NOTHING;
+
+COMMIT;

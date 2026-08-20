@@ -1,0 +1,1846 @@
+````markdown
+# Fusion Gadgets — Phase 7 Implementation Prompt for GLM 5.3
+
+You are continuing the existing Fusion Gadgets codebase after:
+
+```text
+Phase 1 — Foundation and Database
+Phase 2 — Real Catalog and Mock Data Migration
+Phase 3 — Authentication and User Data
+Phase 4 — Real Cart and Wishlist
+Phase 5 — Checkout and COD Order Creation
+Phase 6 — Listing Circulation, Offer Data Consumption, and Home/Shop Data Delivery
+````
+
+Your task in this run is to implement **Phase 7 only: Tracking Ingestion, TiDB Event Storage, Processing Server, and Ready Data Generation**.
+
+Do not start Phase 8 or any later phase.
+
+The existing premium frontend UI is already designed and approved. Preserve it.
+
+This phase is infrastructure-heavy, not a UI redesign phase.
+
+Read this entire instruction before changing anything.
+
+First inspect the actual repository and all previous implementations. Verify the existing product/catalog model, circulation implementation, frontend tracking hooks if any, Supabase schema, Worker structure, and the existing empty:
+
+```text
+/TrackingServer
+/ProcessingServer
+```
+
+or equivalent project structure.
+
+Do not assume previous phases were implemented perfectly.
+
+---
+
+# 1. Phase 7 Objective
+
+Implement the tracking pipeline as a completely separate system from the Cloudflare Worker.
+
+The final architecture is:
+
+```text
+NEXT.JS FRONTEND
+        │
+        │ Batched tracking events
+        ▼
+TRACKING SERVER
+        │
+        │ Durable event storage
+        ▼
+TiDB Cloud
+        │
+        ▼
+PROCESSING SERVER
+        │
+        │ Process only new/unprocessed work
+        ▼
+Ready-to-use aggregated data
+        │
+        ▼
+Supabase
+        │
+        ▼
+Next.js ISR / public reads
+```
+
+The critical rule is:
+
+> **Tracking data is not processed synchronously by the frontend, Next.js, Cloudflare Worker, or Supabase.**
+
+The tracking system must be independent.
+
+If tracking processing is unavailable:
+
+```text
+Tracking processing unavailable
+        │
+        ▼
+Existing ready Supabase data remains available
+        │
+        ▼
+Website continues working
+```
+
+The storefront must never depend on live tracking processing.
+
+---
+
+# 2. Scope
+
+Phase 7 includes:
+
+```text
+Frontend event collection
+Frontend batching
+Tracking request queue
+Tracking retry behavior
+Tracking Server
+TiDB Cloud event storage
+Event deduplication
+Event validation
+Basic abuse protection
+Processing Server
+Incremental processing
+Processing checkpoints/watermarks
+Ready aggregated data
+Writing ready data to Supabase
+Failure recovery
+Idempotent processing
+Cron-triggered processing compatibility
+Render free-plan efficiency
+Tracking data retention/cleanup strategy
+Integration with existing circulation-ready data where required
+```
+
+Phase 7 does NOT include:
+
+```text
+Admin dashboard
+Analytics dashboard
+User-facing analytics
+Payment analytics
+Payment tracking
+Order fulfillment tracking
+Shipment tracking
+AI recommendations
+Personalized recommendations
+Machine-learning ranking
+Complex real-time analytics
+Cloudflare Worker tracking endpoints
+Tracking through Supabase
+Synchronous page rendering based on raw events
+```
+
+Do not implement later functionality.
+
+---
+
+# 3. Hard Architecture Boundary
+
+The following architecture is mandatory:
+
+```text
+Frontend
+    │
+    ▼
+TrackingServer
+    │
+    ▼
+TiDB Cloud
+    │
+    ▼
+ProcessingServer
+    │
+    ▼
+Supabase ready-data tables
+    │
+    ▼
+Next.js
+```
+
+The Cloudflare Worker is NOT part of this pipeline.
+
+Do not add:
+
+```text
+Frontend
+    ↓
+Cloudflare Worker
+    ↓
+TrackingServer
+```
+
+Do not make the Worker a tracking proxy.
+
+The Worker has a limited customer-operation authority and must not consume its request quota for analytics/tracking.
+
+---
+
+# 4. TrackingServer Location
+
+The tracking server must exist as a separate backend in the project:
+
+```text
+/TrackingServer
+```
+
+Use Node.js with a simple, production-appropriate HTTP server framework already compatible with the project.
+
+Do not turn it into a large application framework.
+
+The TrackingServer has one job:
+
+```text
+Receive valid batches
+    ↓
+Validate
+    ↓
+Store durable events
+    ↓
+Return quickly
+```
+
+It does not:
+
+```text
+Process analytics
+Generate recommendations
+Write aggregated data to Supabase
+Perform expensive calculations
+Call external AI APIs
+Query the product catalog repeatedly
+```
+
+---
+
+# 5. ProcessingServer Location
+
+The processing backend must exist separately:
+
+```text
+/ProcessingServer
+```
+
+Its job is:
+
+```text
+Read unprocessed/new events from TiDB
+        ↓
+Process incrementally
+        ↓
+Update ready aggregated state
+        ↓
+Write ready data to Supabase
+        ↓
+Record processing progress
+```
+
+Do not merge ProcessingServer into TrackingServer.
+
+Do not make TrackingServer perform processing before responding.
+
+Do not make frontend requests wait for ProcessingServer.
+
+---
+
+# 6. Render Free Plan Constraint
+
+The ProcessingServer will run on Render's free plan.
+
+Design for that constraint.
+
+The server must be able to remain mostly idle and become useful when triggered.
+
+The expected processing model is:
+
+```text
+cron-job.org
+      │
+      │ periodic trigger
+      ▼
+ProcessingServer
+      │
+      ▼
+Process available work
+      │
+      ▼
+Finish
+```
+
+Do not assume a continuously running worker with unlimited CPU.
+
+Do not create:
+
+```text
+Always-running background worker
+Busy polling every second
+Infinite processing loops
+Multiple permanent worker processes
+```
+
+The ProcessingServer must process bounded batches and stop/idle safely.
+
+---
+
+# 7. Cron Trigger
+
+The ProcessingServer must expose a protected processing trigger compatible with cron-job.org.
+
+Conceptually:
+
+```text
+cron-job.org
+      │
+      ▼
+POST /process
+      │
+      ▼
+ProcessingServer
+      │
+      ▼
+Process bounded amount of pending work
+      │
+      ▼
+Return
+```
+
+Protect the endpoint.
+
+Do not leave the processing trigger publicly executable without authentication.
+
+Use a secret/token mechanism appropriate for the deployment environment.
+
+Do not expose the processing secret in frontend code.
+
+Do not use the Cloudflare Worker for the cron trigger.
+
+---
+
+# 8. Processing Must Be Incremental
+
+This is one of the most important requirements.
+
+The ProcessingServer must never repeatedly process the entire event table.
+
+Forbidden:
+
+```text
+SELECT all events
+↓
+recalculate everything
+↓
+write everything again
+```
+
+Instead:
+
+```text
+Events
+  │
+  ├── Already processed
+  │
+  └── New/unprocessed
+          │
+          ▼
+     Process only these
+```
+
+The system must maintain a reliable checkpoint/watermark.
+
+Use a simple mechanism such as:
+
+```text
+last_processed_event_id
+```
+
+or another monotonic processing cursor supported by the actual schema.
+
+Do not use timestamps alone if they can cause missed events or duplicate windows.
+
+If IDs are not monotonically usable, use a proper durable cursor strategy.
+
+Keep it simple.
+
+---
+
+# 9. Processing Cursor
+
+The processing checkpoint must itself be durable.
+
+It must survive:
+
+```text
+Render restart
+Deployment
+Free-plan sleep
+Crash
+Processing failure
+Manual restart
+```
+
+Do not keep the only checkpoint in memory.
+
+The checkpoint must be stored in durable storage.
+
+TiDB is the natural location for the event-processing checkpoint unless the actual architecture has a concrete reason otherwise.
+
+The flow is:
+
+```text
+Read checkpoint
+      ↓
+Fetch events after checkpoint
+      ↓
+Process bounded batch
+      ↓
+Successfully persist derived state
+      ↓
+Advance checkpoint
+```
+
+Do not advance the checkpoint before the derived state is safely persisted.
+
+---
+
+# 10. Failure Safety
+
+If processing fails halfway through:
+
+```text
+Processed successfully
+        │
+        ▼
+Checkpoint advances only through confirmed work
+```
+
+Do not mark unprocessed events as processed.
+
+Do not lose events because one event failed.
+
+Do not advance the cursor to the end of a fetched batch before successful processing.
+
+The system must be restartable.
+
+At-least-once processing is acceptable.
+
+The resulting aggregation must therefore be idempotent.
+
+---
+
+# 11. Idempotent Processing
+
+Processing the same event twice must not corrupt aggregate data.
+
+The system must tolerate:
+
+```text
+Render restart
+Network retry
+Cron overlap
+Processing crash
+Manual re-run
+```
+
+Do not assume exactly-once execution.
+
+Use database constraints/upserts/checkpoints where appropriate.
+
+Do not build a distributed transaction system.
+
+Keep idempotency simple and database-backed.
+
+---
+
+# 12. Processing Concurrency
+
+The ProcessingServer must avoid two cron invocations processing the same cursor simultaneously.
+
+Use a simple distributed lock or database-backed processing lease.
+
+The lock must:
+
+```text
+Prevent concurrent processors
+Expire safely
+Not remain permanently stuck after crash
+Be inexpensive
+```
+
+Do not introduce Redis.
+
+Do not introduce another database.
+
+Do not build a custom distributed coordination service.
+
+TiDB can provide the necessary durable coordination if implemented correctly.
+
+If the Render instance itself guarantees single execution for the deployment, still protect the processing endpoint against overlapping external cron calls.
+
+---
+
+# 13. Bounded Processing
+
+Each ProcessingServer invocation must process a bounded amount of work.
+
+For example:
+
+```text
+Trigger
+   ↓
+Acquire lock
+   ↓
+Read up to N events
+   ↓
+Process
+   ↓
+Persist
+   ↓
+Advance checkpoint
+   ↓
+If more work remains, process another bounded batch only within a safe execution limit
+   ↓
+Release lock
+   ↓
+Return
+```
+
+Do not create an infinite loop.
+
+Do not let a single cron request run indefinitely.
+
+Use a practical execution budget compatible with Render free-tier behavior.
+
+If work remains, the next cron invocation can continue.
+
+Correctness is more important than processing the entire backlog in one request.
+
+---
+
+# 14. TiDB Is the Event Store
+
+Raw tracking events must be stored in TiDB Cloud.
+
+Do not store the raw event stream in Supabase.
+
+Do not create one Supabase row for every frontend tracking event.
+
+The reason is:
+
+```text
+Raw events → TiDB
+Ready aggregates → Supabase
+```
+
+Supabase receives only the data the storefront actually needs.
+
+This keeps Supabase small and useful.
+
+---
+
+# 15. Event Schema
+
+Create a compact event schema.
+
+Each event should contain only useful information.
+
+At minimum, the model should support:
+
+```text
+event_id
+event_type
+occurred_at
+anonymous/session identifier where needed
+authenticated user identifier where appropriate
+product identifier where applicable
+category identifier where applicable
+page/path context where applicable
+minimal event metadata
+```
+
+Do not store entire browser payloads.
+
+Do not store HTML.
+
+Do not store full product objects.
+
+Do not store authentication tokens.
+
+Do not store passwords.
+
+Do not store sensitive Supabase session information.
+
+Do not store arbitrary headers.
+
+Do not store unnecessary personal information.
+
+---
+
+# 16. Event Types
+
+Implement only events that are genuinely useful to the current storefront/circulation system.
+
+The initial event set should cover useful product exposure/interaction signals such as:
+
+```text
+product_view
+product_impression
+product_click
+add_to_cart
+remove_from_cart
+wishlist_add
+wishlist_remove
+category_view
+search
+```
+
+If an event has no current consumer, do not add it merely because analytics systems usually have it.
+
+Do not create dozens of events.
+
+Do not track every UI interaction.
+
+Keep the initial event vocabulary small.
+
+---
+
+# 17. Order Events
+
+Do not make the frontend send arbitrary order events.
+
+Order creation is already authoritative through the Worker.
+
+If order-related tracking is eventually required, it must originate from trusted backend/order state rather than a browser claim.
+
+Do not implement a client event such as:
+
+```text
+order_created
+```
+
+and treat it as authoritative.
+
+If Phase 7 needs order-derived aggregation, derive it from actual order data through the appropriate backend processing flow.
+
+Do not weaken Phase 5.
+
+---
+
+# 18. Frontend Tracking
+
+Tracking must be lightweight.
+
+The frontend must not make a network request for every event.
+
+Instead:
+
+```text
+UI event
+   ↓
+In-memory queue
+   ↓
+Batch
+   ↓
+Send
+```
+
+The frontend should batch events.
+
+Do not add a huge analytics SDK.
+
+Do not introduce Google Analytics or another third-party analytics platform.
+
+This is the application's own tracking system.
+
+---
+
+# 19. Frontend Queue
+
+Implement a small tracking queue.
+
+The queue must support:
+
+```text
+Add event
+Batch events
+Send batch
+Retry failed batch
+Remove successful batch
+Flush when appropriate
+```
+
+Do not make tracking state global across the entire application unnecessarily.
+
+A small dedicated tracking module is sufficient.
+
+Do not create a giant event bus.
+
+---
+
+# 20. Batch Rules
+
+Do not send one request per event.
+
+Use sensible batching.
+
+A batch may flush when:
+
+```text
+Batch reaches a reasonable size
+OR
+A short time interval passes
+OR
+Page visibility/lifecycle requires a flush
+```
+
+Do not flush continuously.
+
+Do not create hundreds of tiny requests.
+
+Keep the request payload compact.
+
+---
+
+# 21. Navigation and Page Tracking
+
+Tracking must not interfere with navigation.
+
+When the user changes pages:
+
+```text
+Tracking queue
+    │
+    ▼
+Existing events remain available
+    │
+    ▼
+Flush asynchronously
+```
+
+Do not block navigation waiting for tracking.
+
+Do not make route rendering depend on tracking success.
+
+Do not show a loading indicator because tracking is being sent.
+
+Do not make tracking part of the page data-fetching path.
+
+---
+
+# 22. Retry Behavior
+
+If TrackingServer is temporarily unavailable:
+
+```text
+Send batch
+    │
+    ├── Success → remove batch
+    │
+    └── Failure → retain batch
+                   │
+                   ▼
+                retry later
+```
+
+Use bounded retries/backoff.
+
+Do not retry indefinitely.
+
+Do not retry every second.
+
+Do not create an infinite browser retry loop.
+
+If a batch remains unsent for too long, it may eventually be discarded according to a simple retention limit.
+
+Tracking is useful data, not a reason to break the website.
+
+---
+
+# 23. Offline Behavior
+
+The tracking system must tolerate temporary connectivity loss.
+
+Do not require the user to remain online for tracking.
+
+A small local queue may be used where it materially improves reliability.
+
+If using browser persistence:
+
+```text
+Only store tracking events owned by this application.
+```
+
+Do not store sensitive information.
+
+Do not let the tracking queue grow without bounds.
+
+Use a maximum queue size.
+
+If the queue exceeds the limit, discard the oldest/least useful tracking events according to a simple deterministic policy.
+
+Do not implement a complex offline synchronization engine.
+
+---
+
+# 24. Tracking Request Authentication
+
+Tracking is not an authenticated privileged operation.
+
+Do not expose Supabase service-role credentials.
+
+Do not send Supabase access tokens merely to submit anonymous product-view events.
+
+The TrackingServer must apply practical abuse controls without treating the client as trusted.
+
+Client-provided event data is untrusted.
+
+Do not allow arbitrary SQL-like fields or uncontrolled payloads.
+
+Validate:
+
+```text event type
+event shape
+identifier format
+payload size
+timestamp range
+batch size
+```
+
+Reject malformed events.
+
+---
+
+# 25. Abuse Prevention
+
+The TrackingServer is publicly reachable.
+
+Apply lightweight protection:
+
+```text request size limit
+batch size limit
+event validation
+basic rate limiting where practical
+reasonable timestamp validation
+```
+
+Do not build invasive fingerprinting.
+
+Do not create a complex WAF.
+
+Do not add external infrastructure just for rate limiting.
+
+Do not store arbitrary IP history forever.
+
+If IP information is required for basic abuse prevention, handle it minimally and according to the actual deployment requirements.
+
+Do not turn tracking into a surveillance system.
+
+---
+
+# 26. Event Timestamp Rules
+
+The client may provide an event timestamp, but it is untrusted.
+
+The TrackingServer should reject clearly invalid timestamps such as:
+
+```text
+far future
+unreasonably old
+malformed
+```
+
+Do not allow a client to create arbitrary historical data.
+
+Use server receive time as an additional trustworthy timestamp where useful.
+
+Do not overcomplicate time handling.
+
+---
+
+# 27. Event Deduplication
+
+Every event must have a unique event identity.
+
+If the same batch is submitted twice:
+
+```text
+same event IDs
+      ↓
+only one stored event per ID
+```
+
+Use a database uniqueness constraint.
+
+Do not rely only on frontend memory to prevent duplicates.
+
+Do not build a separate deduplication database.
+
+TiDB must enforce event identity.
+
+---
+
+# 28. Raw Event Retention
+
+Raw events must not grow forever.
+
+Define a practical retention strategy compatible with the actual TiDB Cloud plan.
+
+The exact retention period should be chosen based on the expected event volume and available storage, not arbitrarily.
+
+The architecture must support deleting old processed raw events safely.
+
+Do not delete events that are still required by the incremental processing checkpoint.
+
+Do not implement deletion that can cause the processor to lose its cursor.
+
+The cleanup process must be safe and incremental.
+
+If cleanup is not yet required because the seed/test environment is tiny, implement the schema and clear boundary for retention without adding a large maintenance subsystem.
+
+---
+
+# 29. Processing Model
+
+The ProcessingServer consumes events incrementally.
+
+The processing flow is:
+
+```text
+TiDB
+  │
+  ▼
+Read checkpoint
+  │
+  ▼
+Read next bounded event batch
+  │
+  ▼
+Aggregate useful metrics
+  │
+  ▼
+Persist derived state
+  │
+  ▼
+Advance checkpoint
+```
+
+Do not recalculate all historical events every run.
+
+---
+
+# 30. Derived Data
+
+The ProcessingServer should generate only data that the storefront actually needs.
+
+Examples include:
+
+```text
+product exposure counts
+product interaction counts
+product popularity signals
+category activity
+circulation-ready ranking/order data
+```
+
+Use only metrics required by the existing Phase 6 circulation system.
+
+Do not build a generic analytics warehouse.
+
+Do not create dozens of aggregate tables.
+
+Do not store every possible metric.
+
+Keep ready data compact.
+
+---
+
+# 31. Ready Data Must Be Supabase-Friendly
+
+The storefront must not read raw TiDB events.
+
+Instead:
+
+```text
+TiDB raw events
+        │
+        ▼
+ProcessingServer
+        │
+        ▼
+Compact ready data
+        │
+        ▼
+Supabase
+```
+
+The ready-data schema should contain only values required by Next.js and storefront circulation.
+
+For example, if circulation needs a product score/order:
+
+```text
+product_id
+score/order value
+updated_at
+```
+
+is preferable to storing thousands of raw event records in Supabase.
+
+Use the actual Phase 6 circulation requirements.
+
+Do not copy the raw event table into Supabase.
+
+---
+
+# 32. Supabase Ready Data
+
+The ready data written to Supabase must be safe for public consumption according to the actual storefront needs.
+
+The frontend should be able to read the required ready data without privileged credentials.
+
+Do not expose raw tracking data publicly.
+
+Do not expose per-user activity.
+
+Do not expose sensitive event information.
+
+The ready tables must contain aggregated storefront-safe information only.
+
+---
+
+# 33. Processing Must Not Break Storefront
+
+This is mandatory.
+
+The processing pipeline is asynchronous.
+
+If:
+
+```text
+TrackingServer down
+ProcessingServer down
+Render sleeping
+Cron fails
+TiDB temporarily unavailable
+Processing fails
+```
+
+the storefront must continue using the last successfully written ready data.
+
+The model is:
+
+```text
+Latest successful ready data
+        │
+        ▼
+Supabase
+        │
+        ▼
+Next.js
+```
+
+Never:
+
+```text
+No new processing
+    ↓
+Delete ready data
+    ↓
+Homepage breaks
+```
+
+Do not clear ready data when processing fails.
+
+Do not overwrite valid ready data with an empty result merely because a processing cycle had no new events.
+
+---
+
+# 34. Incremental Aggregate Updates
+
+When new events arrive:
+
+```text
+Existing aggregate
++
+new event contribution
+=
+updated aggregate
+```
+
+Do not rebuild the entire aggregate from zero.
+
+If a product currently has:
+
+```text
+view_count = 100
+```
+
+and five new valid events arrive:
+
+```text
+view_count = 105
+```
+
+or the equivalent normalized derived value.
+
+Use atomic/upsert operations where appropriate.
+
+Do not introduce a giant data-processing framework.
+
+---
+
+# 35. Circulation Integration
+
+The ProcessingServer may update ready circulation inputs used by Phase 6.
+
+The boundary is:
+
+```text
+Tracking events
+      ↓
+ProcessingServer
+      ↓
+Ready circulation data
+      ↓
+Supabase
+      ↓
+Phase 6 circulation/storefront
+```
+
+Do not make the ProcessingServer directly modify frontend code.
+
+Do not make Next.js call ProcessingServer.
+
+Do not make the homepage wait for ProcessingServer.
+
+The homepage consumes the latest ready Supabase data.
+
+---
+
+# 36. Stale Ready Data Is Acceptable
+
+If processing has not run recently:
+
+```text
+Next.js
+    ↓
+Reads latest ready data
+```
+
+That is correct.
+
+Do not display an error merely because the ready data is older.
+
+Do not trigger processing synchronously from page rendering.
+
+Do not make an ISR request wake ProcessingServer.
+
+Do not make Supabase query TiDB.
+
+The system is intentionally eventually consistent.
+
+---
+
+# 37. Processing Freshness
+
+The ready data should contain an update timestamp.
+
+This is useful for internal monitoring and debugging.
+
+The storefront does not need to display it.
+
+Do not make the frontend reject ready data merely because it is not extremely fresh.
+
+Do not turn freshness into a hard availability dependency.
+
+---
+
+# 38. Frontend Event Sources
+
+Integrate tracking only into meaningful existing interactions.
+
+At minimum, use tracking where useful for:
+
+```text
+Product impression
+Product view
+Product click
+Add to cart
+Wishlist add
+Category view
+Search
+```
+
+Do not instrument every button.
+
+Do not instrument visual animations.
+
+Do not track:
+
+```text
+hover
+scroll every pixel
+mouse movement
+every keystroke
+every render
+every component mount
+```
+
+unless a concrete requirement requires it.
+
+---
+
+# 39. Product Impression Rules
+
+Product impressions must not be emitted repeatedly simply because React renders a component.
+
+An impression should represent meaningful exposure.
+
+Do not do:
+
+```text
+ProductCard mount
+    ↓
+send impression
+```
+
+if the component mounts off-screen or repeatedly due to rendering.
+
+Use an appropriate lightweight visibility mechanism if impression tracking is required.
+
+Do not build a complex analytics observer framework.
+
+Avoid duplicate impressions for the same exposure.
+
+---
+
+# 40. Product View Rules
+
+A product view should represent an actual product-page visit.
+
+Do not send a product-view event on every component render.
+
+Do not send repeated events because state changed.
+
+Use the product route/page lifecycle appropriately.
+
+---
+
+# 41. Search Tracking
+
+Track meaningful searches only.
+
+Do not send one event per keystroke.
+
+The event should represent an actual submitted/search query action.
+
+Do not store sensitive or arbitrary query history unnecessarily.
+
+Normalize or constrain query payload size.
+
+---
+
+# 42. Tracking Must Never Affect UX
+
+The following are forbidden:
+
+```text
+Tracking request blocks page rendering
+Tracking failure shows page error
+Tracking retry shows global loading
+Tracking failure prevents add-to-cart
+Tracking failure prevents checkout
+Tracking failure prevents navigation
+Tracking failure prevents product display
+```
+
+Tracking is always secondary.
+
+The website works first.
+
+Tracking is best-effort.
+
+---
+
+# 43. No Worker Tracking
+
+Do not modify `/worker` to handle:
+
+```text
+product_view
+product_impression
+search
+click
+cart analytics
+wishlist analytics
+```
+
+Do not consume Worker request quota for these events.
+
+The TrackingServer owns tracking ingestion.
+
+---
+
+# 44. No Supabase Raw Event Storage
+
+Do not create frontend tracking writes like:
+
+```ts
+supabase.from("events").insert(...)
+```
+
+for raw tracking events.
+
+Raw tracking belongs to TiDB.
+
+Supabase only stores ready derived data needed by the storefront.
+
+---
+
+# 45. Render Deployment Structure
+
+Keep the project structure clear:
+
+```text
+/
+├── app/
+├── components/
+├── worker/
+├── TrackingServer/
+├── ProcessingServer/
+└── ...
+```
+
+Use the actual repository naming conventions if they already exist.
+
+Do not put TrackingServer code inside Next.js.
+
+Do not put ProcessingServer code inside Next.js.
+
+Do not make them Next.js route handlers.
+
+Each backend must have its own clear runtime/dependency configuration where required.
+
+---
+
+# 46. Environment Variables
+
+Secrets must remain server-side.
+
+TrackingServer may need:
+
+```text
+TiDB connection configuration
+tracking secret/configuration
+```
+
+ProcessingServer may need:
+
+```text
+TiDB connection configuration
+Supabase server-side credentials
+processing secret
+```
+
+The browser must never receive:
+
+```text
+TiDB credentials
+Supabase service-role key
+ProcessingServer secret
+TrackingServer private credentials
+```
+
+Do not put server secrets in `NEXT_PUBLIC_*`.
+
+Do not commit secrets.
+
+Update example environment configuration with names only, not actual credentials.
+
+---
+
+# 47. Database Schema Changes
+
+If new TiDB tables are required, create the schema/migration/SQL needed to initialize them.
+
+If new Supabase ready-data tables are required, create the migration/SQL needed to initialize them.
+
+The user has a test Supabase project that AI may use for inspection/testing.
+
+Do not directly perform destructive production operations.
+
+Provide schema/migration SQL where database changes are required.
+
+Do not drop existing production tables merely to simplify development.
+
+Do not rewrite Phase 1/2 schema unnecessarily.
+
+---
+
+# 48. Seed Data and Test Events
+
+Seed enough realistic test data to verify the pipeline.
+
+The test data must include:
+
+```text
+Multiple products
+Multiple categories
+Multiple event types
+Repeated product interactions
+Events across multiple products
+Events that fall into multiple processing batches
+Duplicate event IDs
+```
+
+Use realistic Fusion Gadgets-style data.
+
+Do not use meaningless:
+
+```text
+event1
+event2
+product1
+product2
+```
+
+unless unavoidable for low-level tests.
+
+Provide the required seed SQL/scripts.
+
+---
+
+# 49. Processing Test Scenario
+
+The implementation must support this test:
+
+```text
+Initial state
+    │
+    ▼
+Checkpoint = 0
+    │
+    ▼
+100 events in TiDB
+    │
+    ▼
+Processing run
+    │
+    ▼
+Process first bounded batch
+    │
+    ▼
+Checkpoint advances
+    │
+    ▼
+Next run processes remaining events
+```
+
+Then:
+
+```text
+New events arrive
+    │
+    ▼
+Next processing run
+    │
+    ▼
+Only new events are processed
+```
+
+Do not reprocess all historical events.
+
+---
+
+# 50. Failure Test
+
+Simulate:
+
+```text
+Processing starts
+        │
+        ▼
+Failure occurs before checkpoint update
+        │
+        ▼
+Run again
+        │
+        ▼
+Same events may be processed again
+        │
+        ▼
+Idempotent result
+```
+
+No data corruption.
+
+No missing aggregate updates.
+
+No permanent cursor skip.
+
+---
+
+# 51. Tracking Retry Test
+
+Verify:
+
+```text
+TrackingServer available
+    ↓
+Batch succeeds
+```
+
+Then:
+
+```text
+TrackingServer unavailable
+    ↓
+Batch retained
+    ↓
+Retry later
+```
+
+Then:
+
+```text
+TrackingServer returns
+    ↓
+Batch successfully stored
+    ↓
+Queue clears
+```
+
+The website must remain fully usable throughout.
+
+---
+
+# 52. Processing Availability Test
+
+Verify:
+
+```text
+ProcessingServer unavailable
+    ↓
+Existing Supabase ready data remains
+    ↓
+Homepage/shop/circulation still work
+```
+
+Then:
+
+```text
+ProcessingServer becomes available
+    ↓
+New events processed
+    ↓
+Ready data updated
+    ↓
+Future ISR reads new data
+```
+
+No page should directly depend on ProcessingServer availability.
+
+---
+
+# 53. Strict No-Drift Rules
+
+The following are absolute.
+
+Do not route tracking through Cloudflare Worker.
+
+Do not store raw tracking events in Supabase.
+
+Do not process tracking synchronously in TrackingServer.
+
+Do not process tracking synchronously in Next.js.
+
+Do not process tracking during page rendering.
+
+Do not make the homepage wait for tracking.
+
+Do not make product pages wait for tracking.
+
+Do not make checkout depend on tracking.
+
+Do not create a third-party analytics dependency.
+
+Do not build a giant analytics platform.
+
+Do not track every UI interaction.
+
+Do not track every keystroke.
+
+Do not track mouse movement.
+
+Do not track every scroll event.
+
+Do not create invasive fingerprinting.
+
+Do not store authentication tokens in tracking data.
+
+Do not store passwords.
+
+Do not store full browser payloads.
+
+Do not store complete product objects in events.
+
+Do not expose raw tracking data publicly.
+
+Do not use Supabase as the raw event warehouse.
+
+Do not process the entire TiDB event table every cron run.
+
+Do not keep the processing cursor only in memory.
+
+Do not advance the cursor before successful derived-data persistence.
+
+Do not allow concurrent processing jobs to corrupt the cursor.
+
+Do not create Redis.
+
+Do not create Kafka.
+
+Do not create RabbitMQ.
+
+Do not create another queue infrastructure.
+
+Do not create a permanent high-CPU worker for Render free plan.
+
+Do not use an infinite processing loop.
+
+Do not require ProcessingServer to be online for the storefront.
+
+Do not delete existing ready data when processing fails.
+
+Do not create personalized recommendations.
+
+Do not create AI ranking.
+
+Do not implement admin analytics.
+
+Do not implement order/shipment tracking.
+
+Do not implement payments.
+
+Do not modify checkout authority.
+
+Do not modify authentication architecture.
+
+Do not modify cart/wishlist architecture.
+
+Do not redesign the UI.
+
+Do not convert pages to CSR.
+
+Do not add Next.js API routes for tracking.
+
+Do not put tracking logic in `/worker`.
+
+Do not expose server secrets.
+
+Do not use `any`.
+
+Do not add unnecessary dependencies.
+
+Do not create unnecessary abstraction layers.
+
+Do not add excessive comments.
+
+Do not implement Phase 8 or later functionality.
+
+Prefer the shortest reliable implementation that follows this architecture exactly.
+
+---
+
+# 54. Required Verification
+
+Before declaring Phase 7 complete, verify all of the following with real test data.
+
+```text
+Frontend
+    ↓
+Creates valid events
+    ↓
+Batches events
+    ↓
+Sends one batch instead of one request per event
+```
+
+```text
+TrackingServer
+    ↓
+Validates batch
+    ↓
+Rejects malformed/oversized data
+    ↓
+Stores valid events in TiDB
+```
+
+```text
+Duplicate event batch
+    ↓
+No duplicate event rows
+```
+
+```text
+TrackingServer unavailable
+    ↓
+Frontend retains batch
+    ↓
+Retries later
+    ↓
+Website remains usable
+```
+
+```text
+ProcessingServer
+    ↓
+Reads checkpoint
+    ↓
+Processes only new events
+    ↓
+Updates ready data
+    ↓
+Advances checkpoint
+```
+
+```text
+Second processing run
+    ↓
+Does not process already completed history again
+```
+
+```text
+Processing failure
+    ↓
+Checkpoint does not skip unprocessed work
+    ↓
+Retry succeeds safely
+```
+
+```text
+Concurrent processing trigger
+    ↓
+Only one processing job owns the processing lock
+```
+
+```text
+ProcessingServer unavailable
+    ↓
+Existing Supabase ready data remains
+    ↓
+Website continues normally
+```
+
+```text
+New events arrive
+    ↓
+Later processing run
+    ↓
+Ready data updates incrementally
+```
+
+Also verify:
+
+```text
+No raw tracking table exists in Supabase.
+No TrackingServer request goes through Worker.
+No frontend request waits for processing.
+No page fetches TrackingServer directly for rendering.
+No page fetches ProcessingServer directly for rendering.
+No service-role credential reaches browser code.
+No TiDB credential reaches browser code.
+Ready Supabase data contains only storefront-safe aggregates.
+Tracking events are bounded in size.
+Tracking queue has a bounded size.
+Retry logic is bounded.
+Processing work is bounded.
+Processing cursor is durable.
+Processing is idempotent.
+Processing is safe against overlapping cron requests.
+Render free-plan constraints are respected.
+Existing circulation continues working when processing is unavailable.
+Existing premium UI remains unchanged.
+No Phase 8 or later functionality was implemented.
+```
+
+Fix every issue found before stopping.
+
+Do not claim completion merely because an event reaches TiDB.
+
+Verify the entire pipeline:
+
+```text
+Frontend
+→ TrackingServer
+→ TiDB
+→ ProcessingServer
+→ Supabase ready data
+→ Existing storefront/circulation
+```
+
+---
+
+# 55. Required Completion Output
+
+When Phase 7 is genuinely complete, report only:
+
+```text
+Phase 7 completed
+
+Implemented:
+- ...
+
+Frontend tracking:
+- ...
+
+TrackingServer:
+- ...
+
+TiDB event storage:
+- ...
+
+ProcessingServer:
+- ...
+
+Incremental processing:
+- ...
+
+Processing checkpoint:
+- ...
+
+Idempotency/failure handling:
+- ...
+
+Supabase ready data:
+- ...
+
+Circulation integration:
+- ...
+
+Render free-plan behavior:
+- ...
+
+Seed/test data:
+- ...
+
+Mock tracking infrastructure removed:
+- ...
+
+Files/folders added or changed:
+- ...
+
+Architecture boundaries preserved:
+- ...
+
+Not implemented because it belongs to later phases:
+- ...
+```
+
+Do not start Phase 8.
+
+Do not continue implementing after this report.
+
+```
+```
