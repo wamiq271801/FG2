@@ -26,12 +26,11 @@ async function workerPost(path: string, body: unknown, auth?: string): Promise<W
 }
 
 export async function register(
-  fullName: string,
   email: string,
   password: string,
   turnstileToken: string
 ): Promise<{ success: boolean; error?: string }> {
-  const result = await workerPost("auth/register", { fullName, email, password, turnstileToken });
+  const result = await workerPost("auth/register", { email, password, turnstileToken });
   if (!result.success) return { success: false, error: resolveWorkerError(result.error) };
   return { success: true };
 }

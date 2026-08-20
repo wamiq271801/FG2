@@ -22,7 +22,6 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SignOutButton } from "@/components/account/SignOutButton";
 import { EditProfileButton } from "@/components/account/EditProfileButton";
-import { OnboardingPanel } from "@/components/account/OnboardingPanel";
 import { PreferencesPanel } from "@/components/account/PreferencesPanel";
 import { useProfile } from "@/modules/account";
 
@@ -50,15 +49,6 @@ export function AccountContent() {
     .join("")
     .slice(0, 2)
     .toUpperCase();
-
-  if (profile.onboarding_state === "incomplete") {
-    return (
-      <OnboardingPanel
-        profile={profile}
-        onComplete={refreshProfile}
-      />
-    );
-  }
 
   return (
     <>

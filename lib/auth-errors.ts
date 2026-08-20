@@ -10,6 +10,7 @@
 
 export type AuthErrorCode =
   | "RATE_LIMITED"
+  | "OTP_RESEND_RATE_LIMITED"
   | "VALIDATION_ERROR"
   | "TURNSTILE_FAILED"
   | "EMAIL_EXISTS"
@@ -25,6 +26,7 @@ export type AuthErrorCode =
 
 const ERROR_TITLES: Record<AuthErrorCode, string> = {
   RATE_LIMITED: "Too many attempts",
+  OTP_RESEND_RATE_LIMITED: "Too many verification requests",
   VALIDATION_ERROR: "Please check your details",
   TURNSTILE_FAILED: "Verification failed",
   EMAIL_EXISTS: "An account with this email already exists",

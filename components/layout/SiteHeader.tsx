@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "@/components/shared/Link";
 import { usePathname } from "next/navigation";
-import { Menu, Search, ShoppingBag, Heart, User, X, LogOut, Package, MapPin } from "lucide-react";
+import { Menu, Search, ShoppingBag, Heart, User, LogOut, Package, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,9 +21,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogClose,
+} from "@/components/ui/dialog";
 import { useCartContext } from "@/providers/CartProvider";
 import { useAuthContext } from "@/providers/AuthProvider";
-import { SignOutButton } from "@/components/account/SignOutButton";
+import { useSignOut } from "@/hooks/use-sign-out";
 import { useWishlistSlugs } from "@/modules/wishlist";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +51,8 @@ export function SiteHeader() {
   const { slugs: wishlistSlugs, ready: wishlistReady } = useWishlistSlugs();
   const wishlistCount = wishlistReady ? wishlistSlugs.length : 0;
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const { signOut, signingOut } = useSignOut();
 
   // Close mobile sheet on route change
   useEffect(() => {
@@ -50,6 +61,7 @@ export function SiteHeader() {
   }, [pathname]);
 
   return (
+    <>
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/85 backdrop-blur-md">
       <div className="container-edge flex h-16 items-center gap-4">
         {/* Mobile menu */}
@@ -231,8 +243,11 @@ export function SiteHeader() {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="p-0">
-                  <SignOutButton variant="ghost" size="sm" className="w-full justify-start gap-2 px-2 text-muted-foreground hover:text-foreground" label="Sign out" />
+                <DropdownMenuItem
+                  onSelect={() => setLogoutOpen(true)}
+                  className="flex items-center gap-2 cursor-pointer text-muted-foreground focus:text-foreground"
+                >
+                  <LogOut className="h-3.5 w-3.5" /> Sign out
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -244,5 +259,40 @@ export function SiteHeader() {
         </div>
       </div>
     </header>
+
+    {/* Logout confirmation dialog lives outside the dropdown so dropdown
+        unmounting never destroys it. Uses the same useSignOut hook as
+        SignOutButton — one logout implementation, no duplication. */}
+    <Dialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="font-display text-xl tracking-tight">
+            Log out?
+          </DialogTitle>
+          <DialogDescription>
+            Are you sure you want to log out of your account?
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="flex-row gap-2 sm:justify-end">
+          <DialogClose asChild>
+            <Button type="button" variant="ghost">
+              Cancel
+            </Button>
+          </DialogClose>
+          <Button
+            type="button"
+            disabled={signingOut}
+            onClick={async () => {
+              setLogoutOpen(false);
+              await signOut();
+            }}
+            className="press bg-foreground text-background hover:bg-foreground/90"
+          >
+            Log out
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

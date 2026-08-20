@@ -21,7 +21,7 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
   const validation = validateRegistration(body);
   if (!validation.ok) return fail("VALIDATION_ERROR", "Please check your details");
 
-  const { fullName, email, password, turnstileToken } = validation.data;
+  const { email, password, turnstileToken } = validation.data;
 
   const emailAllowed = await checkRateLimit(env, `register:${email}`, 3, 900);
   if (!emailAllowed) return fail("RATE_LIMITED", "Too many attempts", 429);
@@ -44,7 +44,6 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
   }
 
   const signup = await supabaseSignup(env, email, password, {
-    full_name: fullName,
     reg_auth: token,
   });
 
@@ -80,7 +79,7 @@ export async function handleResendSignup(request: Request, env: Env): Promise<Re
 
   const email = validation.data.email;
   const allowed = await checkRateLimit(env, `resend:${email}`, 3, 86400);
-  if (!allowed) return fail("RATE_LIMITED", "Too many attempts", 429);
+  if (!allowed) return fail("OTP_RESEND_RATE_LIMITED", "Too many verification requests", 429);
 
   const result = await supabaseAuthFetch(env, "/auth/v1/resend", {
     email, type: "signup",

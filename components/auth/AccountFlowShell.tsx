@@ -5,39 +5,35 @@ import { Link } from "@/components/shared/Link";
 import { ShieldCheck } from "lucide-react";
 import { SignUpForm } from "@/components/auth/SignUpForm";
 import { VerifyForm } from "@/components/auth/VerifyForm";
-import { OnboardingFlow } from "@/components/account/OnboardingFlow";
 import { useAuthContext } from "@/providers/AuthProvider";
 
-type Step = "register" | "verify" | "onboarding" | "complete";
+type Step = "register" | "verify";
 
 export function AccountFlowShell() {
-  const { state: authState, user } = useAuthContext();
+  const { state: authState } = useAuthContext();
   const [step, setStep] = useState<Step>("register");
   const [registeredEmail, setRegisteredEmail] = useState("");
 
   useEffect(() => {
-    if (authState === "authenticated" && user) {
-      setStep("onboarding");
+    // Once authenticated, OnboardingGate takes over. Redirect away from signup
+    // so the shell isn't rendered under the global onboarding UI.
+    if (authState === "authenticated") {
+      window.location.href = "/";
     } else if (authState === "unauthenticated" && step !== "verify") {
       setStep("register");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authState, user]);
+  }, [authState]);
+
+  const handleVerified = () => {
+    // OTP verified — session created. OnboardingGate will intercept and show
+    // Step 1 onboarding. window.location.href replaces the signup history entry.
+    window.location.href = "/";
+  };
 
   const handleRegistered = (email: string) => {
     setRegisteredEmail(email);
     setStep("verify");
-  };
-
-  const handleVerified = () => {
-    // Centralized auth state (AuthProvider) will receive the SIGNED_IN event
-    // from Supabase and set step to "onboarding" via the useEffect above.
-    // setStep here is a fallback in case the event fires before this callback.
-    setStep("onboarding");
-  };
-
-  const handleOnboardingComplete = () => {
-    setStep("complete");
   };
 
   return (
@@ -103,10 +99,6 @@ export function AccountFlowShell() {
               </p>
               <VerifyForm email={registeredEmail} onVerified={handleVerified} />
             </>
-          )}
-
-          {step === "onboarding" && (
-            <OnboardingFlow onComplete={handleOnboardingComplete} />
           )}
         </div>
 

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -17,14 +18,19 @@ import { register } from "@/services/worker";
 import { errorTitle } from "@/lib/auth-errors";
 import { TurnstileWidget, type TurnstileState } from "./TurnstileWidget";
 
+// Password policy — must stay in sync with worker/src/lib/validation.ts validatePassword().
+const passwordSchema = z
+  .string()
+  .min(8, "Use at least 8 characters")
+  .max(72, "Password is too long (max 72)")
+  .regex(/[A-Z]/, "Include at least one uppercase letter")
+  .regex(/[0-9]/, "Include at least one number")
+  .regex(/[^A-Za-z0-9]/, "Include at least one special character");
+
 const schema = z
   .object({
-    fullName: z.string().min(2, "Please enter your name (2+ characters)"),
     email: z.email("Enter a valid email address"),
-    password: z
-      .string()
-      .min(8, "Use at least 8 characters")
-      .max(72, "Password is too long (max 72)"),
+    password: passwordSchema,
     confirmPassword: z.string(),
     terms: z
       .boolean()
@@ -45,6 +51,8 @@ export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => 
   const [serverError, setServerError] = useState<string | null>(null);
   const [turnstileState, setTurnstileState] = useState<TurnstileState>("idle");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const { start: startOp, stop: stopOp } = useOperation();
 
   const {
@@ -56,7 +64,6 @@ export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => 
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      fullName: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -76,15 +83,9 @@ export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => 
 
     startOp("Creating your account");
     try {
-      const result = await register(
-        values.fullName,
-        values.email,
-        values.password,
-        turnstileToken
-      );
+      const result = await register(values.email, values.password, turnstileToken);
 
       stopOp();
-      // Turnstile tokens are single-use — clear regardless of outcome.
       setTurnstileToken(null);
       setTurnstileState("expired");
 
@@ -119,31 +120,13 @@ export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => 
       )}
 
       <div className="space-y-1.5">
-        <Label htmlFor="signup-name">Full name</Label>
-        <Input
-          id="signup-name"
-          type="text"
-          autoComplete="name"
-          autoFocus
-          placeholder="Riya Sharma"
-          aria-invalid={!!errors.fullName}
-          aria-describedby={errors.fullName ? "signup-name-error" : undefined}
-          {...registerField("fullName")}
-        />
-        {errors.fullName && (
-          <p id="signup-name-error" role="alert" className="text-destructive text-sm">
-            {errors.fullName.message}
-          </p>
-        )}
-      </div>
-
-      <div className="space-y-1.5">
         <Label htmlFor="signup-email">Email</Label>
         <Input
           id="signup-email"
           type="email"
           inputMode="email"
           autoComplete="email"
+          autoFocus
           placeholder="you@example.com"
           aria-invalid={!!errors.email}
           aria-describedby={errors.email ? "signup-email-error" : undefined}
@@ -158,18 +141,30 @@ export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => 
 
       <div className="space-y-1.5">
         <Label htmlFor="signup-password">Password</Label>
-        <Input
-          id="signup-password"
-          type="password"
-          autoComplete="new-password"
-          placeholder="At least 8 characters"
-          aria-invalid={!!errors.password}
-          aria-describedby={errors.password ? "signup-password-error" : "signup-password-hint"}
-          {...registerField("password")}
-        />
+        <div className="relative">
+          <Input
+            id="signup-password"
+            type={showPassword ? "text" : "password"}
+            autoComplete="new-password"
+            placeholder="Min 8 chars, uppercase, number, symbol"
+            aria-invalid={!!errors.password}
+            aria-describedby={errors.password ? "signup-password-error" : "signup-password-hint"}
+            className="pr-10"
+            {...registerField("password")}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            tabIndex={-1}
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
         {!errors.password && (
           <p id="signup-password-hint" className="text-xs text-muted-foreground">
-            Use 8+ characters with a mix of letters, numbers and symbols.
+            8+ characters with uppercase, a number, and a special character.
           </p>
         )}
         {errors.password && (
@@ -181,15 +176,27 @@ export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => 
 
       <div className="space-y-1.5">
         <Label htmlFor="signup-confirm">Confirm password</Label>
-        <Input
-          id="signup-confirm"
-          type="password"
-          autoComplete="new-password"
-          placeholder="Repeat your password"
-          aria-invalid={!!errors.confirmPassword}
-          aria-describedby={errors.confirmPassword ? "signup-confirm-error" : undefined}
-          {...registerField("confirmPassword")}
-        />
+        <div className="relative">
+          <Input
+            id="signup-confirm"
+            type={showConfirm ? "text" : "password"}
+            autoComplete="new-password"
+            placeholder="Repeat your password"
+            aria-invalid={!!errors.confirmPassword}
+            aria-describedby={errors.confirmPassword ? "signup-confirm-error" : undefined}
+            className="pr-10"
+            {...registerField("confirmPassword")}
+          />
+          <button
+            type="button"
+            onClick={() => setShowConfirm((v) => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            aria-label={showConfirm ? "Hide password" : "Show password"}
+            tabIndex={-1}
+          >
+            {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
         {errors.confirmPassword && (
           <p id="signup-confirm-error" role="alert" className="text-destructive text-sm">
             {errors.confirmPassword.message}

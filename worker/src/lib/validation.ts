@@ -1,4 +1,8 @@
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Matches Worker password policy exactly — must stay in sync with frontend zod schema.
+const PW_UPPERCASE_RE = /[A-Z]/;
+const PW_NUMBER_RE = /[0-9]/;
+const PW_SPECIAL_RE = /[^A-Za-z0-9]/;
 
 export function isValidEmail(email: string): boolean {
   return EMAIL_RE.test(email);
@@ -8,21 +12,27 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-export function validateRegistration(body: unknown): { ok: true; data: { fullName: string; email: string; password: string; turnstileToken: string } } | { ok: false; error: string } {
+export function validatePassword(password: string): { ok: true } | { ok: false; error: string } {
+  if (password.length < 8) return { ok: false, error: "Password must be at least 8 characters." };
+  if (password.length > 72) return { ok: false, error: "Password is too long (max 72)." };
+  if (!PW_UPPERCASE_RE.test(password)) return { ok: false, error: "Password must include at least one uppercase letter." };
+  if (!PW_NUMBER_RE.test(password)) return { ok: false, error: "Password must include at least one number." };
+  if (!PW_SPECIAL_RE.test(password)) return { ok: false, error: "Password must include at least one special character." };
+  return { ok: true };
+}
+
+export function validateRegistration(body: unknown): { ok: true; data: { email: string; password: string; turnstileToken: string } } | { ok: false; error: string } {
   if (typeof body !== "object" || body === null) return { ok: false, error: "Invalid request body." };
   const b = body as Record<string, unknown>;
-  const fullName = typeof b.fullName === "string" ? b.fullName.trim() : "";
   const email = typeof b.email === "string" ? normalizeEmail(b.email) : "";
   const password = typeof b.password === "string" ? b.password : "";
   const turnstileToken = typeof b.turnstileToken === "string" ? b.turnstileToken.trim() : "";
 
-  if (fullName.length < 2) return { ok: false, error: "Please enter your name (2+ characters)." };
-  if (fullName.length > 100) return { ok: false, error: "Name is too long." };
   if (!isValidEmail(email)) return { ok: false, error: "Enter a valid email address." };
-  if (password.length < 8) return { ok: false, error: "Password must be at least 8 characters." };
-  if (password.length > 72) return { ok: false, error: "Password is too long (max 72)." };
+  const pwCheck = validatePassword(password);
+  if (!pwCheck.ok) return { ok: false, error: pwCheck.error };
   if (!turnstileToken) return { ok: false, error: "Verification failed. Please try again." };
-  return { ok: true, data: { fullName, email, password, turnstileToken } };
+  return { ok: true, data: { email, password, turnstileToken } };
 }
 
 export function validateEmailOnly(body: unknown): { ok: true; data: { email: string } } | { ok: false; error: string } {

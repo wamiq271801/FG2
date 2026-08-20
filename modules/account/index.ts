@@ -17,7 +17,7 @@ export type Profile = {
   full_name: string | null;
   phone: string | null;
   avatar_url: string | null;
-  onboarding_state: "incomplete" | "complete";
+  onboarding_state: "incomplete" | "address_optional" | "complete";
   pref_newsletter: boolean;
   pref_product_updates: boolean;
   pref_order_updates: boolean;
@@ -114,7 +114,7 @@ export async function updateProfile(updates: {
   pref_newsletter?: boolean;
   pref_product_updates?: boolean;
   pref_order_updates?: boolean;
-  onboarding_state?: "incomplete" | "complete";
+  onboarding_state?: "incomplete" | "address_optional" | "complete";
 }): Promise<{ error: string | null }> {
   const supabase = createClient();
   const { data: userData } = await supabase.auth.getUser();

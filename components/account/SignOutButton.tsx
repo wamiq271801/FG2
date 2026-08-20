@@ -1,9 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,10 +13,7 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
-import { createClient } from "@/lib/supabase/client";
-import { useCart } from "@/modules/cart";
-import { useWishlist } from "@/modules/wishlist";
-import { useOperation } from "@/hooks/use-operation";
+import { useSignOut } from "@/hooks/use-sign-out";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -34,35 +29,12 @@ export function SignOutButton({
   size = "default",
   label = "Sign out",
 }: Props) {
-  const router = useRouter();
-  const resetCart = useCart((s) => s.resetForSignOut);
-  const resetWishlist = useWishlist((s) => s.resetForSignOut);
-  const [signingOut, setSigningOut] = useState(false);
   const [open, setOpen] = useState(false);
-  const { start: startOp, stop: stopOp } = useOperation();
+  const { signOut, signingOut } = useSignOut();
 
-  async function handleSignOut() {
+  async function handleConfirm() {
     setOpen(false);
-    setSigningOut(true);
-    startOp("Logging you out");
-    try {
-      const supabase = createClient();
-      await supabase.auth.signOut();
-      resetCart();
-      resetWishlist();
-      router.push("/");
-      stopOp();
-      toast.success("Signed out", {
-        description: "You've been signed out of your account.",
-      });
-    } catch {
-      stopOp();
-      toast.error("Couldn't sign out", {
-        description: "Please try again.",
-      });
-    } finally {
-      setSigningOut(false);
-    }
+    await signOut();
   }
 
   return (
@@ -97,7 +69,7 @@ export function SignOutButton({
           </DialogClose>
           <Button
             type="button"
-            onClick={handleSignOut}
+            onClick={handleConfirm}
             className="press bg-foreground text-background hover:bg-foreground/90"
           >
             Log out
