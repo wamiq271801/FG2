@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "@/components/shared/Link";
 import { useRouter } from "next/navigation";
-import { ShieldCheck } from "lucide-react";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { SignUpForm } from "@/components/auth/SignUpForm";
 import { VerifyForm } from "@/components/auth/VerifyForm";
 import { useAuthContext } from "@/providers/AuthProvider";
@@ -40,6 +40,14 @@ export function AccountFlowShell() {
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(60rem_30rem_at_50%_-10%,oklch(0.96_0.02_55/0.6),transparent_60%)]"
       />
+
+      <Link
+        href="/"
+        className="absolute left-4 top-4 z-10 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground sm:left-6 sm:top-6"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to shop
+      </Link>
 
       <div className="w-full max-w-[420px]">
         <div className="flex justify-center">

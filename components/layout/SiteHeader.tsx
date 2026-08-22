@@ -60,6 +60,9 @@ export function SiteHeader() {
     setMobileOpen(false);
   }, [pathname]);
 
+  // Hide header entirely on /auth pages
+  if (pathname.startsWith("/auth")) return null;
+
   return (
     <>
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/85 backdrop-blur-md">
