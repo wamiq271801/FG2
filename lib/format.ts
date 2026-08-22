@@ -1,18 +1,25 @@
 /** Formatting helpers shared across the storefront. */
 
-export function formatPrice(amount: number, currency: "INR" = "INR"): string {
+// Pre-constructed formatters — avoids creating a new Intl.NumberFormat on
+// every call. Construction is expensive (~1ms on mobile) and the options
+// are constant, so module-level singletons are safe.
+const priceFormatter = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  maximumFractionDigits: 0,
+});
+
+const plainFormatter = new Intl.NumberFormat("en-IN", {
+  maximumFractionDigits: 0,
+});
+
+export function formatPrice(amount: number): string {
   // Indian numbering with ₹ and lakh grouping
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(amount);
+  return priceFormatter.format(amount);
 }
 
 export function formatPricePlain(amount: number): string {
-  return new Intl.NumberFormat("en-IN", {
-    maximumFractionDigits: 0,
-  }).format(amount);
+  return plainFormatter.format(amount);
 }
 
 export function discountPercent(price: number, compareAt?: number): number | null {

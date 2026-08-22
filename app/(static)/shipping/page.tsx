@@ -15,7 +15,7 @@ import {
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { storeInfo } from "@/modules/catalog/data";
+import { storeInfo } from "@/lib/store-info";
 
 export const metadata: Metadata = {
   title: "Shipping",

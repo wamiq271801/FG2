@@ -14,7 +14,10 @@ export function OrdersList() {
   const { orders, loading } = useOrders();
   const { user, ready: authReady } = useAuthContext();
 
-  if (!authReady || loading) {
+  // Only show skeleton when actively loading authenticated orders.
+  // During auth init (authReady=false, loading=false), fall through to the
+  // sign-in prompt so there is no flash.
+  if (loading) {
     return (
       <div className="mt-8 space-y-4">
         {Array.from({ length: 3 }).map((_, i) => (
@@ -81,7 +84,7 @@ export function OrdersList() {
                   <div className="flex -space-x-2">
                     {thumbnails.map((item, i) => (
                       <div
-                        key={`${order.id}-${item.slug}-${i}`}
+                        key={`${order.id}-${item.productId ?? item.name}-${i}`}
                         className="relative h-12 w-12 overflow-hidden rounded-lg border border-card bg-muted ring-1 ring-border/60"
                         style={{ zIndex: thumbnails.length - i }}
                       >

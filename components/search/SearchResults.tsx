@@ -8,7 +8,6 @@ import { ProductCard } from "@/components/shared/ProductCard";
 import { Button } from "@/components/ui/button";
 import {
   searchProductsClient,
-  getTrendingProductsClient,
 } from "@/modules/catalog/client";
 import { trackSearch } from "@/services/tracking";
 import type { Category, Product } from "@/types";

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Link } from "@/components/shared/Link";
 import { ArrowRight, ShoppingBag } from "lucide-react";
-import { getFeaturedProducts, getOnSaleProducts } from "@/modules/catalog/data";
+import { getFeaturedProducts, getOnSaleProducts } from "@/modules/catalog/products";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { CartItems } from "@/components/cart/CartItems";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,7 @@ export default async function CartPage() {
     getOnSaleProducts(2),
   ]);
   const suggested = [...featured, ...onSale]
-    .filter((p, i, arr) => arr.findIndex((x) => x.slug === p.slug) === i)
+    .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
     .slice(0, 4);
 
   return (

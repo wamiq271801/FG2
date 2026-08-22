@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Link } from "@/components/shared/Link";
 import {
   ArrowRight,
@@ -11,7 +12,7 @@ import {
   ShoppingBag,
   Truck,
 } from "lucide-react";
-import { storeInfo } from "@/modules/catalog/data";
+import { storeInfo } from "@/lib/store-info";
 import { ProductVisual } from "@/components/shared/ProductVisual";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -25,6 +26,8 @@ import {
 } from "@/components/ui/card";
 import { formatDate, formatPrice } from "@/lib/format";
 import { useOrder } from "@/modules/orders";
+import { useProductsByIds } from "@/modules/catalog/useProducts";
+import type { Order } from "@/types";
 
 export function OrderConfirmation({ orderId }: { orderId: string }) {
   const { order, loading } = useOrder(orderId);
@@ -93,54 +96,7 @@ export function OrderConfirmation({ orderId }: { orderId: string }) {
           </Card>
 
           {/* Ordered items */}
-          <Card className="border-border/70">
-            <CardHeader>
-              <CardTitle className="font-display text-xl tracking-tight">What you ordered</CardTitle>
-              <CardDescription>
-                {itemCount} {itemCount === 1 ? "item" : "items"} · placed{" "}
-                <time dateTime={order.date} className="font-medium text-foreground">{formatDate(order.date)}</time>
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {order.items.map((item, i) => (
-                <div key={`${item.slug}-${i}`}>
-                  {i > 0 && <Separator className="mb-3" />}
-                  <div className="flex items-start gap-3">
-                    <Link href={`/product/${item.slug}`} className="group relative h-14 w-14 shrink-0 overflow-hidden rounded-md border border-border/70 bg-muted press" aria-label={item.name}>
-                      <ProductVisual visualKey={item.visualKey} accent={item.accent} className="h-full w-full transition-transform duration-300 group-hover:scale-[1.04]" />
-                    </Link>
-                    <div className="min-w-0 flex-1">
-                      <Link href={`/product/${item.slug}`} className="line-clamp-2 text-sm font-medium leading-tight hover:text-copper">{item.name}</Link>
-                      <p className="mt-0.5 text-xs text-muted-foreground">Qty {item.quantity} × {formatPrice(item.unitPrice)}</p>
-                    </div>
-                    <span className="font-mono text-sm tabular-nums">{formatPrice(item.unitPrice * item.quantity)}</span>
-                  </div>
-                </div>
-              ))}
-              <Separator className="my-1" />
-              <dl className="space-y-1.5 text-sm">
-                <div className="flex items-baseline justify-between">
-                  <dt className="text-muted-foreground">Subtotal</dt>
-                  <dd className="font-medium tabular-nums">{formatPrice(order.subtotal)}</dd>
-                </div>
-                {order.discount > 0 && (
-                  <div className="flex items-baseline justify-between">
-                    <dt className="text-muted-foreground">Discount</dt>
-                    <dd className="font-medium tabular-nums text-copper">− {formatPrice(order.discount)}</dd>
-                  </div>
-                )}
-                <div className="flex items-baseline justify-between">
-                  <dt className="text-muted-foreground">Shipping</dt>
-                  <dd className="font-medium tabular-nums">{order.shipping === 0 ? "Free" : formatPrice(order.shipping)}</dd>
-                </div>
-              </dl>
-              <Separator className="my-1" />
-              <div className="flex items-baseline justify-between">
-                <span className="font-display text-base font-medium">Total</span>
-                <span className="font-display text-xl font-medium tracking-tight tabular-nums">{formatPrice(order.total)}</span>
-              </div>
-            </CardContent>
-          </Card>
+          <OrderedItemsCard order={order} />
 
           {/* Est. delivery */}
           {order.estimatedDelivery && (
@@ -212,5 +168,84 @@ function TimelineStep({ step, icon, title, description }: { step: number; icon: 
         <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">{description}</p>
       </div>
     </li>
+  );
+}
+
+function OrderedItemsCard({ order }: { order: Order }) {
+  const itemCount = order.items.reduce((n, i) => n + i.quantity, 0);
+
+  // Product links resolve from product ids — slugs are URL values only.
+  const productIds = useMemo(
+    () => order.items.map((i) => i.productId).filter((id): id is string => Boolean(id)),
+    [order.items]
+  );
+  const { products } = useProductsByIds(productIds);
+  const slugById = useMemo(
+    () => new Map(products.map((p) => [p.id, p.slug])),
+    [products]
+  );
+
+  return (
+    <Card className="border-border/70">
+      <CardHeader>
+        <CardTitle className="font-display text-xl tracking-tight">What you ordered</CardTitle>
+        <CardDescription>
+          {itemCount} {itemCount === 1 ? "item" : "items"} · placed{" "}
+          <time dateTime={order.date} className="font-medium text-foreground">{formatDate(order.date)}</time>
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {order.items.map((item, i) => {
+          const slug = item.productId ? slugById.get(item.productId) : undefined;
+          return (
+            <div key={`${item.productId ?? item.name}-${i}`}>
+              {i > 0 && <Separator className="mb-3" />}
+              <div className="flex items-start gap-3">
+                {slug ? (
+                  <Link href={`/product/${slug}`} className="group relative h-14 w-14 shrink-0 overflow-hidden rounded-md border border-border/70 bg-muted press" aria-label={item.name}>
+                    <ProductVisual visualKey={item.visualKey} accent={item.accent} className="h-full w-full transition-transform duration-300 group-hover:scale-[1.04]" />
+                  </Link>
+                ) : (
+                  <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md border border-border/70 bg-muted">
+                    <ProductVisual visualKey={item.visualKey} accent={item.accent} className="h-full w-full" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  {slug ? (
+                    <Link href={`/product/${slug}`} className="line-clamp-2 text-sm font-medium leading-tight hover:text-copper">{item.name}</Link>
+                  ) : (
+                    <span className="line-clamp-2 text-sm font-medium leading-tight">{item.name}</span>
+                  )}
+                  <p className="mt-0.5 text-xs text-muted-foreground">Qty {item.quantity} × {formatPrice(item.unitPrice)}</p>
+                </div>
+                <span className="font-mono text-sm tabular-nums">{formatPrice(item.unitPrice * item.quantity)}</span>
+              </div>
+            </div>
+          );
+        })}
+        <Separator className="my-1" />
+        <dl className="space-y-1.5 text-sm">
+          <div className="flex items-baseline justify-between">
+            <dt className="text-muted-foreground">Subtotal</dt>
+            <dd className="font-medium tabular-nums">{formatPrice(order.subtotal)}</dd>
+          </div>
+          {order.discount > 0 && (
+            <div className="flex items-baseline justify-between">
+              <dt className="text-muted-foreground">Discount</dt>
+              <dd className="font-medium tabular-nums text-copper">− {formatPrice(order.discount)}</dd>
+            </div>
+          )}
+          <div className="flex items-baseline justify-between">
+            <dt className="text-muted-foreground">Shipping</dt>
+            <dd className="font-medium tabular-nums">{order.shipping === 0 ? "Free" : formatPrice(order.shipping)}</dd>
+          </div>
+        </dl>
+        <Separator className="my-1" />
+        <div className="flex items-baseline justify-between">
+          <span className="font-display text-base font-medium">Total</span>
+          <span className="font-display text-xl font-medium tracking-tight tabular-nums">{formatPrice(order.total)}</span>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

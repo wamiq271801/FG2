@@ -1,33 +1,30 @@
 import type { Metadata } from "next";
 import { Link } from "@/components/shared/Link";
 import { notFound } from "next/navigation";
-import {
-  ArrowRight,
-  Check,
-  Package,
-  ShieldCheck,
-  Truck,
-  RotateCcw,
-} from "lucide-react";
+import { ArrowRight, Package, ShieldCheck, Truck, RotateCcw } from "lucide-react";
 import {
   getProductBySlug,
-  getProductsByIds,
   getRelatedProducts,
-} from "@/modules/catalog/data";
-import { getBrandBySlug, getCategoryBySlug } from "@/modules/catalog/data";
+  getProductVariation,
+} from "@/modules/catalog/products";
+import { getCategoryBySlug } from "@/modules/catalog/categories";
+import { getBrandBySlug } from "@/modules/catalog/brands";
+import { getActiveOffersForProduct } from "@/modules/catalog/offers";
 import { getLatestReviews, getReviewSummary } from "@/modules/review/data";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
-import { Price } from "@/components/shared/Price";
-import { RatingStars } from "@/components/shared/RatingStars";
-import { AvailabilityBadge } from "@/components/shared/AvailabilityBadge";
 import { ProductCard } from "@/components/shared/ProductCard";
 import { ProductViewTracker } from "@/components/shared/ProductViewTracker";
-import { BuyBox } from "@/components/product/BuyBox";
+import { Gallery } from "@/components/product/Gallery";
+import { VariationSelector } from "@/components/product/VariationSelector";
+import { PurchaseControls } from "@/components/product/PurchaseControls";
+import { WishlistButton } from "@/components/product/WishlistButton";
 import { RatingSummary as ProductRatingSummary } from "@/components/review/RatingSummary";
 import { RatingDistribution } from "@/components/review/RatingDistribution";
 import { ReviewList } from "@/components/review/ReviewList";
 import { ReviewActions } from "@/components/review/ReviewActions";
 import { Button } from "@/components/ui/button";
+import { Price } from "@/components/shared/Price";
+import { AvailabilityBadge } from "@/components/shared/AvailabilityBadge";
 import type { Availability, Product } from "@/types";
 
 const SITE_URL = "https://fusiongadgets.in";
@@ -35,12 +32,6 @@ const SITE_URL = "https://fusiongadgets.in";
 export const revalidate = 300;
 
 type Params = Promise<{ slug: string }>;
-
-export async function generateStaticParams() {
-  const { getAllProducts } = await import("@/modules/catalog/data");
-  const products = await getAllProducts();
-  return products.map((p) => ({ slug: p.slug }));
-}
 
 export async function generateMetadata({
   params,
@@ -90,8 +81,9 @@ function availabilitySchema(a: Availability): string {
 }
 
 function productJsonLd(
-  product: NonNullable<Awaited<ReturnType<typeof getProductBySlug>>>,
-  brandName: string
+  product: Product,
+  brandName: string,
+  reviewSummary?: { average: number; count: number }
 ) {
   return {
     "@context": "https://schema.org",
@@ -101,19 +93,19 @@ function productJsonLd(
       ? product.images
       : [`${SITE_URL}/images/hero-flatlay.jpg`],
     description: product.description ?? product.tagline,
-    sku: product.slug.toUpperCase(),
-    mpn: product.slug.toUpperCase(),
+    sku: product.sku,
+    mpn: product.sku,
     brand: {
       "@type": "Brand",
       name: brandName,
     },
     category: product.subcategory ?? product.category,
     aggregateRating:
-      product.reviewCount > 0
+      reviewSummary && reviewSummary.count > 0
         ? {
             "@type": "AggregateRating",
-            ratingValue: product.rating,
-            reviewCount: product.reviewCount,
+            ratingValue: reviewSummary.average,
+            reviewCount: reviewSummary.count,
             bestRating: 5,
             worstRating: 1,
           }
@@ -164,31 +156,33 @@ function breadcrumbJsonLd(
 
 export default async function ProductPage({ params }: { params: Params }) {
   const { slug } = await params;
+
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
-  let allVariationProducts: Product[] = [product];
-  if (product.variation && product.variation.items.length >= 2) {
-    const variationProductIds = product.variation.items.map((item) => item.productId);
-    allVariationProducts = await getProductsByIds(variationProductIds);
-    if (allVariationProducts.length === 0) allVariationProducts = [product];
-  }
+  const [brand, category, related, reviewSummary, latestReviews, variation, offers] =
+    await Promise.all([
+      getBrandBySlug(product.brand),
+      getCategoryBySlug(product.category),
+      getRelatedProducts(product, 4),
+      getReviewSummary(product.id),
+      getLatestReviews(product.id, 4),
+      getProductVariation(product.id),
+      getActiveOffersForProduct(product.id),
+    ]);
 
-  const [brand, category, related, reviewSummary, latestReviews] = await Promise.all([
-    getBrandBySlug(product.brand),
-    getCategoryBySlug(product.category),
-    getRelatedProducts(product, 4),
-    getReviewSummary(product.id),
-    getLatestReviews(product.id, 4),
-  ]);
+  const variationItems = variation?.items ?? [];
+  const hasVariation = variationItems.length >= 2;
 
-  const productLd = productJsonLd(product, brand?.name ?? "Fusion Gadgets");
+  const productLd = productJsonLd(product, brand?.name ?? "Fusion Gadgets", reviewSummary);
   const breadcrumbLd = breadcrumbJsonLd(
     product.name,
     category?.name ?? "Shop",
     product.category,
     product.slug
   );
+
+  const primaryImage = product.images[0];
 
   return (
     <article className="container-edge py-6 lg:py-10">
@@ -214,76 +208,90 @@ export default async function ProductPage({ params }: { params: Params }) {
         ]}
       />
 
-      <BuyBox
-        product={product}
-        allVariationProducts={allVariationProducts}
-        className="mt-6"
-        header={
-          <>
-            {brand && (
-              <p className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                <span className="h-px w-6 bg-copper" />
-                {brand.name}
-                <span className="text-muted-foreground/50">·</span>
-                <span>{brand.country}</span>
-              </p>
-            )}
-            <h1 className="mt-2 font-display text-3xl leading-[1.05] tracking-tight text-balance md:text-4xl lg:text-[2.75rem]">
+      <div className="mt-6 grid gap-8 lg:grid-cols-2 lg:gap-12">
+        <div>
+          {primaryImage ? (
+            <img
+              src={primaryImage}
+              alt={product.name}
+              width={600}
+              height={600}
+              data-product-main-image
+              className="aspect-square w-full rounded-xl border border-border bg-card object-cover"
+            />
+          ) : (
+            <div className="aspect-square rounded-xl border border-border bg-card" />
+          )}
+          {product.images.length > 1 && (
+            <div className="mt-3">
+              <Gallery
+                images={product.images}
+                name={product.name}
+                visualKey={product.visualKey}
+                accent={product.accent}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col min-w-0">
+          {brand && (
+            <p className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              <span className="h-px w-6 bg-copper" />
+              {brand.name}
+              <span className="text-muted-foreground/50">·</span>
+              <span>{brand.country}</span>
+            </p>
+          )}
+
+          <div className="mt-2 flex items-start gap-3">
+            <h1 className="font-display text-3xl leading-[1.05] tracking-tight text-balance md:text-4xl lg:text-[2.75rem]">
               {product.name}
             </h1>
-            {product.subtitle && (
-              <p className="mt-1.5 text-sm text-muted-foreground">
-                {product.subtitle}
-              </p>
-            )}
+            <WishlistButton
+              productId={product.id}
+              name={product.name}
+              slug={product.slug}
+              variant="outline"
+              size="icon"
+              className="mt-1 h-9 w-9 shrink-0 rounded-full border-border"
+            />
+          </div>
+          {product.subtitle && (
+            <p className="mt-1.5 text-sm text-muted-foreground">{product.subtitle}</p>
+          )}
 
-            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-              <RatingStars
-                rating={product.rating}
-                count={product.reviewCount}
-                size="md"
-              />
-              {product.reviewCount > 0 && (
-                <a
-                  href="#reviews"
-                  className="text-xs text-muted-foreground underline-offset-4 hover:text-copper hover:underline"
-                >
-                  Read {product.reviewCount}{" "}
-                  {product.reviewCount === 1 ? "review" : "reviews"}
-                </a>
-              )}
-            </div>
+          <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Price price={product.price} compareAt={product.compareAt} size="lg" />
+            <AvailabilityBadge availability={product.availability} stock={product.stock} />
+          </div>
 
-            <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2">
-              <Price
-                price={product.price}
-                compareAt={product.compareAt}
-                size="lg"
-              />
-              <AvailabilityBadge
-                availability={product.availability}
-                stock={product.stock}
-              />
-            </div>
+          <p className="mt-5 max-w-xl text-pretty text-[15px] leading-relaxed text-muted-foreground">
+            {product.description ?? product.tagline}
+          </p>
 
-            <p className="mt-5 max-w-xl text-pretty text-[15px] leading-relaxed text-muted-foreground">
-              {product.description ?? product.tagline}
-            </p>
-          </>
-        }
-        footer={
-          product.highlights && product.highlights.length > 0 ? (
-            <ul className="space-y-2.5 border-t border-border pt-6">
+          {hasVariation && (
+            <VariationSelector
+              options={variationItems}
+              selectedProductId={product.id}
+              className="mt-6"
+            />
+          )}
+
+          <PurchaseControls product={product} offers={offers} />
+
+          {product.highlights && product.highlights.length > 0 && (
+            <ul className="mt-7 space-y-2.5 border-t border-border pt-6">
               {product.highlights.map((h) => (
                 <li key={h} className="flex items-start gap-2.5 text-sm">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-copper" />
+                  <span className="mt-0.5 h-4 w-4 shrink-0 text-copper">✓</span>
                   <span className="text-foreground/90">{h}</span>
                 </li>
               ))}
             </ul>
-          ) : null
-        }
-      />
+          )}
+        </div>
+      </div>
 
       {/* Story */}
       {product.story && (
@@ -395,7 +403,7 @@ export default async function ProductPage({ params }: { params: Params }) {
                 </h3>
               </div>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                {product.shipping ?? "Ships within 24 hours. Free delivery across India in 2–4 days."}
+                {product.shipping ?? "Ships within 24 hours. Free delivery across India in 2\u20134 days."}
               </p>
             </div>
             <div className="rounded-lg border border-border bg-card p-5">

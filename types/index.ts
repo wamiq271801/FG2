@@ -12,6 +12,8 @@ export type Slug = string;
 export type Money = number; // stored in major currency units (INR)
 
 export type Category = {
+  /** Internal relational identity (uuid). */
+  id: string;
   slug: Slug;
   name: string;
   tagline: string;
@@ -65,7 +67,7 @@ export type ProductSpec = {
 export type VariationItem = {
   /** The actual product UUID for this variation item */
   productId: string;
-  /** The product's slug for URL navigation */
+  /** URL slug for normal navigation */
   slug: string;
   /** Generic option label (e.g. "Graphite", "12/256", "Pro") */
   label: string;
@@ -125,6 +127,8 @@ export type Product = {
   /** Denormalized brand name for card display (avoids a separate lookup) */
   brandName?: string;
   category: Slug;
+  /** Internal category identity (uuid) — used for ID-based relationships */
+  categoryId?: string;
   subcategory?: string;
   /** Short marketing line for cards */
   tagline: string;
@@ -151,11 +155,6 @@ export type Product = {
   /** Detail-page fields — undefined on card queries to avoid over-fetching */
   specs?: ProductSpec[];
   highlights?: string[];
-  /**
-   * Variation — present when this product belongs to a variation with
-   * multiple products. Each entry represents a selectable alternative.
-   */
-  variation?: ProductVariation;
   includes?: string[];
   shipping?: string;
   warranty?: string;
@@ -189,8 +188,8 @@ export type Promotion = {
   title: string;
   description: string;
   badge: string;
-  /** slugs of products included */
-  productSlugs: Slug[];
+  /** Product ids included — relationships are product_id-based */
+  productIds: string[];
   startsAt?: string;
   endsAt?: string;
   terms: string;
@@ -210,11 +209,9 @@ export type Address = {
 };
 
 export type OrderItem = {
-  /** Product UUID — the sellable product. Required from Phase 8 onwards. */
+  /** Product UUID — the sellable product. */
   productId?: string;
-  slug: Slug;
   name: string;
-  image: string;
   visualKey: ProductVisualKey;
   accent: string;
   quantity: number;

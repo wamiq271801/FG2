@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { SearchResults } from "@/components/search/SearchResults";
-import { getAllCategories, getCategoryProductCount, getTrendingProducts } from "@/modules/catalog/data";
+import { getTrendingProducts } from "@/modules/catalog/products";
+import { getAllCategories, getCategoryProductCount } from "@/modules/catalog/categories";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -45,7 +46,7 @@ export default async function SearchPage() {
   const categoriesWithCounts = await Promise.all(
     categories.map(async (c) => ({
       ...c,
-      productCount: await getCategoryProductCount(c.slug),
+      productCount: await getCategoryProductCount(c.id),
     }))
   );
 

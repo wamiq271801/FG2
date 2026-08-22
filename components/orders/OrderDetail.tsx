@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Link } from "@/components/shared/Link";
 import { notFound } from "next/navigation";
 import {
@@ -30,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOrder } from "@/modules/orders";
+import { useProductsByIds } from "@/modules/catalog/useProducts";
 import type { Order } from "@/types";
 
 export function OrderDetail({ id }: { id: string }) {
@@ -259,6 +261,18 @@ function formatEventType(eventType: string): string {
 
 function ItemsList({ order }: { order: Order }) {
   const totalItems = order.items.reduce((n, i) => n + i.quantity, 0);
+
+  // Product links resolve from product ids — slugs are URL values only.
+  const productIds = useMemo(
+    () => order.items.map((i) => i.productId).filter((id): id is string => Boolean(id)),
+    [order.items]
+  );
+  const { products } = useProductsByIds(productIds);
+  const slugById = useMemo(
+    () => new Map(products.map((p) => [p.id, p.slug])),
+    [products]
+  );
+
   return (
     <Card className="border-border/70">
       <CardHeader>
@@ -266,28 +280,41 @@ function ItemsList({ order }: { order: Order }) {
         <CardDescription>{totalItems} {totalItems === 1 ? "item" : "items"} in this order</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        {order.items.map((item, i) => (
-          <div key={`${item.slug}-${i}`}>
-            {i > 0 && <Separator className="mb-3" />}
-            <div className="flex items-start gap-4">
-              <Link
-                href={`/product/${item.slug}`}
-                className="group relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-border/70 bg-muted press sm:h-20 sm:w-20"
-                aria-label={item.name}
-              >
-                <ProductVisual visualKey={item.visualKey} accent={item.accent} className="h-full w-full transition-transform duration-300 group-hover:scale-[1.04]" />
-              </Link>
-              <div className="min-w-0 flex-1">
-                <Link href={`/product/${item.slug}`} className="font-medium leading-tight hover:text-copper">{item.name}</Link>
-                <p className="mt-1 text-xs text-muted-foreground">Qty {item.quantity} × {formatPrice(item.unitPrice)}</p>
-              </div>
-              <div className="shrink-0 text-right">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Line total</p>
-                <p className="font-display text-sm font-medium">{formatPrice(item.unitPrice * item.quantity)}</p>
+        {order.items.map((item, i) => {
+          const slug = item.productId ? slugById.get(item.productId) : undefined;
+          return (
+            <div key={`${item.productId ?? item.name}-${i}`}>
+              {i > 0 && <Separator className="mb-3" />}
+              <div className="flex items-start gap-4">
+                {slug ? (
+                  <Link
+                    href={`/product/${slug}`}
+                    className="group relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-border/70 bg-muted press sm:h-20 sm:w-20"
+                    aria-label={item.name}
+                  >
+                    <ProductVisual visualKey={item.visualKey} accent={item.accent} className="h-full w-full transition-transform duration-300 group-hover:scale-[1.04]" />
+                  </Link>
+                ) : (
+                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-border/70 bg-muted sm:h-20 sm:w-20">
+                    <ProductVisual visualKey={item.visualKey} accent={item.accent} className="h-full w-full" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  {slug ? (
+                    <Link href={`/product/${slug}`} className="font-medium leading-tight hover:text-copper">{item.name}</Link>
+                  ) : (
+                    <span className="font-medium leading-tight">{item.name}</span>
+                  )}
+                  <p className="mt-1 text-xs text-muted-foreground">Qty {item.quantity} × {formatPrice(item.unitPrice)}</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Line total</p>
+                  <p className="font-display text-sm font-medium">{formatPrice(item.unitPrice * item.quantity)}</p>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </CardContent>
     </Card>
   );

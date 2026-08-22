@@ -1,10 +1,7 @@
 import type { Metadata } from "next";
 import { Link } from "@/components/shared/Link";
 import { ArrowRight } from "lucide-react";
-import {
-  getAllCategories,
-  getCategoryProductCount,
-} from "@/modules/catalog/data";
+import { getAllCategories, getCategoryProductCount } from "@/modules/catalog/categories";
 import { ProductVisual } from "@/components/shared/ProductVisual";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import type { ProductVisualKey } from "@/types";
@@ -39,7 +36,7 @@ export const revalidate = 300;
 export default async function CategoriesPage() {
   const categories = await getAllCategories();
   const counts = await Promise.all(
-    categories.map((c) => getCategoryProductCount(c.slug))
+    categories.map((c) => getCategoryProductCount(c.id))
   );
 
   return (

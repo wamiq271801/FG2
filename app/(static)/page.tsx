@@ -1,15 +1,14 @@
 import { Link } from "@/components/shared/Link";
 import Image from "next/image";
 import {
-  getAllCategories,
   getFeaturedProducts,
   getNewArrivals,
   getOnSaleProducts,
-  getPromotionBySlug,
   getTrendingProducts,
-  isPromotionActive,
-  storeInfo,
-} from "@/modules/catalog/data";
+} from "@/modules/catalog/products";
+import { getAllCategories } from "@/modules/catalog/categories";
+import { getPromotionBySlug, isPromotionActive } from "@/modules/catalog/offers";
+import { storeInfo } from "@/lib/store-info";
 import { ProductCard } from "@/components/shared/ProductCard";
 import { ProductVisual } from "@/components/shared/ProductVisual";
 import { Button } from "@/components/ui/button";

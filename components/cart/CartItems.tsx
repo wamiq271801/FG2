@@ -240,7 +240,7 @@ function CartLine({
     <div className="flex gap-4">
       {/* Thumbnail */}
       <Link
-        href={`/product/${line.slug}`}
+        href={`/product/${line.product.slug}`}
         className="group relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-border/70 bg-muted press sm:h-20 sm:w-20"
         aria-label={line.product.name}
       >
@@ -256,7 +256,7 @@ function CartLine({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <Link
-              href={`/product/${line.slug}`}
+              href={`/product/${line.product.slug}`}
               className="font-medium leading-tight hover:text-copper"
             >
               {line.product.name}

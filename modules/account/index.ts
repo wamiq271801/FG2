@@ -10,6 +10,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useAuthContext } from "@/providers/AuthProvider";
 
 export type Profile = {
   id: string;
@@ -42,19 +43,19 @@ export function useProfile() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuthContext();
 
   const fetchProfile = useCallback(async () => {
-    const supabase = createClient();
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) {
+    if (!user) {
       setProfile(null);
       setLoading(false);
       return;
     }
+    const supabase = createClient();
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
-      .eq("id", userData.user.id)
+      .eq("id", user.id)
       .maybeSingle();
     if (error) {
       setError(error.message);
@@ -62,7 +63,7 @@ export function useProfile() {
       setProfile(data as Profile | null);
     }
     setLoading(false);
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -77,19 +78,19 @@ export function useAddresses() {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuthContext();
 
   const fetchAddresses = useCallback(async () => {
-    const supabase = createClient();
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) {
+    if (!user) {
       setAddresses([]);
       setLoading(false);
       return;
     }
+    const supabase = createClient();
     const { data, error } = await supabase
       .from("addresses")
       .select("*")
-      .eq("user_id", userData.user.id)
+      .eq("user_id", user.id)
       .order("is_default", { ascending: false });
     if (error) {
       setError(error.message);
@@ -97,7 +98,7 @@ export function useAddresses() {
       setAddresses((data ?? []) as Address[]);
     }
     setLoading(false);
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -108,39 +109,53 @@ export function useAddresses() {
 }
 
 // Update profile fields the user is allowed to edit.
-export async function updateProfile(updates: {
-  full_name?: string;
-  phone?: string;
-  pref_newsletter?: boolean;
-  pref_product_updates?: boolean;
-  pref_order_updates?: boolean;
-  onboarding_state?: "incomplete" | "address_optional" | "complete";
-}): Promise<{ error: string | null }> {
+export async function updateProfile(
+  updates: {
+    full_name?: string;
+    phone?: string;
+    pref_newsletter?: boolean;
+    pref_product_updates?: boolean;
+    pref_order_updates?: boolean;
+    onboarding_state?: "incomplete" | "address_optional" | "complete";
+  },
+  userId?: string,
+): Promise<{ error: string | null }> {
   const supabase = createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) return { error: "Not signed in." };
+  let uid = userId;
+  if (!uid) {
+    const { data: userData } = await supabase.auth.getUser();
+    uid = userData.user?.id;
+  }
+  if (!uid) return { error: "Not signed in." };
   const { error } = await supabase
     .from("profiles")
     .update(updates)
-    .eq("id", userData.user.id);
+    .eq("id", uid);
   return { error: error?.message ?? null };
 }
 
 // Address CRUD — all RLS-protected (user can only touch their own rows).
-export async function createAddress(addr: Omit<Address, "id" | "is_default"> & { is_default?: boolean }): Promise<{ error: string | null }> {
+export async function createAddress(
+  addr: Omit<Address, "id" | "is_default"> & { is_default?: boolean },
+  userId?: string,
+): Promise<{ error: string | null }> {
   const supabase = createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) return { error: "Not signed in." };
+  let uid = userId;
+  if (!uid) {
+    const { data: userData } = await supabase.auth.getUser();
+    uid = userData.user?.id;
+  }
+  if (!uid) return { error: "Not signed in." };
   // If setting as default, unset the existing default first.
   if (addr.is_default) {
     await supabase
       .from("addresses")
       .update({ is_default: false })
-      .eq("user_id", userData.user.id)
+      .eq("user_id", uid)
       .eq("is_default", true);
   }
   const { error } = await supabase.from("addresses").insert({
-    user_id: userData.user.id,
+    user_id: uid,
     label: addr.label,
     line1: addr.line1,
     line2: addr.line2,
@@ -154,23 +169,31 @@ export async function createAddress(addr: Omit<Address, "id" | "is_default"> & {
   return { error: error?.message ?? null };
 }
 
-export async function updateAddress(id: string, updates: Partial<Omit<Address, "id">>): Promise<{ error: string | null }> {
+export async function updateAddress(
+  id: string,
+  updates: Partial<Omit<Address, "id">>,
+  userId?: string,
+): Promise<{ error: string | null }> {
   const supabase = createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) return { error: "Not signed in." };
+  let uid = userId;
+  if (!uid) {
+    const { data: userData } = await supabase.auth.getUser();
+    uid = userData.user?.id;
+  }
+  if (!uid) return { error: "Not signed in." };
   // If setting as default, unset the existing default first.
   if (updates.is_default) {
     await supabase
       .from("addresses")
       .update({ is_default: false })
-      .eq("user_id", userData.user.id)
+      .eq("user_id", uid)
       .eq("is_default", true);
   }
   const { error } = await supabase
     .from("addresses")
     .update(updates)
     .eq("id", id)
-    .eq("user_id", userData.user.id); // belt-and-suspenders — RLS also enforces
+    .eq("user_id", uid); // belt-and-suspenders — RLS also enforces
   return { error: error?.message ?? null };
 }
 

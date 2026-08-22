@@ -1,13 +1,22 @@
 "use client";
 
 /**
- * Centralized authentication state — single source of truth for auth identity.
+ * Centralized authentication state — single source of truth for client auth.
  *
- * - One `onAuthStateChange` listener (no duplicate listeners)
- * - Distinguishes AUTH_INITIALIZING / AUTHENTICATED / UNAUTHENTICATED
- * - Auth state is set SYNCHRONOUSLY from the session — never waits for
- *   cart/wishlist/profile loading (those fire independently after auth is known)
- * - Session persistence handled by Supabase's built-in browser client
+ * One coherent bootstrap:
+ *   getSession → user → minimum onboarding state → ready
+ *
+ * One onAuthStateChange listener (no duplicate listeners).
+ *
+ * Auth state is set SYNCHRONOUSLY from the session — never waits for
+ * cart/wishlist/profile loading (those fire independently after auth is known).
+ * Session persistence handled by Supabase's built-in browser client.
+ *
+ * The provider publishes:
+ *   user, authState, onboardingState, ready
+ *
+ * Components consume this context instead of independently calling
+ * getSession/getUser/onAuthStateChange.
  */
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
@@ -21,18 +30,24 @@ export type AuthUser = {
   email: string;
 };
 
-type AuthState = "initializing" | "authenticated" | "unauthenticated";
+export type AuthState = "initializing" | "authenticated" | "unauthenticated";
+
+export type OnboardingState = "resolving" | "complete" | "incomplete" | "not-required";
 
 type AuthContextValue = {
   user: AuthUser | null;
   state: AuthState;
+  onboardingState: OnboardingState;
   ready: boolean;
+  refreshOnboarding: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue>({
   user: null,
   state: "initializing",
+  onboardingState: "resolving",
   ready: false,
+  refreshOnboarding: async () => {},
 });
 
 function toAuthUser(u: User | null): AuthUser | null {
@@ -40,85 +55,165 @@ function toAuthUser(u: User | null): AuthUser | null {
   return { id: u.id, email: u.email ?? "" };
 }
 
+async function fetchOnboardingState(userId: string): Promise<OnboardingState> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("profiles")
+    .select("onboarding_state")
+    .eq("id", userId)
+    .maybeSingle();
+  if (!data) return "incomplete";
+  const s = (data as { onboarding_state: string }).onboarding_state;
+  if (s === "complete") return "complete";
+  return "incomplete";
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [state, setState] = useState<AuthState>("initializing");
+  const [onboardingState, setOnboardingState] = useState<OnboardingState>("resolving");
   const mergedForUserId = useRef<string | null>(null);
   const loadedUserId = useRef<string | null>(null);
 
+  const refreshOnboarding = async () => {
+    const u = user;
+    if (!u) {
+      setOnboardingState("not-required");
+      return;
+    }
+    setOnboardingState("resolving");
+    const result = await fetchOnboardingState(u.id);
+    setOnboardingState(result);
+  };
+
   useEffect(() => {
     let mounted = true;
+    const timers: number[] = [];
 
-    // Restore persisted session — getSession() reads from local storage.
-    // This is synchronous from a storage perspective, but Supabase may
-    // trigger a token refresh network call if the token is near expiry.
-    // We set auth state from whatever getSession returns immediately.
+    // Defer Supabase-query work until after the current auth operation
+    // releases its internal storage lock. Calling supabase methods
+    // synchronously inside an onAuthStateChange callback deadlocks the
+    // client (the query's internal getSession() waits on the same lock),
+    // which stalls cart/wishlist/orders loading until a full page refresh.
+    const defer = (fn: () => void) => {
+      timers.push(
+        window.setTimeout(() => {
+          if (mounted) fn();
+        }, 0)
+      );
+    };
+
+    // Identity publishing is pure React state — always synchronous so the
+    // context propagates immediately, before any downstream data work.
+    const publishIdentity = (u: AuthUser | null) => {
+      setUser(u);
+      if (!u) {
+        setState("unauthenticated");
+        setOnboardingState("not-required");
+      } else {
+        setState("authenticated");
+      }
+    };
+
+    const resolveOnboardingState = (userId: string) => {
+      fetchOnboardingState(userId).then((os) => {
+        if (!mounted) return;
+        setOnboardingState(os);
+      });
+    };
+
+    // Ensure remote cart/wishlist are loaded for this user; merge guest
+    // data exactly once per authentication transition.
+    const ensureUserData = (userId: string) => {
+      if (loadedUserId.current === userId) return;
+      loadedUserId.current = userId;
+      if (mergedForUserId.current !== userId) {
+        mergedForUserId.current = userId;
+        Promise.all([
+          useCart.getState().mergeGuestIntoRemote(userId),
+          useWishlist.getState().mergeGuestIntoRemote(userId),
+        ]).catch(() => {
+          // Merge or authoritative reload failed — reset BOTH guards so the
+          // next auth/data transition can retry instead of being suppressed.
+          mergedForUserId.current = null;
+          loadedUserId.current = null;
+        });
+      } else {
+        useCart.getState().loadRemote(userId).catch(() => {});
+        useWishlist.getState().loadRemote(userId).catch(() => {});
+      }
+    };
+
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
       const u = toAuthUser(data.session?.user ?? null);
-      setUser(u);
-      setState(u ? "authenticated" : "unauthenticated");
-
-      // Fire cart/wishlist load independently (non-blocking)
-      if (u && loadedUserId.current !== u.id) {
-        loadedUserId.current = u.id;
-        useCart.getState().loadRemote(u.id).catch(() => {});
-        useWishlist.getState().loadRemote(u.id).catch(() => {});
+      publishIdentity(u);
+      if (u) {
+        defer(() => {
+          // Skip onboarding resolution if a concurrent INITIAL_SESSION
+          // already handled this user.
+          if (!loadedUserId.current) resolveOnboardingState(u.id);
+          ensureUserData(u.id);
+        });
       }
     });
 
-    // Single centralized auth state listener.
-    // IMPORTANT: the callback is NOT async — auth state is set synchronously
-    // from the session object. Cart/wishlist/merge operations are fired
-    // as non-blocking background promises.
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
       const u = toAuthUser(session?.user ?? null);
 
-      // Set auth state IMMEDIATELY — no awaiting before this point
-      setUser(u);
-      setState(u ? "authenticated" : "unauthenticated");
+      // 1) Publish identity IMMEDIATELY — Header, AccountGate, review
+      //    controls etc. re-render from context without waiting for any
+      //    downstream data (cart/wishlist/orders/profile/onboarding).
+      publishIdentity(u);
 
-      // Handle auth transitions as background work (non-blocking)
-      if (event === "SIGNED_IN" && u && loadedUserId.current !== u.id) {
-        loadedUserId.current = u.id;
-        if (mergedForUserId.current !== u.id) {
-          mergedForUserId.current = u.id;
-          // Merge guest data — non-blocking, runs independently
-          Promise.all([
-            useCart.getState().mergeGuestIntoRemote(u.id),
-            useWishlist.getState().mergeGuestIntoRemote(u.id),
-          ]).catch(() => {
-            mergedForUserId.current = null;
-          });
-        } else {
-          useCart.getState().loadRemote(u.id).catch(() => {});
-          useWishlist.getState().loadRemote(u.id).catch(() => {});
+      if (!u) {
+        if (event === "SIGNED_OUT") {
+          // Local-only reset — no Supabase calls, safe synchronously.
+          loadedUserId.current = null;
+          mergedForUserId.current = null;
+          useCart.getState().resetForSignOut();
+          useWishlist.getState().resetForSignOut();
         }
+        return;
       }
 
-      if (event === "SIGNED_OUT") {
-        loadedUserId.current = null;
-        mergedForUserId.current = null;
-        useCart.getState().resetForSignOut();
-        useWishlist.getState().resetForSignOut();
-      }
+      // 2) Data work happens OUTSIDE the auth-event callback.
+      //    - SIGNED_IN / INITIAL_SESSION: one-time merge/load (ref-guarded)
+      //      plus onboarding resolution.
+      //    - USER_UPDATED: profile-affecting → re-resolve onboarding.
+      //    - TOKEN_REFRESHED: identity already published; no data work.
+      if (event === "TOKEN_REFRESHED") return;
+      defer(() => {
+        if (event === "USER_UPDATED" || !loadedUserId.current) {
+          resolveOnboardingState(u.id);
+        }
+        if (
+          (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
+          loadedUserId.current !== u.id
+        ) {
+          ensureUserData(u.id);
+        }
+      });
     });
 
     return () => {
       mounted = false;
+      timers.forEach((t) => window.clearTimeout(t));
       sub.subscription.unsubscribe();
     };
   }, [supabase]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
-      user: state === "initializing" ? null : user,
+      user,
       state,
+      onboardingState,
       ready: state !== "initializing",
+      refreshOnboarding,
     }),
-    [user, state]
+    [user, state, onboardingState]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

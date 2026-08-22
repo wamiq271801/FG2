@@ -25,14 +25,8 @@ export function AccountGate({ children }: { children: React.ReactNode }) {
   const { user, ready } = useAuthContext();
 
   if (!ready) {
-    // Hydrating — render subtle skeletons so the page doesn't flash the
-    // sign-in prompt while the auth store rehydrates from localStorage.
     return (
-      <div
-        className="space-y-6"
-        aria-busy="true"
-        aria-label="Loading your account"
-      >
+      <div className="space-y-6" aria-busy="true" aria-label="Loading your account">
         <div className="h-24 rounded-xl bg-muted/60 animate-pulse" />
         <div className="grid gap-6 md:grid-cols-2">
           <div className="h-48 rounded-xl bg-muted/40 animate-pulse" />

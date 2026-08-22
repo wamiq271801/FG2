@@ -1,24 +1,21 @@
 "use client";
 
 /**
- * OnboardingGate — global enforcement of account setup completion.
+ * OnboardingGate — route-level enforcement of account setup completion.
  *
- * Sits inside AuthProvider. When the authenticated user's persisted
- * onboarding_state is not "complete", renders OnboardingFlow instead of the
- * normal application. No route, redirect, or page-level check required.
+ * Consumes centralized AuthContext. Does NOT independently call getSession,
+ * getUser, or register auth listeners.
  *
- * State machine:
- *   AUTH initializing  → render nothing (skeleton)
- *   AUTH unauthenticated → render children normally
- *   AUTH authenticated
- *     → onboarding resolving (profile not yet loaded) → skeleton
- *     → onboarding_state = incomplete      → OnboardingFlow Step 1
- *     → onboarding_state = address_optional → OnboardingFlow Step 2
- *     → onboarding_state = complete         → render children normally
+ * NEVER returns null during initialization. During auth bootstrap, renders
+ * children so public content remains visible.
  *
- * The profile is re-fetched after each onboarding step save so the gate
- * automatically advances (or clears) based on the persisted DB state.
- * This correctly handles browser-close/resume across sessions.
+ * Usage: wrap only routes that genuinely require completed onboarding.
+ *
+ *   <OnboardingGate>
+ *     {children}
+ *   </OnboardingGate>
+ *
+ * Public pages (Home, Shop, Product, Search, etc.) must NOT use this gate.
  */
 
 import { useEffect, useState, useCallback } from "react";
@@ -29,54 +26,46 @@ import { useAuthContext } from "@/providers/AuthProvider";
 import { OnboardingFlow } from "@/components/account/OnboardingFlow";
 import type { Profile } from "@/modules/account";
 
-type GateState = "resolving" | "incomplete" | "address_optional" | "complete";
-
 export function OnboardingGate({ children }: { children: React.ReactNode }) {
-  const { user, state: authState } = useAuthContext();
+  const { user, state: authState, onboardingState } = useAuthContext();
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [gateState, setGateState] = useState<GateState>("resolving");
+  const [needsProfile, setNeedsProfile] = useState(false);
 
   const fetchProfile = useCallback(async (userId: string) => {
-    setGateState("resolving");
     const supabase = createClient();
     const { data } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", userId)
       .maybeSingle();
-    const p = data as Profile | null;
-    setProfile(p);
-    if (!p || p.onboarding_state === "incomplete") {
-      setGateState("incomplete");
-    } else if (p.onboarding_state === "address_optional") {
-      setGateState("address_optional");
-    } else {
-      setGateState("complete");
-    }
+    setProfile(data as Profile | null);
   }, []);
 
   useEffect(() => {
     if (authState === "initializing") return;
     if (authState === "unauthenticated" || !user) {
       setProfile(null);
-      setGateState("complete"); // unauthenticated → no gate, render normally
+      setNeedsProfile(false);
       return;
     }
-    fetchProfile(user.id);
-  }, [authState, user, fetchProfile]);
+    if (onboardingState === "incomplete") {
+      setNeedsProfile(true);
+      fetchProfile(user.id);
+    } else {
+      setProfile(null);
+      setNeedsProfile(false);
+    }
+  }, [authState, user, onboardingState, fetchProfile]);
 
-  // Auth still initializing — render nothing to avoid flashing incorrect state
-  if (authState === "initializing") {
-    return null;
+  if (authState === "initializing" || onboardingState === "resolving") {
+    return <>{children}</>;
   }
 
-  // Authenticated but profile not yet loaded — render nothing briefly
-  if (authState === "authenticated" && gateState === "resolving") {
-    return null;
+  if (authState === "unauthenticated" || !user) {
+    return <>{children}</>;
   }
 
-  // Onboarding required — render the onboarding shell instead of the app
-  if (gateState === "incomplete" || gateState === "address_optional") {
+  if (onboardingState === "incomplete" && needsProfile && profile) {
     return (
       <div className="relative isolate flex min-h-screen items-center justify-center px-4 py-12 sm:py-16">
         <div
@@ -94,12 +83,10 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
             </Link>
           </div>
           <div className="mt-8 rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
-            {profile && (
-              <OnboardingFlow
-                profile={profile}
-                onComplete={() => user && fetchProfile(user.id)}
-              />
-            )}
+            <OnboardingFlow
+              profile={profile}
+              onComplete={() => user && fetchProfile(user.id)}
+            />
           </div>
           <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
             <ShieldCheck className="h-3.5 w-3.5 text-copper" />
@@ -119,6 +106,5 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // complete or unauthenticated — render normally
   return <>{children}</>;
 }

@@ -1,23 +1,21 @@
 "use client";
 
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext, useMemo, useRef } from "react";
 import { useCart, useCartLines } from "@/modules/cart";
-import { useProductsBySlugs } from "@/modules/catalog/useProducts";
+import { useProductsByIds } from "@/modules/catalog/useProducts";
 
 /**
  * A resolved cart line: the stored cart line + current product data.
- *
- * productId is the UUID of the actual sellable product.
- * slug is the product's URL slug, used for navigation and display.
+ * productId is the UUID of the actual sellable product — the only identity.
  */
 export type ResolvedCartLine = {
   /** Cart line identity — the product UUID. */
   productId: string;
-  /** Product URL slug — for navigation only, not cart identity. */
-  slug: string;
   quantity: number;
   product: {
     name: string;
+    /** URL slug from the resolved product — link generation only. */
+    slug: string;
     price: number;
     visualKey: string;
     accent: string;
@@ -43,32 +41,30 @@ const CartContext = createContext<CartContextValue>({
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const { lines, ready, loading } = useCartLines();
 
-  // Resolve product data for display by slug.
-  // CartLine.slug is carried from the cart store for exactly this purpose.
-  const slugs = useMemo(() => [...new Set(lines.map((l) => l.slug).filter(Boolean))], [lines]);
-  const { products, loading: productsLoading } = useProductsBySlugs(slugs);
+  // Resolve display data by productId.
+  const productIds = useMemo(
+    () => [...new Set(lines.map((l) => l.productId).filter(Boolean))],
+    [lines]
+  );
+  const { products, loading: productsLoading } = useProductsByIds(productIds);
 
   const resolvedLines: ResolvedCartLine[] = useMemo(() => {
     return lines
-      .map((line) => {
-        // Match by productId first (exact), fall back to slug for guest lines
-        // that may have been loaded before product data arrives
-        const product =
-          products.find((p) => p.id === line.productId) ??
-          products.find((p) => p.slug === line.slug);
+      .map((line): ResolvedCartLine | null => {
+        const product = products.find((p) => p.id === line.productId);
         if (!product) return null;
         return {
           productId: line.productId,
-          slug: line.slug,
           quantity: line.quantity,
           product: {
             name: product.name,
+            slug: product.slug,
             price: product.price,
             visualKey: product.visualKey,
             accent: product.accent,
             availability: product.availability,
           },
-        } satisfies ResolvedCartLine;
+        };
       })
       .filter((l): l is ResolvedCartLine => l !== null);
   }, [lines, products]);
@@ -76,17 +72,23 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const count = resolvedLines.reduce((n, l) => n + l.quantity, 0);
   const subtotal = resolvedLines.reduce((n, l) => n + l.quantity * l.product.price, 0);
 
-  const fullyReady = ready && !loading && (slugs.length === 0 || !productsLoading);
+  // During auth transition, useCartLines keeps returning guest data (ready=true)
+  // until remote data is loaded. Once remote data is loaded, ready=true and
+  // lines come from remote. If lines is empty but products are still loading,
+  // keep ready=false so the badge doesn't flash zero.
+  const fullyReady = ready && !loading && (productIds.length === 0 || !productsLoading);
 
-  const value = useMemo<CartContextValue>(
-    () => ({
-      lines: fullyReady ? resolvedLines : [],
-      count: fullyReady ? count : 0,
-      subtotal: fullyReady ? subtotal : 0,
-      ready: fullyReady,
-    }),
-    [resolvedLines, count, subtotal, fullyReady]
+  const resolvedSnapshot = useMemo<CartContextValue>(
+    () => ({ lines: resolvedLines, count, subtotal, ready: true }),
+    [resolvedLines, count, subtotal]
   );
+
+  // Hold-last-good: right after the guest→remote swap, remote-only products
+  // briefly re-resolve display data. Serve the previous valid snapshot during
+  // that gap instead of flashing an empty cart / zero badge.
+  const lastGoodRef = useRef(resolvedSnapshot);
+  if (fullyReady) lastGoodRef.current = resolvedSnapshot;
+  const value = fullyReady ? resolvedSnapshot : lastGoodRef.current;
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

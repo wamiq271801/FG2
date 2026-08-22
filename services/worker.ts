@@ -128,7 +128,6 @@ export async function getCheckoutSummary(): Promise<{ success: boolean; summary?
   const token = data.session?.access_token;
   if (!token) return { success: false, error: "Please sign in to continue." };
 
-  const WORKER_BASE = process.env.NEXT_PUBLIC_WORKER_URL ?? "http://localhost:8787";
   const res = await fetch(`${WORKER_BASE}/orders/summary`, {
     method: "GET",
     headers: { Authorization: `Bearer ${token}` },

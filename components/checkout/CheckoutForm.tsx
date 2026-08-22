@@ -33,6 +33,7 @@ export function CheckoutForm() {
   const router = useRouter();
   const { lines, ready: cartReady } = useCartContext();
   const { user, ready: authReady } = useAuthContext();
+  const userId = user?.id ?? null;
   const { addresses, loading: addressesLoading } = useAddresses();
   const loadRemote = useCart((s) => s.loadRemote);
 
@@ -51,7 +52,7 @@ export function CheckoutForm() {
   const [confirmedTotal, setConfirmedTotal] = useState<number | null>(null);
 
   const fetchSummary = useCallback(async () => {
-    if (!user) return;
+    if (!userId) return;
     setSummaryLoading(true);
     setSummaryError(null);
     const result = await getCheckoutSummary();
@@ -61,7 +62,7 @@ export function CheckoutForm() {
       setSummaryError(result.error ?? "Unable to load order summary.");
     }
     setSummaryLoading(false);
-  }, [user]);
+  }, [userId]);
 
   // Redirect unauthenticated users
   useEffect(() => {
@@ -85,10 +86,10 @@ export function CheckoutForm() {
 
   // Fetch authoritative summary when user + cart are ready
   useEffect(() => {
-    if (user && cartReady && lines.length > 0) {
+    if (userId && cartReady && lines.length > 0) {
       fetchSummary();
     }
-  }, [user, cartReady, lines.length, fetchSummary]);
+  }, [userId, cartReady, lines.length, fetchSummary]);
 
   // Redirect to /cart if empty
   useEffect(() => {

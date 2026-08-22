@@ -2,12 +2,9 @@ import type { Metadata } from "next";
 import { Link } from "@/components/shared/Link";
 import { Suspense } from "react";
 import { ArrowRight, PackageOpen, SlidersHorizontal } from "lucide-react";
-import {
-  getAllBrands,
-  getAllCategories,
-  getAllProducts,
-  getCategoryProductCount,
-} from "@/modules/catalog/data";
+import { getAllProducts } from "@/modules/catalog/products";
+import { getAllCategories, getCategoryProductCount } from "@/modules/catalog/categories";
+import { getAllBrands } from "@/modules/catalog/brands";
 import {
   applyFilters,
   applySort,
@@ -97,7 +94,7 @@ async function ShopInner({
 
   // Facets: counts computed against the un-filtered-by-this-facet set.
   const catCounts = await Promise.all(
-    allCategories.map((c) => getCategoryProductCount(c.slug))
+    allCategories.map((c) => getCategoryProductCount(c.id))
   );
   const catFacets: FilterFacet[] = allCategories
     .map((c, i) => ({ slug: c.slug, name: c.name, count: catCounts[i] }))

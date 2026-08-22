@@ -1,6 +1,7 @@
 import { Link } from "@/components/shared/Link";
 import { Instagram, Twitter, Youtube, MapPin, Phone, Mail } from "lucide-react";
-import { getAllCategories, storeInfo } from "@/modules/catalog/data";
+import { getAllCategories } from "@/modules/catalog/categories";
+import { storeInfo } from "@/lib/store-info";
 
 const helpLinks = [
   { href: "/shipping", label: "Shipping" },

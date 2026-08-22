@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Link } from "@/components/shared/Link";
+import { useRouter } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { SignUpForm } from "@/components/auth/SignUpForm";
 import { VerifyForm } from "@/components/auth/VerifyForm";
@@ -10,25 +11,22 @@ import { useAuthContext } from "@/providers/AuthProvider";
 type Step = "register" | "verify";
 
 export function AccountFlowShell() {
+  const router = useRouter();
   const { state: authState } = useAuthContext();
   const [step, setStep] = useState<Step>("register");
   const [registeredEmail, setRegisteredEmail] = useState("");
 
   useEffect(() => {
-    // Once authenticated, OnboardingGate takes over. Redirect away from signup
-    // so the shell isn't rendered under the global onboarding UI.
     if (authState === "authenticated") {
-      window.location.href = "/";
+      router.push("/");
     } else if (authState === "unauthenticated" && step !== "verify") {
       setStep("register");
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authState]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  }, [authState, router, step]);
 
   const handleVerified = () => {
-    // OTP verified — session created. OnboardingGate will intercept and show
-    // Step 1 onboarding. window.location.href replaces the signup history entry.
-    window.location.href = "/";
+    router.push("/");
   };
 
   const handleRegistered = (email: string) => {

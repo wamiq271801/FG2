@@ -8,13 +8,12 @@ import {
   Info,
   PackageOpen,
 } from "lucide-react";
+import { getOnSaleProducts, getProductsByIds } from "@/modules/catalog/products";
+import { getAllCategories } from "@/modules/catalog/categories";
 import {
-  getAllCategories,
   getAllPromotions,
-  getOnSaleProducts,
   getPromotionBySlug,
-  getPromotionProducts,
-} from "@/modules/catalog/data";
+} from "@/modules/catalog/offers";
 import { ProductCard } from "@/components/shared/ProductCard";
 import { ProductVisual } from "@/components/shared/ProductVisual";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
@@ -54,7 +53,9 @@ export default async function OffersPage() {
     getOnSaleProducts(),
     getAllCategories(),
   ]);
-  const featuredProducts = featured ? await getPromotionProducts(featured) : [];
+  const featuredProducts = featured
+    ? await getProductsByIds(featured.productIds)
+    : [];
   const otherPromotions = promotions.filter(
     (p) => p.slug !== FEATURED_PROMO_SLUG
   );
@@ -335,7 +336,7 @@ export default async function OffersPage() {
 }
 
 async function PromotionSection({ promo }: { promo: Promotion }) {
-  const products = await getPromotionProducts(promo);
+  const products = await getProductsByIds(promo.productIds);
   if (products.length === 0) return null;
 
   return (

@@ -3,12 +3,9 @@ import { Link } from "@/components/shared/Link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ArrowRight, PackageOpen } from "lucide-react";
-import {
-  getAllBrands,
-  getAllCategories,
-  getCategoryBySlug,
-  getProductsByCategory,
-} from "@/modules/catalog/data";
+import { getProductsByCategoryId } from "@/modules/catalog/products";
+import { getAllCategories, getCategoryBySlug } from "@/modules/catalog/categories";
+import { getAllBrands } from "@/modules/catalog/brands";
 import {
   applyFilters,
   applySort,
@@ -95,7 +92,7 @@ export default async function CategoryPage({
   if (!category) notFound();
 
   const basePath = `/categories/${slug}`;
-  const inCategory = await getProductsByCategory(slug);
+  const inCategory = await getProductsByCategoryId(category.id);
 
   // The static shell (breadcrumbs, identity, JSON-LD, SEO paragraph) renders
   // immediately. The dynamic filter+results block is wrapped in <Suspense>
@@ -244,7 +241,7 @@ async function CategoryResults({
   const filters = parseFilters(sp);
 
   const [inCategory, allBrands] = await Promise.all([
-    getProductsByCategory(slug),
+    getProductsByCategoryId(category.id),
     getAllBrands(),
   ]);
 

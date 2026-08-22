@@ -39,7 +39,7 @@ export function BuyAgainButton({
         // Items without productId are from pre-Phase-8 orders — skip them.
         if (!item.productId) continue;
         await add(
-          { productId: item.productId, slug: item.slug, quantity: item.quantity },
+          { productId: item.productId, quantity: item.quantity },
           user?.id ?? null
         );
         addedCount += item.quantity;

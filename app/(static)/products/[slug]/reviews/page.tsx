@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getProductBySlug } from "@/modules/catalog/data";
+import { getProductBySlug } from "@/modules/catalog/products";
 import {
   getReviewSummary,
   getPaginatedReviews,

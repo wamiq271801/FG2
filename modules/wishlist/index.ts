@@ -35,7 +35,7 @@ type WishlistState = {
   remove: (productId: string, userId: string | null) => Promise<void>;
   clearGuest: () => void;
   setHydrated: (v: boolean) => void;
-  loadRemote: (userId: string) => Promise<void>;
+  loadRemote: (userId: string) => Promise<boolean>;
   mergeGuestIntoRemote: (userId: string) => Promise<void>;
   resetForSignOut: () => void;
 };
@@ -116,7 +116,7 @@ export const useWishlist = create<WishlistState>()(
           .eq("user_id", userId);
         if (error) {
           set({ loading: false, remoteError: error.message });
-          return;
+          return false;
         }
         set({
           remoteIds: (data ?? []).map((r: { product_id: string }) => r.product_id),
@@ -125,6 +125,7 @@ export const useWishlist = create<WishlistState>()(
           remoteError: null,
           loadedUserId: userId,
         });
+        return true;
       },
 
       mergeGuestIntoRemote: async (userId) => {
@@ -137,7 +138,9 @@ export const useWishlist = create<WishlistState>()(
         set({ merging: true });
         try {
           const supabase = createClient();
-          const toInsert = guestIds.map((productId) => ({
+          // De-duplicate guest ids — persisted localStorage may contain
+          // duplicates; keep the payload one row per conflict key.
+          const toInsert = [...new Set(guestIds)].map((productId) => ({
             user_id: userId,
             product_id: productId,
           }));
@@ -147,8 +150,14 @@ export const useWishlist = create<WishlistState>()(
               .upsert(toInsert, { onConflict: "user_id,product_id", ignoreDuplicates: true });
             if (error) throw error;
           }
+          // Authoritative reload BEFORE clearing guest state — if the reload
+          // fails, the guest wishlist must survive so no local data is lost.
+          const loaded = await get().loadRemote(userId);
+          if (!loaded) {
+            set({ merging: false });
+            throw new Error("wishlist synchronization reload failed");
+          }
           set({ guestIds: [], merging: false });
-          await get().loadRemote(userId);
         } catch (e) {
           set({ merging: false });
           throw e;
@@ -187,11 +196,16 @@ export function useWishlistIds() {
   const remoteError  = useWishlist((s) => s.remoteError);
   const userId = user?.id ?? null;
 
+  // When auth transitions from guest → authenticated, keep showing guest data
+  // until remote data is loaded. This prevents a skeleton flash while the
+  // AuthProvider triggers loadRemote/mergeGuestIntoRemote in the background.
+  const useRemote = !!user && remoteLoaded;
+
   return {
-    ids:    user ? remoteIds : guestIds,
-    ready:  user ? remoteLoaded : hydrated,
-    loading: user ? loading : false,
-    error:  user ? remoteError : null,
+    ids:    useRemote ? remoteIds : guestIds,
+    ready:  useRemote ? true : hydrated,
+    loading: useRemote ? loading : false,
+    error:  useRemote ? remoteError : null,
     userId,
   };
 }

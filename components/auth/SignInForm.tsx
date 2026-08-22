@@ -63,7 +63,6 @@ export function SignInForm() {
         description: "Welcome back to Fusion Gadgets.",
       });
       router.push("/account");
-      router.refresh();
     } catch {
       setServerError(errorTitle("NETWORK_ERROR"));
       setSubmitting(false);

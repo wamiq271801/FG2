@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
-import { getAllCategories, getAllProducts } from "@/modules/catalog/data";
+import { getAllCategories } from "@/modules/catalog/categories";
+import { getAllProducts } from "@/modules/catalog/products";
 
 const SITE = "https://fusiongadgets.in";
 

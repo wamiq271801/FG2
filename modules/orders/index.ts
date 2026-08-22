@@ -11,6 +11,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useAuthContext } from "@/providers/AuthProvider";
 import type { Order, OrderEvent, OrderItem, OrderStatus, ProductVisualKey } from "@/types";
 
 type OrderRow = {
@@ -76,9 +77,7 @@ function mapOrder(
 ): Order {
   const orderItems: OrderItem[] = items.map((i) => ({
     productId: i.product_id ?? undefined,
-    slug: "",            // slug not stored on order_items — resolved via productId in Phase 12
     name: i.product_name,
-    image: "",
     visualKey: i.visual_key as ProductVisualKey,
     accent: i.accent,
     quantity: i.quantity,
@@ -132,15 +131,17 @@ function mapOrder(
 }
 
 export function useOrders() {
+  const { user } = useAuthContext();
+  const userId = user?.id ?? null;
   const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (!userId) { setOrders([]); setLoading(false); return; }
     let cancelled = false;
+    setLoading(true);
     (async () => {
       const supabase = createClient();
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) { setOrders([]); setLoading(false); return; }
 
       const { data: orderRows, error } = await supabase
         .from("orders")
@@ -177,21 +178,23 @@ export function useOrders() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [userId]);
 
   return { orders, loading };
 }
 
 export function useOrder(id: string) {
+  const { user } = useAuthContext();
+  const userId = user?.id ?? null;
   const [order, setOrder] = useState<Order | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (!userId) { setOrder(null); setLoading(false); return; }
     let cancelled = false;
+    setLoading(true);
     (async () => {
       const supabase = createClient();
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) { setOrder(null); setLoading(false); return; }
 
       const { data: orderRow, error } = await supabase
         .from("orders")
@@ -218,7 +221,7 @@ export function useOrder(id: string) {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, userId]);
 
   return { order, loading };
 }

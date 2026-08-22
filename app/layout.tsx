@@ -6,7 +6,6 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { CartProvider } from "@/providers/CartProvider";
 import { AuthProvider } from "@/providers/AuthProvider";
-import { OnboardingGate } from "@/providers/OnboardingGate";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { NavigationProgress } from "@/components/layout/NavigationProgress";
 import { OperationOverlay } from "@/components/shared/OperationOverlay";
@@ -122,9 +121,7 @@ export default function RootLayout({
               <NavigationProgress />
               <SiteHeader />
               <main id="main" className="flex-1">
-                <OnboardingGate>
-                  {children}
-                </OnboardingGate>
+                {children}
               </main>
               <OperationOverlay />
             </CartProvider>

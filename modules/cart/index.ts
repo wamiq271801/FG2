@@ -5,7 +5,7 @@
  * users with automatic guest-to-account merge on sign-in.
  *
  * Every cart line identifies the actual sellable product by its UUID.
- * The slug is carried for display/lookup only.
+ * Display data is resolved separately by productId.
  *
  * State machine:
  *   Guest:   hydrated (localStorage rehydrated) → ready
@@ -21,13 +21,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuthContext } from "@/providers/AuthProvider";
 
 export type CartLine = {
-  /** Actual product UUID — the sellable unit. */
+  /** Actual product UUID — the sellable unit and the only identity. */
   productId: string;
-  /**
-   * Product slug — carried for display purposes only.
-   * NOT used as the cart identity — productId is the identity.
-   */
-  slug: string;
   quantity: number;
 };
 
@@ -46,7 +41,7 @@ type CartState = {
   remove: (productId: string, userId: string | null) => Promise<void>;
   clearGuest: () => void;
   setHydrated: (v: boolean) => void;
-  loadRemote: (userId: string) => Promise<void>;
+  loadRemote: (userId: string) => Promise<boolean>;
   mergeGuestIntoRemote: (userId: string) => Promise<void>;
   resetForSignOut: () => void;
 };
@@ -140,20 +135,15 @@ export const useCart = create<CartState>()(
         const supabase = createClient();
         const { data, error } = await supabase
           .from("cart_items")
-          .select("product_id, quantity, product:products!fk_cart_items_product_id(slug)")
+          .select("product_id, quantity")
           .eq("user_id", userId);
         if (error) {
           set({ loading: false, remoteError: error.message });
-          return;
+          return false;
         }
         set({
-          remoteLines: (data ?? []).map((r: {
-            product_id: string;
-            quantity: number;
-            product: { slug: string }[] | null;
-          }) => ({
+          remoteLines: (data ?? []).map((r: { product_id: string; quantity: number }) => ({
             productId: r.product_id,
-            slug: r.product?.[0]?.slug ?? "",
             quantity: r.quantity,
           })),
           loading: false,
@@ -161,6 +151,7 @@ export const useCart = create<CartState>()(
           remoteError: null,
           loadedUserId: userId,
         });
+        return true;
       },
 
       mergeGuestIntoRemote: async (userId) => {
@@ -173,29 +164,36 @@ export const useCart = create<CartState>()(
         set({ merging: true });
         try {
           const supabase = createClient();
-          const { data: existing } = await supabase
-            .from("cart_items")
-            .select("product_id, quantity")
-            .eq("user_id", userId);
-          const existingMap = new Map<string, number>(
-            (existing ?? []).map((r: { product_id: string; quantity: number }) => [
-              r.product_id,
-              r.quantity,
-            ])
-          );
-          const merged = guestLines.map((g) => ({
+          // Coalesce guest entries by product UUID first — persisted
+          // localStorage may contain duplicates from an older schema.
+          const guestQty = new Map<string, number>();
+          for (const g of guestLines) {
+            const qty = Math.max(1, Math.min(99, g.quantity));
+            guestQty.set(g.productId, Math.min(99, (guestQty.get(g.productId) ?? 0) + qty));
+          }
+          // Remote cart is authoritative: lines the user already has are
+          // SKIPPED (ignoreDuplicates → ON CONFLICT DO NOTHING), never
+          // quantity-stacked. Only products missing from the remote cart
+          // are inserted with their guest quantity.
+          const toMerge = [...guestQty.entries()].map(([productId, quantity]) => ({
             user_id: userId,
-            product_id: g.productId,
-            quantity: Math.min(99, (existingMap.get(g.productId) ?? 0) + g.quantity),
+            product_id: productId,
+            quantity,
           }));
-          if (merged.length > 0) {
+          if (toMerge.length > 0) {
             const { error } = await supabase
               .from("cart_items")
-              .upsert(merged, { onConflict: "user_id,product_id" });
+              .upsert(toMerge, { onConflict: "user_id,product_id", ignoreDuplicates: true });
             if (error) throw error;
           }
+          // Authoritative reload BEFORE clearing guest state — if the reload
+          // fails, the guest cart must survive so no local data is lost.
+          const loaded = await get().loadRemote(userId);
+          if (!loaded) {
+            set({ merging: false });
+            throw new Error("cart synchronization reload failed");
+          }
           set({ guestLines: [], merging: false });
-          await get().loadRemote(userId);
         } catch (e) {
           set({ merging: false });
           throw e;
@@ -233,11 +231,20 @@ export function useCartLines() {
   const remoteError = useCart((s) => s.remoteError);
   const userId = user?.id ?? null;
 
+  // When auth transitions from guest → authenticated, keep showing guest data
+  // until remote data is loaded. This prevents a skeleton flash while the
+  // AuthProvider triggers loadRemote/mergeGuestIntoRemote in the background.
+  const useRemote = !!user && remoteLoaded;
+
   return {
-    lines: user ? remoteLines : guestLines,
-    ready: user ? remoteLoaded : hydrated,
-    loading: user ? loading : false,
-    error: user ? remoteError : null,
+    // During transition, keep showing guest data so the cart doesn't go blank.
+    // Once remoteLoaded, switch to remote data.
+    lines: useRemote ? remoteLines : guestLines,
+    // During transition, ready is gated on hydrated (guest rehydration).
+    // Once remoteLoaded, ready = true.
+    ready: useRemote ? true : hydrated,
+    loading: useRemote ? loading : false,
+    error: useRemote ? remoteError : null,
     userId,
   };
 }

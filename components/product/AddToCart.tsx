@@ -41,14 +41,7 @@ export function AddToCart({
     if (isUnavailable) return;
     setLoading(true);
     try {
-      await add(
-        {
-          productId,
-          slug: product.slug,
-          quantity,
-        },
-        user?.id ?? null
-      );
+      await add({ productId, quantity }, user?.id ?? null);
       trackAddToCart(product.slug, quantity);
       setAdded(true);
       toast.success("Added to bag", {
