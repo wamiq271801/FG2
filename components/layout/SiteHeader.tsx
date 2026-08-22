@@ -60,8 +60,8 @@ export function SiteHeader() {
     setMobileOpen(false);
   }, [pathname]);
 
-  // Hide header entirely on /auth pages
-  if (pathname.startsWith("/auth")) return null;
+  // Hide header entirely on /auth pages and /account/onboarding
+  if (pathname.startsWith("/auth") || pathname === "/account/onboarding") return null;
 
   return (
     <>
