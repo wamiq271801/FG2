@@ -10,33 +10,39 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 type Props = {
-  slug: string;
+  /** The actual product UUID. */
+  productId: string;
+  /** Product name — for display in the toast notification. */
   name: string;
+  /** Slug — for display/tracking only, not the identity key. */
+  slug: string;
   className?: string;
   variant?: "default" | "outline" | "ghost";
   size?: "default" | "sm" | "icon";
 };
 
 export function WishlistButton({
-  slug,
+  productId,
   name,
+  slug,
   className,
   variant = "outline",
   size = "default",
 }: Props) {
   const { user } = useAuthContext();
-  const toggle = useWishlist((s) => s.toggle);
-  const guestSlugs = useWishlist((s) => s.guestSlugs);
-  const remoteSlugs = useWishlist((s) => s.remoteSlugs);
-  const slugs = user ? remoteSlugs : guestSlugs;
-  const [loading, setLoading] = useState(false);
+  const toggle     = useWishlist((s) => s.toggle);
+  const guestIds   = useWishlist((s) => s.guestIds);
+  const remoteIds  = useWishlist((s) => s.remoteIds);
+  const ids        = user ? remoteIds : guestIds;
+  const [loading, setLoading]  = useState(false);
 
-  const inWishlist = slugs.includes(slug);
+  const inWishlist = ids.includes(productId);
 
   async function handleToggle() {
+    if (!productId) return;
     setLoading(true);
     try {
-      await toggle(slug, user?.id ?? null);
+      await toggle(productId, user?.id ?? null);
       if (!inWishlist) trackWishlistAdd(slug);
       toast.success(inWishlist ? "Removed from wishlist" : "Added to wishlist", {
         description: name,
@@ -55,7 +61,7 @@ export function WishlistButton({
         variant={variant}
         size="icon"
         onClick={handleToggle}
-        disabled={loading}
+        disabled={loading || !productId}
         className={cn("press", className)}
         aria-label={inWishlist ? `Remove ${name} from wishlist` : `Add ${name} to wishlist`}
       >
@@ -70,7 +76,7 @@ export function WishlistButton({
       variant={variant}
       size={size}
       onClick={handleToggle}
-      disabled={loading}
+      disabled={loading || !productId}
       className={cn("press", className)}
     >
       {inWishlist ? (

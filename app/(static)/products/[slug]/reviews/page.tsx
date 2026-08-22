@@ -61,7 +61,7 @@ export default async function ProductReviewsPage({ params }: { params: Params })
             {product.name}
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            FGPN {product.fgpNumber}
+            SKU {product.sku}
           </p>
           <div className="mt-3">
             <RatingSummary summary={summary} fallbackRating={product.rating} fallbackCount={product.reviewCount} />

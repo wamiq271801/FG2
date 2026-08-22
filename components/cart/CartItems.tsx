@@ -97,11 +97,11 @@ function PopulatedCart({
 
         <ul className="mt-4 divide-y divide-border/70 overflow-hidden rounded-xl border border-border/70 bg-card">
           {lines.map((line) => (
-            <li key={line.key} className="p-4 sm:p-5">
+            <li key={line.productId} className="p-4 sm:p-5">
               <CartLine
                 line={line}
-                onQuantity={(qty) => setQuantity(line.key, qty, userId)}
-                onRemove={() => remove(line.key, userId)}
+                onQuantity={(qty) => setQuantity(line.productId, qty, userId)}
+                onRemove={() => remove(line.productId, userId)}
               />
             </li>
           ))}
@@ -261,11 +261,6 @@ function CartLine({
             >
               {line.product.name}
             </Link>
-            {line.variant && (
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Variant · {line.variant}
-              </p>
-            )}
             <p className="mt-0.5 text-xs text-muted-foreground">
               <span className="font-mono">{formatPrice(line.product.price)}</span>{" "}
               each
@@ -275,7 +270,7 @@ function CartLine({
             type="button"
             onClick={onRemove}
             className="press -mr-1 -mt-1 inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-copper/40"
-            aria-label={`Remove ${line.product.name}${line.variant ? ` (${line.variant})` : ""} from bag`}
+            aria-label={`Remove ${line.product.name} from bag`}
           >
             <X className="h-4 w-4" />
           </button>
@@ -287,7 +282,7 @@ function CartLine({
             onChange={onQuantity}
             min={1}
             max={10}
-            label={`Quantity of ${line.name}`}
+            label={`Quantity of ${line.product.name}`}
           />
           <div className="text-right">
             <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">

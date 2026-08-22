@@ -33,15 +33,25 @@ export function BuyAgainButton({
   async function handleBuyAgain() {
     setAdding(true);
     try {
+      let addedCount = 0;
       for (const item of items) {
+        // productId is required for the new cart model.
+        // Items without productId are from pre-Phase-8 orders — skip them.
+        if (!item.productId) continue;
         await add(
-          { slug: item.slug, variant: item.variant ?? "", quantity: item.quantity },
+          { productId: item.productId, slug: item.slug, quantity: item.quantity },
           user?.id ?? null
         );
+        addedCount += item.quantity;
       }
-      const count = items.reduce((n, i) => n + i.quantity, 0);
+      if (addedCount === 0) {
+        toast.error("Items not available", {
+          description: "These items cannot be re-added. Please browse the shop.",
+        });
+        return;
+      }
       toast.success("Added to bag", {
-        description: `${count} item${count > 1 ? "s" : ""} from your previous order.`,
+        description: `${addedCount} item${addedCount > 1 ? "s" : ""} from your previous order.`,
         action: { label: "View bag", onClick: () => router.push("/cart") },
       });
       router.push("/cart");

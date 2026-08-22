@@ -71,7 +71,9 @@ export function OrderDetail({ id }: { id: string }) {
       <header className="mt-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">Order</p>
-          <h1 className="mt-1.5 font-mono text-2xl font-medium tracking-tight md:text-3xl">{order.id}</h1>
+          <p className="mt-1.5 font-mono text-2xl font-medium tracking-tight md:text-3xl">
+            {order.orderNumber ?? order.id}
+          </p>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground">
             <span>
               Placed{" "}
@@ -144,6 +146,50 @@ function Breadcrumbs({ items }: { items: { label: string; href?: string }[] }) {
 }
 
 function Timeline({ order }: { order: Order }) {
+  // Phase 8: prefer order_events (immutable history) over order_timeline.
+  // order_timeline is kept for backward compat until Phase 12 drops the table.
+  const hasEvents = order.events.length > 0;
+
+  if (hasEvents) {
+    // Render from immutable event history
+    return (
+      <Card className="border-border/70">
+        <CardHeader>
+          <CardTitle className="font-display text-xl tracking-tight">Order timeline</CardTitle>
+          <CardDescription>
+            {order.status === "delivered"
+              ? "Delivered. Hope you're enjoying it."
+              : "Where your order is right now."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ol className="relative">
+            <span aria-hidden="true" className="absolute left-[7px] top-2 bottom-2 w-px bg-border" />
+            {order.events.map((event, i) => (
+              <li key={event.id} className="relative flex gap-4 pb-5 last:pb-0">
+                <span
+                  aria-hidden="true"
+                  className="relative z-10 mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border border-copper bg-copper text-copper-foreground"
+                >
+                  <Check className="h-2.5 w-2.5" strokeWidth={3} />
+                </span>
+                <div className="flex-1">
+                  <p className="text-sm font-medium leading-tight text-foreground">
+                    {formatEventType(event.eventType)}
+                  </p>
+                  <time dateTime={event.createdAt} className="font-mono text-[11px] text-muted-foreground">
+                    {formatDateTime(event.createdAt)}
+                  </time>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Fallback: render from order_timeline (pre-Phase-8 orders)
   const steps = order.timeline;
   const lastDone = Math.max(-1, ...steps.map((s, i) => (s.done ? i : -1)));
   return (
@@ -158,7 +204,7 @@ function Timeline({ order }: { order: Order }) {
         <ol className="relative">
           <span aria-hidden="true" className="absolute left-[7px] top-2 bottom-2 w-px bg-border" />
           {steps.map((step, i) => {
-            const isDone = step.done;
+            const isDone    = step.done;
             const isCurrent = i === lastDone + 1 && !step.done;
             return (
               <li key={`${step.label}-${i}`} className="relative flex gap-4 pb-5 last:pb-0">
@@ -166,10 +212,11 @@ function Timeline({ order }: { order: Order }) {
                   aria-hidden="true"
                   className={
                     "relative z-10 mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border " +
-                    (isDone ? "border-copper bg-copper text-copper-foreground" : isCurrent ? "border-copper bg-card" : "border-border bg-card")
+                    (isDone ? "border-copper bg-copper text-copper-foreground" :
+                     isCurrent ? "border-copper bg-card" : "border-border bg-card")
                   }
                 >
-                  {isDone && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
+                  {isDone    && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
                   {isCurrent && <span className="h-1.5 w-1.5 rounded-full bg-copper" />}
                 </span>
                 <div className="flex-1">
@@ -189,6 +236,25 @@ function Timeline({ order }: { order: Order }) {
       </CardContent>
     </Card>
   );
+}
+
+/**
+ * Map internal event_type values to human-readable labels.
+ * Per implementation.md: "packed" is a tracking event without becoming a
+ * primary order status value.
+ */
+function formatEventType(eventType: string): string {
+  const labels: Record<string, string> = {
+    order_placed:     "Order placed",
+    order_confirmed:  "Order confirmed",
+    packed:           "Packed",
+    shipped:          "Shipped",
+    out_for_delivery: "Out for delivery",
+    delivered:        "Delivered",
+    cancelled:        "Order cancelled",
+    returned:         "Return initiated",
+  };
+  return labels[eventType] ?? eventType.replace(/_/g, " ");
 }
 
 function ItemsList({ order }: { order: Order }) {
@@ -213,7 +279,6 @@ function ItemsList({ order }: { order: Order }) {
               </Link>
               <div className="min-w-0 flex-1">
                 <Link href={`/product/${item.slug}`} className="font-medium leading-tight hover:text-copper">{item.name}</Link>
-                {item.variant && <p className="mt-0.5 text-xs text-muted-foreground">Variant · {item.variant}</p>}
                 <p className="mt-1 text-xs text-muted-foreground">Qty {item.quantity} × {formatPrice(item.unitPrice)}</p>
               </div>
               <div className="shrink-0 text-right">

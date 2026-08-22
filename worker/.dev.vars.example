@@ -1,33 +1,26 @@
 # Cloudflare Worker — environment secrets.
 # Copy to `.dev.vars` for local `wrangler dev`, and set the same keys as
-# Worker secrets (wrangler secret put) in production.
+# Worker secrets (`wrangler secret put <NAME>`) in production.
 #
-# NEVER commit `.dev.vars`. The service-role key is privileged and must NEVER
-# reach the Next.js browser bundle.
+# NEVER commit `.dev.vars`. All keys here are required — the Worker refuses
+# to start if any are missing.
 
-# Supabase project (server-side, privileged)
+# Supabase project (server-side only — never expose to the browser)
 SUPABASE_URL="https://YOUR-PROJECT.supabase.co"
-SUPABASE_SERVICE_ROLE_KEY="eyJhbGciOi..."   # service_role key — admin authority
-SUPABASE_ANON_KEY="eyJhbGciOi..."           # anon key — used for normal signup call
+SUPABASE_SERVICE_ROLE_KEY="eyJhbGciOi..."   # service_role key — privileged, admin authority
+SUPABASE_ANON_KEY="eyJhbGciOi..."           # anon key — used for the normal signup call only
 
-# Shared HMAC secret used to sign trusted responses back to the storefront
-# (e.g. a one-time order-creation receipt). Not used in Phase 1.
-WORKER_INTEGRITY_SECRET="replace-with-a-long-random-string"
-
-# Rate-limit / abuse thresholds (Phase 2+)
-REGISTRATION_RATE_LIMIT_PER_IP=5
-REGISTRATION_RATE_LIMIT_WINDOW_SECONDS=600
-
-# --- Signup Authorization Gate (registration security) ---
-# Cloudflare Turnstile secret key (server-side ONLY). From your Turnstile widget
-# in the Cloudflare dashboard. NEVER expose via NEXT_PUBLIC_.
+# Cloudflare Turnstile secret key (server-side ONLY).
+# From your Turnstile widget in the Cloudflare dashboard.
+# NEVER expose via NEXT_PUBLIC_ or anywhere client-accessible.
 TURNSTILE_SECRET_KEY="0x0000000000000000000000000000000000000000"
 
-# Hostname you expect Turnstile tokens to carry (must match the site registered
-# for the widget). Leave empty to skip the hostname check (not recommended in
-# production). For local dev leave empty.
+# Hostname Turnstile tokens must carry (must match the site registered for
+# the widget). Leave empty to skip the hostname check — acceptable for local
+# dev, not recommended in production.
 TURNSTILE_EXPECTED_HOSTNAME=""
 
-# Authorization token TTL in seconds (default 300 = 5 minutes). Must exceed the
-# time between Worker issuing the token and the frontend completing signUp().
+# Authorization token TTL in seconds (default 300 = 5 minutes).
+# Must exceed the time between Worker issuing the token and the frontend
+# completing signUp().
 SIGNUP_AUTHZ_TTL_SECONDS=300

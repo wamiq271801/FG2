@@ -1,69 +1,77 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Truck, ShieldCheck, RotateCcw, Check, Bell } from "lucide-react";
 import { Gallery } from "@/components/product/Gallery";
-import { VariantPicker } from "@/components/product/VariantPicker";
+import { VariationSelector } from "@/components/product/VariationSelector";
 import { QuantityStepper } from "@/components/product/QuantityStepper";
 import { AddToCart } from "@/components/product/AddToCart";
 import { WishlistButton } from "@/components/product/WishlistButton";
-import type { Product, ProductVariant } from "@/types";
+import type { Product } from "@/types";
 
 type Props = {
   product: Product;
+  /** All products in the same variation (loaded via SSR). */
+  allVariationProducts: Product[];
   /**
-   * Server-rendered header content (brand, name H1, rating, price,
-   * description). Lives above the interactive purchase controls.
+   * Server-rendered header content (brand, name H1, rating, price, description).
    */
   header: React.ReactNode;
   /**
-   * Server-rendered footer content (trust row, highlights). Lives below
-   * the interactive purchase controls.
+   * Server-rendered footer content (trust row, highlights).
    */
   footer?: React.ReactNode;
   className?: string;
 };
 
-/**
- * BuyBox — the conversion surface of the product page.
- *
- * Owns the shared purchase state (selected variant + quantity) so the
- * Gallery (left column) and VariantPicker / QuantityStepper / AddToCart
- * (right column) stay in sync. The server-rendered static text — product
- * name, rating, price, description, trust row, highlights — is passed in
- * as `header` and `footer` props so it stays server-rendered HTML, not
- * part of this client component's bundle.
- *
- * Handles three availability modes:
- *  • in-stock / low-stock — full purchase UI
- *  • preorder — "Pre-order" CTA label, quantity + add to bag
- *  • out-of-stock — disabled "Sold out" + an email-when-back form (mock)
- */
-export function BuyBox({ product, header, footer, className }: Props) {
-  const variants = product.variants ?? [];
+export function BuyBox({
+  product,
+  allVariationProducts,
+  header,
+  footer,
+  className,
+}: Props) {
+  const variationItems = product.variation?.items ?? [];
 
-  // Default to the first in-stock variant so the page lands on something
-  // purchasable. If everything is sold out, fall back to the first variant
-  // (the AddToCart will disable itself).
-  const [selectedVariantId, setSelectedVariantId] = useState<string | undefined>(
-    () => variants.find((v) => v.inStock)?.id ?? variants[0]?.id
-  );
+  const [selectedProductId, setSelectedProductId] = useState<string>(product.id);
   const [quantity, setQuantity] = useState(1);
   const [emailSent, setEmailSent] = useState(false);
 
-  const selectedVariant: ProductVariant | undefined = useMemo(
-    () => variants.find((v) => v.id === selectedVariantId),
-    [variants, selectedVariantId]
-  );
+  const currentProduct = useMemo(() => {
+    if (allVariationProducts.length <= 1) return product;
+    return allVariationProducts.find((p) => p.id === selectedProductId) ?? product;
+  }, [allVariationProducts, selectedProductId, product]);
 
-  const isSoldOut = product.availability === "out-of-stock";
-  const isPreorder = product.availability === "preorder";
-  const variantOutOfStock = selectedVariant ? !selectedVariant.inStock : false;
-  const ctaDisabled = isSoldOut || variantOutOfStock;
+  useEffect(() => {
+    if (selectedProductId === product.id) return;
+    const url = `/product/${currentProduct.slug}`;
+    window.history.pushState({ productId: selectedProductId }, "", url);
+  }, [selectedProductId, product.id, currentProduct.slug]);
+
+  useEffect(() => {
+    function handlePopState() {
+      const pathParts = window.location.pathname.split("/");
+      const slug = pathParts[pathParts.length - 1];
+      const match = allVariationProducts.find((p) => p.slug === slug);
+      if (match) {
+        setSelectedProductId(match.id);
+      }
+    }
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [allVariationProducts]);
+
+  const handleOptionSelect = (productId: string) => {
+    setSelectedProductId(productId);
+  };
+
+  const cartProductId = currentProduct.id;
+  const isSoldOut = currentProduct.availability === "out-of-stock";
+  const isPreorder = currentProduct.availability === "preorder";
+  const ctaDisabled = isSoldOut || !cartProductId;
 
   function handleNotify(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    // Mock: in a real backend this would POST to /api/back-in-stock.
     setEmailSent(true);
   }
 
@@ -72,31 +80,25 @@ export function BuyBox({ product, header, footer, className }: Props) {
       <div className="grid gap-8 lg:grid-cols-2 lg:gap-12">
         {/* Left — Gallery */}
         <Gallery
-          visualKey={product.visualKey}
-          baseAccent={product.accent}
-          variants={variants}
-          selectedVariantId={selectedVariantId}
-          onSelectVariant={setSelectedVariantId}
-          productName={product.name}
-          images={product.images}
+          product={currentProduct}
+          variationProducts={variationItems.length > 1 ? allVariationProducts : []}
+          selectedProductId={selectedProductId}
+          onSelectProduct={handleOptionSelect}
         />
 
         {/* Right — purchase panel */}
         <div className="flex flex-col">
-          {/* Server-rendered header (brand, H1, rating, price, description) */}
           <div>{header}</div>
 
-          {/* Variant picker */}
-          {variants.length > 0 && (
-            <VariantPicker
-              variants={variants}
-              selectedVariantId={selectedVariantId}
-              onSelectVariant={setSelectedVariantId}
+          {variationItems.length > 1 && (
+            <VariationSelector
+              variationItems={variationItems}
+              selectedProductId={selectedProductId}
+              onSelectItem={handleOptionSelect}
               className="mt-6"
             />
           )}
 
-          {/* Purchase controls */}
           {isSoldOut ? (
             <div className="mt-6 rounded-lg border border-border bg-card p-4">
               <div className="flex items-center gap-2">
@@ -154,16 +156,17 @@ export function BuyBox({ product, header, footer, className }: Props) {
                 label="Quantity"
               />
               <AddToCart
-                product={product}
-                variant={selectedVariant}
+                product={currentProduct}
+                productId={cartProductId}
                 quantity={quantity}
                 label={isPreorder ? "Pre-order" : "Add to bag"}
                 disabled={ctaDisabled}
                 className="h-9 min-w-[12rem] flex-1"
               />
               <WishlistButton
-                slug={product.slug}
-                name={product.name}
+                productId={cartProductId}
+                slug={currentProduct.slug}
+                name={currentProduct.name}
                 variant="outline"
                 size="default"
                 className="h-9"
@@ -171,7 +174,6 @@ export function BuyBox({ product, header, footer, className }: Props) {
             </div>
           )}
 
-          {/* Trust row */}
           <div className="mt-7 grid grid-cols-3 gap-3 border-t border-border pt-6">
             <TrustItem
               icon={<Truck className="h-4 w-4" />}
@@ -190,7 +192,6 @@ export function BuyBox({ product, header, footer, className }: Props) {
             />
           </div>
 
-          {/* Server-rendered footer (highlights, etc.) */}
           {footer && <div className="mt-7">{footer}</div>}
         </div>
       </div>

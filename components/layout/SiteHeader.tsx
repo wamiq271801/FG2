@@ -33,7 +33,7 @@ import {
 import { useCartContext } from "@/providers/CartProvider";
 import { useAuthContext } from "@/providers/AuthProvider";
 import { useSignOut } from "@/hooks/use-sign-out";
-import { useWishlistSlugs } from "@/modules/wishlist";
+import { useWishlistIds } from "@/modules/wishlist";
 import { cn } from "@/lib/utils";
 
 const navLinks = [
@@ -48,8 +48,8 @@ export function SiteHeader() {
   const pathname = usePathname();
   const { count } = useCartContext();
   const { user, state: authState } = useAuthContext();
-  const { slugs: wishlistSlugs, ready: wishlistReady } = useWishlistSlugs();
-  const wishlistCount = wishlistReady ? wishlistSlugs.length : 0;
+  const { ids: wishlistIds, ready: wishlistReady } = useWishlistIds();
+  const wishlistCount = wishlistReady ? wishlistIds.length : 0;
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const { signOut, signingOut } = useSignOut();

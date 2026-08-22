@@ -45,22 +45,21 @@ export function errorTitle(code: AuthErrorCode): string {
   return ERROR_TITLES[code] ?? ERROR_TITLES.UNKNOWN_ERROR;
 }
 
-/** Shape returned by Worker error responses. */
+/** Shape returned by Worker error responses — Phase 11: { code, message, status } */
 export type WorkerError = {
   code: string;
-  title: string;
+  message: string;
+  status: number;
 };
 
 /**
- * Map a Worker error response to a user-facing title.
- * Falls back to the provided title from the response, or a generic message.
+ * Extract the user-facing message from a Worker error response.
+ * `message` is the ONLY field the frontend should display.
+ * Per implementation.md: toast.error(error.message)
  */
 export function resolveWorkerError(err?: WorkerError | null): string {
   if (!err) return ERROR_TITLES.UNKNOWN_ERROR;
-  // If the code matches a known AuthErrorCode, prefer our canonical title
-  if (err.code in ERROR_TITLES) {
-    return ERROR_TITLES[err.code as AuthErrorCode];
-  }
-  // Otherwise use the title the Worker sent (already user-safe)
-  return err.title || ERROR_TITLES.UNKNOWN_ERROR;
+  // Use the message the Worker sent — already user-safe, never contains
+  // code, HTTP status, Supabase internals, or stack traces.
+  return err.message || ERROR_TITLES.UNKNOWN_ERROR;
 }

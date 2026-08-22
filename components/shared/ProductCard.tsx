@@ -52,17 +52,22 @@ export function ProductCard({ product, className, compact, priority }: Props) {
               className="h-full w-full transition-transform duration-500 ease-out group-hover:scale-[1.03]"
             />
           )}
-          {/* Badges */}
+          {/* Derived badge states — from authoritative product/offer state.
+              No product_badges table. Per implementation.md:
+              Sale → compare_at > price | New → addedAt within 60 days
+              Preorder → isPreorder | Out of stock → availability */}
           <div className="absolute left-3 top-3 flex flex-col items-start gap-1.5">
-            {product.badges?.map((b) => (
-              <span
-                key={b}
-                className="rounded-full bg-background/85 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-foreground backdrop-blur-sm"
-              >
-                {b}
+            {product.compareAt && product.compareAt > product.price && (
+              <span className="rounded-full bg-copper/90 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-white backdrop-blur-sm">
+                Sale
               </span>
-            ))}
-            {!product.badges?.length && isNew && (
+            )}
+            {product.isPreorder && (
+              <span className="rounded-full bg-background/85 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-foreground backdrop-blur-sm">
+                Pre-order
+              </span>
+            )}
+            {!product.isPreorder && product.stock > 0 && isNew && (
               <span className="rounded-full bg-background/85 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-foreground backdrop-blur-sm">
                 New
               </span>
@@ -71,6 +76,7 @@ export function ProductCard({ product, className, compact, priority }: Props) {
           {/* Wishlist heart — top-right, overlays the image */}
           <div className="absolute right-2 top-2">
             <WishlistButton
+              productId={product.id}
               slug={product.slug}
               name={product.name}
               variant="ghost"

@@ -2,16 +2,20 @@
 
 /**
  * Client-side order data hooks.
- * Reads orders via direct Supabase (RLS: auth.uid() = user_id, read-own only).
- * No Worker, no API routes — orders are read-only to the user.
+ *
+ * order_items uses product_id (UUID FK) for all product references.
+ * OrderItem.type removed — product name is the full identifier.
+ *
+ * Reads via Supabase public client (RLS: user reads own orders only).
  */
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Order, OrderItem, OrderStatus, ProductVisualKey } from "@/types";
+import type { Order, OrderEvent, OrderItem, OrderStatus, ProductVisualKey } from "@/types";
 
 type OrderRow = {
   id: string;
+  order_number: string | null;
   status: string;
   payment_method: string;
   payment_status: string;
@@ -37,9 +41,8 @@ type OrderRow = {
 type OrderItemRow = {
   id: number;
   order_id: string;
-  product_slug: string | null;
+  product_id: string | null;  // UUID FK — may be null if product was deleted
   product_name: string;
-  variant_name: string | null;
   visual_key: string;
   accent: string;
   quantity: number;
@@ -57,20 +60,43 @@ type TimelineRow = {
   done: boolean;
 };
 
-function mapOrder(row: OrderRow, items: OrderItemRow[], timeline: TimelineRow[]): Order {
+type EventRow = {
+  id: string;
+  order_id: string;
+  event_type: string;
+  created_at: string;
+  metadata: Record<string, unknown> | null;
+};
+
+function mapOrder(
+  row: OrderRow,
+  items: OrderItemRow[],
+  timeline: TimelineRow[],
+  events: EventRow[]
+): Order {
   const orderItems: OrderItem[] = items.map((i) => ({
-    slug: i.product_slug ?? "",
+    productId: i.product_id ?? undefined,
+    slug: "",            // slug not stored on order_items — resolved via productId in Phase 12
     name: i.product_name,
     image: "",
     visualKey: i.visual_key as ProductVisualKey,
     accent: i.accent,
-    variant: i.variant_name ?? undefined,
     quantity: i.quantity,
     unitPrice: i.unit_price,
   }));
 
+  const orderEvents: OrderEvent[] = events
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    .map((e) => ({
+      id: e.id,
+      eventType: e.event_type,
+      createdAt: e.created_at,
+      metadata: e.metadata ?? undefined,
+    }));
+
   return {
     id: row.id,
+    orderNumber: row.order_number ?? undefined,
     date: row.placed_at,
     status: row.status as OrderStatus,
     items: orderItems,
@@ -94,11 +120,14 @@ function mapOrder(row: OrderRow, items: OrderItemRow[], timeline: TimelineRow[])
     paymentMethod: row.payment_method === "cod" ? "Cash on delivery" : row.payment_method,
     trackingNumber: row.tracking_number ?? undefined,
     estimatedDelivery: row.estimated_delivery ?? undefined,
-    timeline: timeline.map((t) => ({
-      label: t.step_label,
-      date: t.step_date ?? "",
-      done: t.done,
-    })),
+    events: orderEvents,
+    timeline: timeline
+      .sort((a, b) => a.step_index - b.step_index)
+      .map((t) => ({
+        label: t.step_label,
+        date: t.step_date ?? "",
+        done: t.done,
+      })),
   };
 }
 
@@ -111,42 +140,39 @@ export function useOrders() {
     (async () => {
       const supabase = createClient();
       const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) {
-        setOrders([]);
-        setLoading(false);
-        return;
-      }
+      if (!userData.user) { setOrders([]); setLoading(false); return; }
+
       const { data: orderRows, error } = await supabase
         .from("orders")
         .select("*")
         .order("placed_at", { ascending: false });
-      if (error || !orderRows || cancelled) {
-        setOrders([]);
-        setLoading(false);
-        return;
-      }
-      // Fetch items + timeline for each order
+
+      if (error || !orderRows || cancelled) { setOrders([]); setLoading(false); return; }
+
       const orderIds = (orderRows as OrderRow[]).map((o) => o.id);
-      if (orderIds.length === 0) {
-        setOrders([]);
-        setLoading(false);
-        return;
-      }
-      const [itemsRes, timelineRes] = await Promise.all([
+      if (orderIds.length === 0) { setOrders([]); setLoading(false); return; }
+
+      const [itemsRes, timelineRes, eventsRes] = await Promise.all([
         supabase.from("order_items").select("*").in("order_id", orderIds),
         supabase.from("order_timeline").select("*").in("order_id", orderIds),
+        supabase.from("order_events").select("*").in("order_id", orderIds),
       ]);
-      if (cancelled) return;
-      const items = (itemsRes.data ?? []) as OrderItemRow[];
-      const timelines = (timelineRes.data ?? []) as TimelineRow[];
 
-      const mapped = (orderRows as OrderRow[]).map((row) => {
-        const orderItems = items.filter((i) => i.order_id === row.id);
-        const orderTimeline = timelines
-          .filter((t) => t.order_id === row.id)
-          .sort((a, b) => a.step_index - b.step_index);
-        return mapOrder(row, orderItems, orderTimeline);
-      });
+      if (cancelled) return;
+
+      const items     = (itemsRes.data    ?? []) as OrderItemRow[];
+      const timelines = (timelineRes.data ?? []) as TimelineRow[];
+      const events    = (eventsRes.data   ?? []) as EventRow[];
+
+      const mapped = (orderRows as OrderRow[]).map((row) =>
+        mapOrder(
+          row,
+          items.filter((i) => i.order_id === row.id),
+          timelines.filter((t) => t.order_id === row.id),
+          events.filter((e) => e.order_id === row.id)
+        )
+      );
+
       setOrders(mapped);
       setLoading(false);
     })();
@@ -165,28 +191,30 @@ export function useOrder(id: string) {
     (async () => {
       const supabase = createClient();
       const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) {
-        setOrder(null);
-        setLoading(false);
-        return;
-      }
+      if (!userData.user) { setOrder(null); setLoading(false); return; }
+
       const { data: orderRow, error } = await supabase
         .from("orders")
         .select("*")
         .eq("id", id)
         .maybeSingle();
-      if (error || !orderRow || cancelled) {
-        setOrder(null);
-        setLoading(false);
-        return;
-      }
-      const row = orderRow as OrderRow;
-      const [itemsRes, timelineRes] = await Promise.all([
+
+      if (error || !orderRow || cancelled) { setOrder(null); setLoading(false); return; }
+
+      const [itemsRes, timelineRes, eventsRes] = await Promise.all([
         supabase.from("order_items").select("*").eq("order_id", id),
-        supabase.from("order_timeline").select("*").eq("order_id", id).order("step_index"),
+        supabase.from("order_timeline").select("*").eq("order_id", id),
+        supabase.from("order_events").select("*").eq("order_id", id),
       ]);
+
       if (cancelled) return;
-      setOrder(mapOrder(row, (itemsRes.data ?? []) as OrderItemRow[], (timelineRes.data ?? []) as TimelineRow[]));
+
+      setOrder(mapOrder(
+        orderRow as OrderRow,
+        (itemsRes.data    ?? []) as OrderItemRow[],
+        (timelineRes.data ?? []) as TimelineRow[],
+        (eventsRes.data   ?? []) as EventRow[]
+      ));
       setLoading(false);
     })();
     return () => { cancelled = true; };

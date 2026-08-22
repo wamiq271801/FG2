@@ -68,7 +68,7 @@ export default async function EditReviewPage({ params }: { params: Params }) {
             <h1 className="font-display text-2xl tracking-tight">Edit your review</h1>
             <p className="text-sm text-muted-foreground">{product.name}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              FGPN {product.fgpNumber}
+              SKU {product.sku}
             </p>
           </div>
         </header>

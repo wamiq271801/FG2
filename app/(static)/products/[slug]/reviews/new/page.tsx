@@ -66,7 +66,7 @@ export default async function WriteReviewPage({ params }: { params: Params }) {
             </h1>
             <p className="text-sm text-muted-foreground">{product.name}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              FGPN {product.fgpNumber}
+              SKU {product.sku}
             </p>
           </div>
         </header>

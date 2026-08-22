@@ -4,17 +4,24 @@ import { createContext, useContext, useMemo } from "react";
 import { useCart, useCartLines } from "@/modules/cart";
 import { useProductsBySlugs } from "@/modules/catalog/useProducts";
 
-// A resolved cart line: the stored line + the current product data
+/**
+ * A resolved cart line: the stored cart line + current product data.
+ *
+ * productId is the UUID of the actual sellable product.
+ * slug is the product's URL slug, used for navigation and display.
+ */
 export type ResolvedCartLine = {
-  key: string;
+  /** Cart line identity — the product UUID. */
+  productId: string;
+  /** Product URL slug — for navigation only, not cart identity. */
   slug: string;
-  variant: string;
   quantity: number;
   product: {
     name: string;
     price: number;
     visualKey: string;
     accent: string;
+    /** Derived availability string from is_active + is_preorder + stock. */
     availability: string;
   };
 };
@@ -34,19 +41,25 @@ const CartContext = createContext<CartContextValue>({
 });
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const { lines, ready, userId, loading } = useCartLines();
-  const slugs = lines.map((l) => l.slug);
+  const { lines, ready, loading } = useCartLines();
+
+  // Resolve product data for display by slug.
+  // CartLine.slug is carried from the cart store for exactly this purpose.
+  const slugs = useMemo(() => [...new Set(lines.map((l) => l.slug).filter(Boolean))], [lines]);
   const { products, loading: productsLoading } = useProductsBySlugs(slugs);
 
   const resolvedLines: ResolvedCartLine[] = useMemo(() => {
     return lines
       .map((line) => {
-        const product = products.find((p) => p.slug === line.slug);
+        // Match by productId first (exact), fall back to slug for guest lines
+        // that may have been loaded before product data arrives
+        const product =
+          products.find((p) => p.id === line.productId) ??
+          products.find((p) => p.slug === line.slug);
         if (!product) return null;
         return {
-          key: line.variant ? `${line.slug}::${line.variant}` : line.slug,
+          productId: line.productId,
           slug: line.slug,
-          variant: line.variant,
           quantity: line.quantity,
           product: {
             name: product.name,
@@ -55,7 +68,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             accent: product.accent,
             availability: product.availability,
           },
-        };
+        } satisfies ResolvedCartLine;
       })
       .filter((l): l is ResolvedCartLine => l !== null);
   }, [lines, products]);
@@ -63,8 +76,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const count = resolvedLines.reduce((n, l) => n + l.quantity, 0);
   const subtotal = resolvedLines.reduce((n, l) => n + l.quantity * l.product.price, 0);
 
-  // ready = cart data loaded AND (no products to fetch OR products fetched)
-  const fullyReady = ready && (!loading) && (slugs.length === 0 || !productsLoading);
+  const fullyReady = ready && !loading && (slugs.length === 0 || !productsLoading);
 
   const value = useMemo<CartContextValue>(
     () => ({

@@ -4,6 +4,9 @@
  * Cart store — supports both guest (localStorage) and authenticated (Supabase)
  * users with automatic guest-to-account merge on sign-in.
  *
+ * Every cart line identifies the actual sellable product by its UUID.
+ * The slug is carried for display/lookup only.
+ *
  * State machine:
  *   Guest:   hydrated (localStorage rehydrated) → ready
  *   Authed:  remoteLoaded (Supabase query completed) → ready
@@ -17,15 +20,20 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthContext } from "@/providers/AuthProvider";
 
-export type GuestCartLine = {
+export type CartLine = {
+  /** Actual product UUID — the sellable unit. */
+  productId: string;
+  /**
+   * Product slug — carried for display purposes only.
+   * NOT used as the cart identity — productId is the identity.
+   */
   slug: string;
-  variant: string;
   quantity: number;
 };
 
 type CartState = {
-  guestLines: GuestCartLine[];
-  remoteLines: GuestCartLine[];
+  guestLines: CartLine[];
+  remoteLines: CartLine[];
   hydrated: boolean;
   loading: boolean;
   remoteLoaded: boolean;
@@ -33,19 +41,15 @@ type CartState = {
   merging: boolean;
   loadedUserId: string | null;
 
-  add: (line: GuestCartLine, userId: string | null) => Promise<void>;
-  setQuantity: (key: string, quantity: number, userId: string | null) => Promise<void>;
-  remove: (key: string, userId: string | null) => Promise<void>;
+  add: (line: CartLine, userId: string | null) => Promise<void>;
+  setQuantity: (productId: string, quantity: number, userId: string | null) => Promise<void>;
+  remove: (productId: string, userId: string | null) => Promise<void>;
   clearGuest: () => void;
   setHydrated: (v: boolean) => void;
   loadRemote: (userId: string) => Promise<void>;
   mergeGuestIntoRemote: (userId: string) => Promise<void>;
   resetForSignOut: () => void;
 };
-
-function lineKey(slug: string, variant: string) {
-  return variant ? `${slug}::${variant}` : slug;
-}
 
 export const useCart = create<CartState>()(
   persist(
@@ -60,84 +64,70 @@ export const useCart = create<CartState>()(
       loadedUserId: null,
 
       add: async (line, userId) => {
+        // Validate quantity before any write
+        const qty = Math.max(1, Math.min(99, line.quantity));
+        const safeLines: CartLine = { ...line, quantity: qty };
+
         if (userId) {
           const supabase = createClient();
           const { error } = await supabase
             .from("cart_items")
             .upsert(
-              {
-                user_id: userId,
-                product_slug: line.slug,
-                variant_id: line.variant || "",
-                quantity: line.quantity,
-              },
-              { onConflict: "user_id,product_slug,variant_id" }
+              { user_id: userId, product_id: safeLines.productId, quantity: safeLines.quantity },
+              { onConflict: "user_id,product_id" }
             );
           if (error) throw error;
           await get().loadRemote(userId);
         } else {
           set((state) => {
-            const key = lineKey(line.slug, line.variant);
-            const existing = state.guestLines.find(
-              (l) => lineKey(l.slug, l.variant) === key
-            );
+            const existing = state.guestLines.find((l) => l.productId === safeLines.productId);
             if (existing) {
               return {
                 guestLines: state.guestLines.map((l) =>
-                  lineKey(l.slug, l.variant) === key
-                    ? { ...l, quantity: l.quantity + line.quantity }
+                  l.productId === safeLines.productId
+                    ? { ...l, quantity: Math.min(99, l.quantity + safeLines.quantity) }
                     : l
                 ),
               };
             }
-            return { guestLines: [...state.guestLines, line] };
+            return { guestLines: [...state.guestLines, safeLines] };
           });
         }
       },
 
-      setQuantity: async (key, quantity, userId) => {
-        if (quantity < 1) return;
+      setQuantity: async (productId, quantity, userId) => {
+        const qty = Math.max(1, Math.min(99, quantity));
         if (userId) {
-          const [slug, variant] = key.split("::");
           const supabase = createClient();
           const { error } = await supabase
             .from("cart_items")
-            .update({ quantity })
+            .update({ quantity: qty })
             .eq("user_id", userId)
-            .eq("product_slug", slug)
-            .eq("variant_id", variant ?? "");
+            .eq("product_id", productId);
           if (error) throw error;
           await get().loadRemote(userId);
         } else {
           set((state) => ({
             guestLines: state.guestLines
-              .map((l) =>
-                lineKey(l.slug, l.variant) === key
-                  ? { ...l, quantity: Math.max(0, quantity) }
-                  : l
-              )
+              .map((l) => (l.productId === productId ? { ...l, quantity: qty } : l))
               .filter((l) => l.quantity > 0),
           }));
         }
       },
 
-      remove: async (key, userId) => {
+      remove: async (productId, userId) => {
         if (userId) {
-          const [slug, variant] = key.split("::");
           const supabase = createClient();
           const { error } = await supabase
             .from("cart_items")
             .delete()
             .eq("user_id", userId)
-            .eq("product_slug", slug)
-            .eq("variant_id", variant ?? "");
+            .eq("product_id", productId);
           if (error) throw error;
           await get().loadRemote(userId);
         } else {
           set((state) => ({
-            guestLines: state.guestLines.filter(
-              (l) => lineKey(l.slug, l.variant) !== key
-            ),
+            guestLines: state.guestLines.filter((l) => l.productId !== productId),
           }));
         }
       },
@@ -150,16 +140,20 @@ export const useCart = create<CartState>()(
         const supabase = createClient();
         const { data, error } = await supabase
           .from("cart_items")
-          .select("product_slug, variant_id, quantity")
+          .select("product_id, quantity, product:products!fk_cart_items_product_id(slug)")
           .eq("user_id", userId);
         if (error) {
           set({ loading: false, remoteError: error.message });
           return;
         }
         set({
-          remoteLines: (data ?? []).map((r: { product_slug: string; variant_id: string; quantity: number }) => ({
-            slug: r.product_slug,
-            variant: r.variant_id || "",
+          remoteLines: (data ?? []).map((r: {
+            product_id: string;
+            quantity: number;
+            product: { slug: string }[] | null;
+          }) => ({
+            productId: r.product_id,
+            slug: r.product?.[0]?.slug ?? "",
             quantity: r.quantity,
           })),
           loading: false,
@@ -172,7 +166,6 @@ export const useCart = create<CartState>()(
       mergeGuestIntoRemote: async (userId) => {
         const { guestLines, merging } = get();
         if (merging) return;
-        // If no guest items, skip merge but still load remote data
         if (guestLines.length === 0) {
           await get().loadRemote(userId);
           return;
@@ -182,28 +175,23 @@ export const useCart = create<CartState>()(
           const supabase = createClient();
           const { data: existing } = await supabase
             .from("cart_items")
-            .select("product_slug, variant_id, quantity")
+            .select("product_id, quantity")
             .eq("user_id", userId);
-          const existingMap = new Map(
-            (existing ?? []).map((r: { product_slug: string; variant_id: string; quantity: number }) => [
-              lineKey(r.product_slug, r.variant_id || ""),
+          const existingMap = new Map<string, number>(
+            (existing ?? []).map((r: { product_id: string; quantity: number }) => [
+              r.product_id,
               r.quantity,
             ])
           );
-          const merged = guestLines.map((g) => {
-            const key = lineKey(g.slug, g.variant);
-            const accountQty = existingMap.get(key) ?? 0;
-            return {
-              user_id: userId,
-              product_slug: g.slug,
-              variant_id: g.variant || "",
-              quantity: Math.min(99, accountQty + g.quantity),
-            };
-          });
+          const merged = guestLines.map((g) => ({
+            user_id: userId,
+            product_id: g.productId,
+            quantity: Math.min(99, (existingMap.get(g.productId) ?? 0) + g.quantity),
+          }));
           if (merged.length > 0) {
             const { error } = await supabase
               .from("cart_items")
-              .upsert(merged, { onConflict: "user_id,product_slug,variant_id" });
+              .upsert(merged, { onConflict: "user_id,product_id" });
             if (error) throw error;
           }
           set({ guestLines: [], merging: false });
@@ -245,8 +233,6 @@ export function useCartLines() {
   const remoteError = useCart((s) => s.remoteError);
   const userId = user?.id ?? null;
 
-  // loadRemote is triggered by AuthProvider (single source), not here.
-  // This hook is a pure consumer of cart state.
   return {
     lines: user ? remoteLines : guestLines,
     ready: user ? remoteLoaded : hydrated,

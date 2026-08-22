@@ -111,7 +111,6 @@ export function OrderConfirmation({ orderId }: { orderId: string }) {
                     </Link>
                     <div className="min-w-0 flex-1">
                       <Link href={`/product/${item.slug}`} className="line-clamp-2 text-sm font-medium leading-tight hover:text-copper">{item.name}</Link>
-                      {item.variant && <p className="mt-0.5 text-xs text-muted-foreground">{item.variant}</p>}
                       <p className="mt-0.5 text-xs text-muted-foreground">Qty {item.quantity} × {formatPrice(item.unitPrice)}</p>
                     </div>
                     <span className="font-mono text-sm tabular-nums">{formatPrice(item.unitPrice * item.quantity)}</span>

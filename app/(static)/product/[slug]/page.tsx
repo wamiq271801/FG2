@@ -10,12 +10,11 @@ import {
   RotateCcw,
 } from "lucide-react";
 import {
-  getAllProducts,
-  getBrandBySlug,
-  getCategoryBySlug,
   getProductBySlug,
+  getProductsByIds,
   getRelatedProducts,
 } from "@/modules/catalog/data";
+import { getBrandBySlug, getCategoryBySlug } from "@/modules/catalog/data";
 import { getLatestReviews, getReviewSummary } from "@/modules/review/data";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { Price } from "@/components/shared/Price";
@@ -29,16 +28,16 @@ import { RatingDistribution } from "@/components/review/RatingDistribution";
 import { ReviewList } from "@/components/review/ReviewList";
 import { ReviewActions } from "@/components/review/ReviewActions";
 import { Button } from "@/components/ui/button";
-import type { Availability } from "@/types";
+import type { Availability, Product } from "@/types";
 
 const SITE_URL = "https://fusiongadgets.in";
 
-// ISR: product pages revalidate every 5 minutes.
 export const revalidate = 300;
 
 type Params = Promise<{ slug: string }>;
 
 export async function generateStaticParams() {
+  const { getAllProducts } = await import("@/modules/catalog/data");
   const products = await getAllProducts();
   return products.map((p) => ({ slug: p.slug }));
 }
@@ -168,6 +167,13 @@ export default async function ProductPage({ params }: { params: Params }) {
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
+  let allVariationProducts: Product[] = [product];
+  if (product.variation && product.variation.items.length >= 2) {
+    const variationProductIds = product.variation.items.map((item) => item.productId);
+    allVariationProducts = await getProductsByIds(variationProductIds);
+    if (allVariationProducts.length === 0) allVariationProducts = [product];
+  }
+
   const [brand, category, related, reviewSummary, latestReviews] = await Promise.all([
     getBrandBySlug(product.brand),
     getCategoryBySlug(product.category),
@@ -187,7 +193,6 @@ export default async function ProductPage({ params }: { params: Params }) {
   return (
     <article className="container-edge py-6 lg:py-10">
       <ProductViewTracker slug={slug} />
-      {/* Structured data */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(productLd) }}
@@ -209,9 +214,9 @@ export default async function ProductPage({ params }: { params: Params }) {
         ]}
       />
 
-      {/* Purchase surface (gallery + buy panel) */}
       <BuyBox
-        product={product as Product}
+        product={product}
+        allVariationProducts={allVariationProducts}
         className="mt-6"
         header={
           <>
@@ -280,9 +285,7 @@ export default async function ProductPage({ params }: { params: Params }) {
         }
       />
 
-      {/* ── Editorial sections ─────────────────────────────────────── */}
-
-      {/* The story */}
+      {/* Story */}
       {product.story && (
         <section
           id="story"
@@ -326,7 +329,7 @@ export default async function ProductPage({ params }: { params: Params }) {
             id="details-heading"
             className="mt-3 font-display text-2xl tracking-tight"
           >
-            What's included
+            What&apos;s included
           </h2>
           <ul className="mt-5 space-y-2.5">
             {(product.includes ?? []).map((item) => (
@@ -480,7 +483,7 @@ export default async function ProductPage({ params }: { params: Params }) {
         </div>
       </section>
 
-      {/* You might also like */}
+      {/* Related */}
       {related.length > 0 && (
         <section
           aria-labelledby="related-heading"

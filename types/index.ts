@@ -38,18 +38,50 @@ export type Brand = {
 
 export type Availability = "in-stock" | "low-stock" | "out-of-stock" | "preorder";
 
+/**
+ * Derive the display availability state from authoritative product fields.
+ * This is computed client-side from the data returned by the DB — no
+ * availability_enum column exists anymore.
+ *
+ * Low-stock threshold: <= 5 units.
+ */
+export function deriveAvailability(
+  stock: number,
+  isPreorder: boolean,
+  isActive: boolean
+): Availability {
+  if (!isActive) return "out-of-stock";
+  if (isPreorder) return "preorder";
+  if (stock === 0) return "out-of-stock";
+  if (stock <= 5) return "low-stock";
+  return "in-stock";
+}
+
 export type ProductSpec = {
   label: string;
   value: string;
 };
 
-export type ProductVariant = {
-  id: string;
-  name: string;
-  /** Optional surcharge applied to the base price */
-  priceDelta?: Money;
-  swatch?: string;
+export type VariationItem = {
+  /** The actual product UUID for this variation item */
+  productId: string;
+  /** The product's slug for URL navigation */
+  slug: string;
+  /** Generic option label (e.g. "Graphite", "12/256", "Pro") */
+  label: string;
+  /** Display position within the variation */
+  position: number;
+  /** The primary/first image URL for this product */
+  primaryImage?: string;
+  /** Whether this item's product is currently in stock */
   inStock: boolean;
+};
+
+export type ProductVariation = {
+  /** Variation ID — groups selectable alternative products */
+  id: string;
+  /** The variation items (>= 2 valid products) */
+  items: VariationItem[];
 };
 
 export type Review = {
@@ -83,8 +115,8 @@ export type RatingDistribution = {
 export type Product = {
   /** Internal relational identity (uuid). Used by reviews. */
   id: string;
-  /** Public product identifier (FGPN). DB-generated, never the URL slug. */
-  fgpNumber: string;
+  /** SKU — unique product identifier. DB-generated, never the URL slug. */
+  sku: string;
   /** URL / SEO identifier. Never the relational FK. */
   slug: Slug;
   name: string;
@@ -108,23 +140,28 @@ export type Product = {
   /** Visual key used by the procedural ProductVisual fallback */
   visualKey: ProductVisualKey;
   accent: string;
+  /** Derived availability — computed from isActive + isPreorder + stock. */
   availability: Availability;
-  /** Numeric stock for low-stock messaging */
-  stock?: number;
+  /** Numeric stock value. Always a number (>= 0). */
+  stock: number;
+  /** True if this product is a preorder item (stock may be 0 but purchasable). */
+  isPreorder: boolean;
   rating: number;
   reviewCount: number;
   /** Detail-page fields — undefined on card queries to avoid over-fetching */
   specs?: ProductSpec[];
   highlights?: string[];
-  variants?: ProductVariant[];
+  /**
+   * Variation — present when this product belongs to a variation with
+   * multiple products. Each entry represents a selectable alternative.
+   */
+  variation?: ProductVariation;
   includes?: string[];
   shipping?: string;
   warranty?: string;
   reviews?: Review[];
-  related?: Slug[];
-  /** When the product was added, ISO date — used for "new" badges */
+  /** When the product was added, ISO date — used for "new" display logic */
   addedAt: string;
-  badges?: string[];
 };
 
 export type ProductVisualKey =
@@ -173,12 +210,13 @@ export type Address = {
 };
 
 export type OrderItem = {
+  /** Product UUID — the sellable product. Required from Phase 8 onwards. */
+  productId?: string;
   slug: Slug;
   name: string;
   image: string;
   visualKey: ProductVisualKey;
   accent: string;
-  variant?: string;
   quantity: number;
   unitPrice: Money;
 };
@@ -192,8 +230,17 @@ export type OrderStatus =
   | "cancelled"
   | "returned";
 
+export type OrderEvent = {
+  id: string;
+  eventType: string;
+  createdAt: string; // ISO
+  metadata?: Record<string, unknown>;
+};
+
 export type Order = {
   id: string;
+  /** Human-facing order number (FG-YYYYMMDD-NNNNNN). Present from Phase 7 onwards. */
+  orderNumber?: string;
   date: string; // ISO
   status: OrderStatus;
   items: OrderItem[];
@@ -206,6 +253,9 @@ export type Order = {
   paymentMethod: string;
   trackingNumber?: string;
   estimatedDelivery?: string;
+  /** Immutable event history from order_events (Phase 8+). */
+  events: OrderEvent[];
+  /** Pre-Phase-8 timeline steps from order_timeline. Present until Phase 12 drops the table. */
   timeline: { label: string; date: string; done: boolean }[];
 };
 

@@ -9,11 +9,12 @@ import { useAuthContext } from "@/providers/AuthProvider";
 import { trackAddToCart } from "@/services/tracking";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import type { Product, ProductVariant } from "@/types";
+import type { Product } from "@/types";
 
 type Props = {
   product: Product;
-  variant?: ProductVariant;
+  /** The actual product UUID to add to the cart. */
+  productId: string;
   quantity?: number;
   className?: string;
   label?: string;
@@ -22,7 +23,7 @@ type Props = {
 
 export function AddToCart({
   product,
-  variant,
+  productId,
   quantity = 1,
   className,
   label = "Add to bag",
@@ -34,10 +35,7 @@ export function AddToCart({
   const [added, setAdded] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const isUnavailable =
-    disabled ||
-    product.availability === "out-of-stock" ||
-    (variant && !variant.inStock);
+  const isUnavailable = disabled || !productId;
 
   async function handleAdd() {
     if (isUnavailable) return;
@@ -45,8 +43,8 @@ export function AddToCart({
     try {
       await add(
         {
+          productId,
           slug: product.slug,
-          variant: variant?.name ?? "",
           quantity,
         },
         user?.id ?? null
@@ -54,14 +52,12 @@ export function AddToCart({
       trackAddToCart(product.slug, quantity);
       setAdded(true);
       toast.success("Added to bag", {
-        description: `${product.name}${variant ? ` · ${variant.name}` : ""}`,
+        description: product.name,
         action: { label: "View bag", onClick: () => router.push("/cart") },
       });
       window.setTimeout(() => setAdded(false), 1600);
     } catch {
-      toast.error("Couldn't add to bag", {
-        description: "Please try again.",
-      });
+      toast.error("Couldn't add to bag", { description: "Please try again." });
     } finally {
       setLoading(false);
     }

@@ -2,8 +2,8 @@
 
 import { Link } from "@/components/shared/Link";
 import { Heart, ShoppingBag, ArrowRight } from "lucide-react";
-import { useWishlistSlugs } from "@/modules/wishlist";
-import { useProductsBySlugs } from "@/modules/catalog/useProducts";
+import { useWishlistIds } from "@/modules/wishlist";
+import { useProductsByIds } from "@/modules/catalog/useProducts";
 import { ProductCard } from "@/components/shared/ProductCard";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,14 +14,14 @@ type Props = {
 };
 
 export function WishlistItems({ suggestedProducts = [] }: Props) {
-  const { slugs, ready, loading } = useWishlistSlugs();
-  const { products, loading: productsLoading } = useProductsBySlugs(slugs);
+  const { ids, ready, loading } = useWishlistIds();
+  const { products, loading: productsLoading } = useProductsByIds(ids);
 
-  if (!ready || loading || (slugs.length > 0 && productsLoading)) {
+  if (!ready || loading || (ids.length > 0 && productsLoading)) {
     return <WishlistSkeleton />;
   }
 
-  if (slugs.length === 0) {
+  if (ids.length === 0) {
     return <EmptyState suggestedProducts={suggestedProducts} />;
   }
 
@@ -29,7 +29,7 @@ export function WishlistItems({ suggestedProducts = [] }: Props) {
     <div className="mt-8">
       <div className="flex items-baseline justify-between">
         <h2 className="font-display text-xl tracking-tight">
-          {slugs.length} {slugs.length === 1 ? "saved item" : "saved items"}
+          {ids.length} {ids.length === 1 ? "saved item" : "saved items"}
         </h2>
         <span className="text-xs text-muted-foreground">
           Tap the heart on any product to save it here
@@ -37,7 +37,7 @@ export function WishlistItems({ suggestedProducts = [] }: Props) {
       </div>
       <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4 lg:gap-x-6">
         {products.map((p) => (
-          <ProductCard key={p.slug} product={p} />
+          <ProductCard key={p.id} product={p} />
         ))}
       </div>
     </div>

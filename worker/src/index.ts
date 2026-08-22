@@ -1,7 +1,14 @@
+/**
+ * Worker entry point — Phase 9
+ *
+ * Imports updated to the responsibility-based directory structure.
+ * Old flat lib/, middleware/, routes/, services/ directories are removed.
+ */
+
 import { resolveEnv, type Env } from "./config/env";
-import { corsPreflight, fail, json } from "./lib/response";
-import { authRoutes } from "./routes/auth";
-import { orderRoutes } from "./routes/orders";
+import { corsPreflight, fail } from "./http/response";
+import { registrationRoutes } from "./registration/route";
+import { orderRoutes } from "./orders/route";
 
 const worker: { fetch(request: Request, env?: Env): Promise<Response> } = {
   async fetch(request: Request, env?: Env): Promise<Response> {
@@ -15,13 +22,13 @@ const worker: { fetch(request: Request, env?: Env): Promise<Response> } = {
       return new Response("ok", { status: 200 });
     }
 
-    const authResponse = await authRoutes(request, resolvedEnv, url.pathname, method);
+    const authResponse = await registrationRoutes(request, resolvedEnv, url.pathname, method);
     if (authResponse) return authResponse;
 
     const orderResponse = await orderRoutes(request, resolvedEnv, url.pathname, method);
     if (orderResponse) return orderResponse;
 
-    return fail("NOT_FOUND", "Endpoint not found.", 404);
+    return fail("NOT_FOUND", undefined, 404);
   },
 };
 

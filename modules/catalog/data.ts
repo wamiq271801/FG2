@@ -1,11 +1,8 @@
 /**
  * Data access boundary — Supabase-backed catalog reads.
  *
- * Every page and component reads catalog data through these functions. The
- * storefront's public client (anon key, RLS-constrained) is used for all reads.
- * No service-role key is ever used here.
- *
- * Mock user/orders accessors removed in Phase 5 (orders now read from Supabase via RLS).
+ * Products are independent rows. Optional grouping via product_variations
+ * identifies selectable alternatives on the product-detail page.
  */
 
 import { createCatalogClient } from "@/lib/supabase/catalog";
@@ -13,147 +10,198 @@ import type {
   Brand,
   Category,
   Product,
-  ProductVariant,
+  ProductVariation,
   Promotion,
+  VariationItem,
 } from "@/types";
+import { deriveAvailability } from "@/types";
 
-// ── Row types (match DB columns; not exported — mapped at the boundary) ──
+// ── Row types ─────────────────────────────────────────────────────────
 
-type ProductRow = {
+type VariationItemRow = {
   id: string;
-  fgp_number: string;
+  variation_id: string;
+  product_id: string;
+  option_label: string;
+  position: number;
+  products: {
+    id: string;
+    slug: string;
+    name: string;
+    stock: number;
+    is_active: boolean;
+    is_preorder: boolean;
+    product_images: { url: string; position: number; is_primary: boolean }[];
+  }[] | null;
+};
+
+type CardRow = {
+  id: string;
+  sku: string;
   slug: string;
   name: string;
   subtitle: string;
-  brand_slug: string;
-  category_slug: string;
   subcategory: string | null;
   tagline: string;
-  description: string | null;
-  story: string | null;
   price: number;
-  compare_at: number | null;
+  compare_at_price: number | null;
   currency: "INR";
   visual_key: Product["visualKey"];
   accent: string;
-  availability: Product["availability"];
-  stock: number | null;
+  is_preorder: boolean;
+  stock: number;
+  is_active: boolean;
   rating: number;
   review_count: number;
-  shipping: string | null;
-  warranty: string | null;
   added_at: string;
-  brands: { name: string }[] | null;
+  brands: { slug: string; name: string }[] | null;
+  categories: { slug: string }[] | null;
   product_images: { url: string; position: number; is_primary: boolean }[];
-  product_badges: { badge: string; position: number }[];
-  product_variants: {
-    variant_id: string; name: string; price_delta: number;
-    swatch: string | null; in_stock: boolean; position: number;
-  }[] | null;
-  product_specs: { label: string; value: string; position: number }[] | null;
-  product_highlights: { body: string; position: number }[] | null;
-  product_includes: { body: string; position: number }[] | null;
-  product_related: { related_slug: string; position: number }[] | null;
+  product_variation_items: VariationItemRow[] | null;
 };
 
-// ── Mappers (DB row → domain type) ──────────────────────────────────────
+type FullProductRow = CardRow & {
+  description: string | null;
+  story: string | null;
+  shipping: string | null;
+  warranty: string | null;
+  highlights: string[];
+  includes: string[];
+  specs: { label: string; value: string }[];
+};
 
-function sortByPos<T extends { position: number }>(arr: T[]): T[] {
-  return [...arr].sort((a, b) => a.position - b.position);
+// ── Mappers ───────────────────────────────────────────────────────────
+
+function mapVariationItem(row: VariationItemRow): VariationItem {
+  const product = row.products?.[0] ?? null;
+  const images = [...(product?.product_images ?? [])]
+    .sort((a, b) => a.position - b.position)
+    .map((i) => i.url);
+
+  return {
+    productId: row.product_id,
+    slug: product?.slug ?? "",
+    label: row.option_label,
+    position: row.position,
+    primaryImage: images[0],
+    inStock: product
+      ? (product.is_preorder || product.stock > 0) && product.is_active
+      : false,
+  };
 }
 
-function mapProduct(row: ProductRow): Product {
-  const images = sortByPos(row.product_images ?? []).map((i) => i.url);
-  const badges = sortByPos(row.product_badges ?? []).map((b) => b.badge);
-  const variants: ProductVariant[] | undefined = row.product_variants
-    ? sortByPos(row.product_variants).map((v) => ({
-        id: v.variant_id,
-        name: v.name,
-        priceDelta: v.price_delta || undefined,
-        swatch: v.swatch ?? undefined,
-        inStock: v.in_stock,
-      }))
-    : undefined;
-  const specs = row.product_specs
-    ? sortByPos(row.product_specs).map((s) => ({ label: s.label, value: s.value }))
-    : undefined;
-  const highlights = row.product_highlights
-    ? sortByPos(row.product_highlights).map((h) => h.body)
-    : undefined;
-  const includes = row.product_includes
-    ? sortByPos(row.product_includes).map((i) => i.body)
-    : undefined;
-  const related = row.product_related
-    ? sortByPos(row.product_related).map((r) => r.related_slug)
-    : undefined;
+function mapVariation(items: VariationItemRow[]): ProductVariation | undefined {
+  if (items.length < 2) return undefined;
+  const sorted = [...items].sort((a, b) => a.position - b.position);
+  return {
+    id: sorted[0].variation_id,
+    items: sorted.map(mapVariationItem),
+  };
+}
+
+function mapProduct(row: CardRow | FullProductRow): Product {
+  const images = [...(row.product_images ?? [])]
+    .sort((a, b) => a.position - b.position)
+    .map((i) => i.url);
+
+  const variationItems = row.product_variation_items ?? [];
+  const variation = mapVariation(variationItems);
+
   return {
     id: row.id,
-    fgpNumber: row.fgp_number,
+    sku: row.sku,
     slug: row.slug,
     name: row.name,
     subtitle: row.subtitle,
-    brand: row.brand_slug,
+    brand: row.brands?.[0]?.slug ?? "",
     brandName: row.brands?.[0]?.name,
-    category: row.category_slug,
+    category: row.categories?.[0]?.slug ?? "",
     subcategory: row.subcategory ?? undefined,
     tagline: row.tagline,
-    description: row.description ?? undefined,
-    story: row.story ?? undefined,
+    description:
+      "description" in row
+        ? (row as FullProductRow).description ?? undefined
+        : undefined,
+    story:
+      "story" in row ? (row as FullProductRow).story ?? undefined : undefined,
     price: row.price,
-    compareAt: row.compare_at ?? undefined,
+    compareAt: row.compare_at_price ?? undefined,
     currency: row.currency,
     images,
     visualKey: row.visual_key,
     accent: row.accent,
-    availability: row.availability,
-    stock: row.stock ?? undefined,
+    availability: deriveAvailability(row.stock, row.is_preorder, row.is_active),
+    stock: row.stock,
+    isPreorder: row.is_preorder,
     rating: Number(row.rating),
     reviewCount: row.review_count,
-    specs,
-    highlights,
-    variants,
-    includes,
-    shipping: row.shipping ?? undefined,
-    warranty: row.warranty ?? undefined,
-    related,
+    specs:
+      "specs" in row
+        ? (row as FullProductRow).specs?.length
+          ? (row as FullProductRow).specs
+          : undefined
+        : undefined,
+    highlights:
+      "highlights" in row
+        ? (row as FullProductRow).highlights?.length
+          ? (row as FullProductRow).highlights
+          : undefined
+        : undefined,
+    variation,
+    includes:
+      "includes" in row
+        ? (row as FullProductRow).includes?.length
+          ? (row as FullProductRow).includes
+          : undefined
+        : undefined,
+    shipping:
+      "shipping" in row
+        ? (row as FullProductRow).shipping ?? undefined
+        : undefined,
+    warranty:
+      "warranty" in row
+        ? (row as FullProductRow).warranty ?? undefined
+        : undefined,
     addedAt: row.added_at,
-    badges: badges.length > 0 ? badges : undefined,
   };
 }
 
-// Card select: core fields + brand name + primary image + badges (no detail fields)
-const CARD_SELECT = `
-  id, fgp_number, slug, name, subtitle, brand_slug, category_slug, subcategory, tagline,
-  price, compare_at, currency, visual_key, accent, availability, stock,
-  rating, review_count, added_at,
-  brands!inner(name),
-  product_images(url, position, is_primary),
-  product_badges(badge, position)
+// ── Select strings ─────────────────────────────────────────────────────
+
+const VARIATION_ITEM_FIELDS = `
+  product_variation_items(
+    id, variation_id, product_id, option_label, position,
+    products!product_variation_items_product_id_fkey(
+      id, slug, name, stock, is_active, is_preorder,
+      product_images(url, position, is_primary)
+    )
+  )
 `;
 
-// Detail select: everything (for product pages). The product_related join needs
-// an explicit FK hint because the table has two FKs to products (product_slug +
-// related_slug).
-const DETAIL_SELECT = `
-  id, fgp_number, slug, name, subtitle, brand_slug, category_slug, subcategory, tagline,
-  description, story, price, compare_at, currency, visual_key, accent, availability, stock,
-  rating, review_count, shipping, warranty, added_at,
-  brands!inner(name),
+const CARD_SELECT = `
+  id, sku, slug, name, subtitle, subcategory, tagline,
+  price, compare_at_price, currency, visual_key, accent,
+  is_preorder, stock, is_active,
+  rating, review_count, added_at,
+  brands!inner(slug, name),
+  categories!inner(slug),
   product_images(url, position, is_primary),
-  product_badges(badge, position),
-  product_variants(variant_id, name, price_delta, swatch, in_stock, position),
-  product_specs(label, value, position),
-  product_highlights(body, position),
-  product_includes(body, position),
-  product_related!product_related_product_slug_fkey(related_slug, position)
+  ${VARIATION_ITEM_FIELDS}
+`;
+
+const DETAIL_SELECT = `
+  id, sku, slug, name, subtitle, subcategory, tagline,
+  description, story, price, compare_at_price, currency, visual_key, accent,
+  is_preorder, stock, is_active,
+  rating, review_count, shipping, warranty, added_at,
+  highlights, includes, specs,
+  brands!inner(slug, name),
+  categories!inner(slug),
+  product_images(url, position, is_primary),
+  ${VARIATION_ITEM_FIELDS}
 `;
 
 // ── Circulation ──────────────────────────────────────────────────────
-// Reads published circulation entries from Supabase. If a published version
-// exists, surfaces use the pre-computed product ordering. If no published
-// version exists (e.g. before the processor runs), a deterministic date-based
-// rotation ensures different eligible products get exposure over time — no
-// product is permanently buried by a fixed list.
 
 type CirculationSurface =
   | "home_trending"
@@ -162,28 +210,29 @@ type CirculationSurface =
   | "home_on_sale"
   | "shop_default";
 
-// Fetch product slugs for a surface from the published circulation version.
-// Returns [] if no published version or no entries for the surface.
-async function getCirculationSlugs(surface: CirculationSurface, limit: number): Promise<string[]> {
+async function getCirculationIds(
+  surface: CirculationSurface,
+  limit: number
+): Promise<string[]> {
   const supabase = createCatalogClient();
   const { data, error } = await supabase
     .from("circulation_entries")
-    .select("product_slug, position")
+    .select("product_id, position")
     .eq("surface", surface)
     .order("position", { ascending: true })
     .limit(limit);
   if (error || !data || data.length === 0) return [];
-  return (data as { product_slug: string }[]).map((r) => r.product_slug);
+  return (data as { product_id: string }[]).map((r) => r.product_id);
 }
 
-// Deterministic fallback: rotates eligible products by day so different products
-// get exposure over time. Uses the current date as a seed — no Math.random.
-// This ensures the same page renders the same products within a day (cache-safe)
-// while varying across days (fair exposure).
-function rotatedSlugs(allSlugs: string[], limit: number, seedOffset = 0): string[] {
+function rotatedSlugs(
+  allSlugs: string[],
+  limit: number,
+  seedOffset = 0
+): string[] {
   if (allSlugs.length === 0) return [];
   const day = Math.floor(Date.now() / 86400000) + seedOffset;
-  const start = (day * 7) % allSlugs.length; // step by 7 each day for variety
+  const start = (day * 7) % allSlugs.length;
   const result: string[] = [];
   for (let i = 0; i < Math.min(limit, allSlugs.length); i++) {
     result.push(allSlugs[(start + i) % allSlugs.length]);
@@ -191,33 +240,20 @@ function rotatedSlugs(allSlugs: string[], limit: number, seedOffset = 0): string
   return result;
 }
 
-// Fetch products by slug list, preserving the order of the input slugs.
-async function getProductsBySlugOrder(slugs: string[]): Promise<Product[]> {
-  if (slugs.length === 0) return [];
+async function getProductsByIdOrder(ids: string[]): Promise<Product[]> {
+  if (ids.length === 0) return [];
   const supabase = createCatalogClient();
   const { data, error } = await supabase
     .from("products")
     .select(CARD_SELECT)
-    .in("slug", slugs)
+    .in("id", ids)
     .eq("is_active", true);
   if (error || !data) return [];
-  const rows = data as ProductRow[];
-  // Filter out any that became inactive, then preserve input order
-  return slugs
-    .map((s) => rows.find((r) => r.slug === s))
-    .filter((r): r is ProductRow => Boolean(r))
+  const rows = data as CardRow[];
+  return ids
+    .map((id) => rows.find((r) => r.id === id))
+    .filter((r): r is CardRow => Boolean(r))
     .map(mapProduct);
-}
-
-// Fetch all active product slugs (for fallback rotation).
-async function getAllActiveSlugs(): Promise<string[]> {
-  const supabase = createCatalogClient();
-  const { data, error } = await supabase
-    .from("products")
-    .select("slug")
-    .eq("is_active", true);
-  if (error || !data) return [];
-  return (data as { slug: string }[]).map((r) => r.slug);
 }
 
 // ── Products ──────────────────────────────────────────────────────────
@@ -230,10 +266,12 @@ export async function getAllProducts(): Promise<Product[]> {
     .eq("is_active", true)
     .order("added_at", { ascending: false });
   if (error) throw error;
-  return (data as ProductRow[]).map(mapProduct);
+  return (data as CardRow[]).map(mapProduct);
 }
 
-export async function getProductBySlug(slug: string): Promise<Product | undefined> {
+export async function getProductBySlug(
+  slug: string
+): Promise<Product | undefined> {
   const supabase = createCatalogClient();
   const { data, error } = await supabase
     .from("products")
@@ -243,22 +281,97 @@ export async function getProductBySlug(slug: string): Promise<Product | undefine
     .maybeSingle();
   if (error) throw error;
   if (!data) return undefined;
-  return mapProduct(data as ProductRow);
+
+  const product = mapProduct(data as FullProductRow);
+
+  const { data: membership } = await supabase
+    .from("product_variation_items")
+    .select("variation_id")
+    .eq("product_id", product.id)
+    .maybeSingle();
+
+  if (!membership) return product;
+
+  const { data: allItems } = await supabase
+    .from("product_variation_items")
+    .select(
+      "variation_id, product_id, option_label, position, products!product_variation_items_product_id_fkey(slug, stock, is_active, is_preorder, product_images(url, position, is_primary))"
+    )
+    .eq("variation_id", membership.variation_id)
+    .order("position", { ascending: true });
+
+  if (!allItems || allItems.length < 2) return product;
+
+  type RawItem = {
+    product_id: string;
+    option_label: string;
+    position: number;
+    products: Record<string, unknown> | Record<string, unknown>[] | null;
+  };
+
+  product.variation = {
+    id: membership.variation_id,
+    items: (allItems as RawItem[]).map((item) => {
+      const p = Array.isArray(item.products)
+        ? (item.products[0] as Record<string, unknown> | undefined) ?? null
+        : (item.products as Record<string, unknown> | null);
+      const images = [...((p?.product_images as { url: string; position: number }[]) ?? [])]
+        .sort((a, b) => a.position - b.position)
+        .map((i) => i.url);
+      return {
+        productId: item.product_id,
+        slug: (p?.slug as string) ?? "",
+        label: item.option_label,
+        position: item.position,
+        primaryImage: images[0],
+        inStock: p
+          ? ((p.is_preorder as boolean) || (p.stock as number) > 0) && (p.is_active as boolean)
+          : false,
+      };
+    }),
+  };
+
+  return product;
 }
 
-export async function getProductsByCategory(categorySlug: string): Promise<Product[]> {
+export async function getProductById(
+  id: string
+): Promise<Product | undefined> {
   const supabase = createCatalogClient();
   const { data, error } = await supabase
     .from("products")
+    .select(DETAIL_SELECT)
+    .eq("id", id)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return undefined;
+  return mapProduct(data as FullProductRow);
+}
+
+export async function getProductsByCategory(
+  categorySlug: string
+): Promise<Product[]> {
+  const supabase = createCatalogClient();
+  const { data: cat } = await supabase
+    .from("categories")
+    .select("id")
+    .eq("slug", categorySlug)
+    .maybeSingle();
+  if (!cat) return [];
+  const { data, error } = await supabase
+    .from("products")
     .select(CARD_SELECT)
-    .eq("category_slug", categorySlug)
+    .eq("category_id", cat.id)
     .eq("is_active", true)
     .order("added_at", { ascending: false });
   if (error) throw error;
-  return (data as ProductRow[]).map(mapProduct);
+  return (data as CardRow[]).map(mapProduct);
 }
 
-export async function getProductsBySlugs(slugs: string[]): Promise<Product[]> {
+export async function getProductsBySlugs(
+  slugs: string[]
+): Promise<Product[]> {
   if (slugs.length === 0) return [];
   const supabase = createCatalogClient();
   const { data, error } = await supabase
@@ -267,44 +380,53 @@ export async function getProductsBySlugs(slugs: string[]): Promise<Product[]> {
     .in("slug", slugs)
     .eq("is_active", true);
   if (error) throw error;
-  const rows = data as ProductRow[];
-  // Preserve the order of the input slugs
+  const rows = data as CardRow[];
   return slugs
     .map((s) => rows.find((r) => r.slug === s))
-    .filter((r): r is ProductRow => Boolean(r))
+    .filter((r): r is CardRow => Boolean(r))
+    .map(mapProduct);
+}
+
+export async function getProductsByIds(
+  ids: string[]
+): Promise<Product[]> {
+  if (ids.length === 0) return [];
+  const supabase = createCatalogClient();
+  const { data, error } = await supabase
+    .from("products")
+    .select(DETAIL_SELECT)
+    .in("id", ids)
+    .eq("is_active", true);
+  if (error) throw error;
+  const rows = data as FullProductRow[];
+  return ids
+    .map((id) => rows.find((r) => r.id === id))
+    .filter((r): r is FullProductRow => Boolean(r))
     .map(mapProduct);
 }
 
 export async function getFeaturedProducts(limit = 8): Promise<Product[]> {
-  // Prefer published circulation entries for home_featured
-  const slugs = await getCirculationSlugs("home_featured", limit);
-  if (slugs.length > 0) {
-    return getProductsBySlugOrder(slugs);
-  }
-  // Fallback: deterministic rotation of editor's pick products
+  const ids = await getCirculationIds("home_featured", limit);
+  if (ids.length > 0) return getProductsByIdOrder(ids);
   const supabase = createCatalogClient();
   const { data, error } = await supabase
-    .from("product_badges")
-    .select(`product:products!inner(${CARD_SELECT})`)
-    .eq("badge", "Editor's pick")
-    .eq("product.is_active", true);
+    .from("products")
+    .select(CARD_SELECT)
+    .eq("is_active", true)
+    .order("rating", { ascending: false })
+    .limit(limit * 2);
   if (error) throw error;
-  const rows = (data ?? []).map((d: { product: ProductRow }) => d.product);
+  const rows = data as CardRow[];
   const allSlugs = rows.map((r) => r.slug);
-  const rotated = rotatedSlugs(allSlugs, limit, 3);
-  const rotatedRows = rotated
+  return rotatedSlugs(allSlugs, limit, 3)
     .map((s) => rows.find((r) => r.slug === s))
-    .filter((r): r is ProductRow => Boolean(r));
-  return rotatedRows.map(mapProduct);
+    .filter((r): r is CardRow => Boolean(r))
+    .map(mapProduct);
 }
 
 export async function getNewArrivals(limit = 8): Promise<Product[]> {
-  // Prefer published circulation entries for home_new_arrivals
-  const slugs = await getCirculationSlugs("home_new_arrivals", limit);
-  if (slugs.length > 0) {
-    return getProductsBySlugOrder(slugs);
-  }
-  // Fallback: deterministic rotation of newest products
+  const ids = await getCirculationIds("home_new_arrivals", limit);
+  if (ids.length > 0) return getProductsByIdOrder(ids);
   const supabase = createCatalogClient();
   const { data, error } = await supabase
     .from("products")
@@ -312,45 +434,37 @@ export async function getNewArrivals(limit = 8): Promise<Product[]> {
     .eq("is_active", true)
     .order("added_at", { ascending: false });
   if (error) throw error;
-  const rows = data as ProductRow[];
+  const rows = data as CardRow[];
   const allSlugs = rows.map((r) => r.slug);
-  const rotated = rotatedSlugs(allSlugs, limit, 1);
-  return rotated
+  return rotatedSlugs(allSlugs, limit, 1)
     .map((s) => rows.find((r) => r.slug === s))
-    .filter((r): r is ProductRow => Boolean(r))
+    .filter((r): r is CardRow => Boolean(r))
     .map(mapProduct);
 }
 
 export async function getOnSaleProducts(limit = 8): Promise<Product[]> {
-  // Prefer published circulation entries for home_on_sale
-  const slugs = await getCirculationSlugs("home_on_sale", limit);
-  if (slugs.length > 0) {
-    return getProductsBySlugOrder(slugs);
-  }
-  // Fallback: deterministic rotation of on-sale products
+  const ids = await getCirculationIds("home_on_sale", limit);
+  if (ids.length > 0) return getProductsByIdOrder(ids);
   const supabase = createCatalogClient();
   const { data, error } = await supabase
     .from("products")
     .select(CARD_SELECT)
     .eq("is_active", true)
-    .not("compare_at", "is", null);
+    .not("compare_at_price", "is", null);
   if (error) throw error;
-  const rows = (data as ProductRow[]).filter((p) => p.compare_at !== null && p.compare_at > p.price);
+  const rows = (data as CardRow[]).filter(
+    (p) => p.compare_at_price !== null && p.compare_at_price > p.price
+  );
   const allSlugs = rows.map((r) => r.slug);
-  const rotated = rotatedSlugs(allSlugs, limit, 2);
-  return rotated
+  return rotatedSlugs(allSlugs, limit, 2)
     .map((s) => rows.find((r) => r.slug === s))
-    .filter((r): r is ProductRow => Boolean(r))
+    .filter((r): r is CardRow => Boolean(r))
     .map(mapProduct);
 }
 
 export async function getTrendingProducts(limit = 6): Promise<Product[]> {
-  // Prefer published circulation entries for home_trending
-  const slugs = await getCirculationSlugs("home_trending", limit);
-  if (slugs.length > 0) {
-    return getProductsBySlugOrder(slugs);
-  }
-  // Fallback: deterministic rotation of most-reviewed products
+  const ids = await getCirculationIds("home_trending", limit);
+  if (ids.length > 0) return getProductsByIdOrder(ids);
   const supabase = createCatalogClient();
   const { data, error } = await supabase
     .from("products")
@@ -358,28 +472,55 @@ export async function getTrendingProducts(limit = 6): Promise<Product[]> {
     .eq("is_active", true)
     .order("review_count", { ascending: false });
   if (error) throw error;
-  const rows = data as ProductRow[];
+  const rows = data as CardRow[];
   const allSlugs = rows.map((r) => r.slug);
-  const rotated = rotatedSlugs(allSlugs, limit, 0);
-  return rotated
+  return rotatedSlugs(allSlugs, limit, 0)
     .map((s) => rows.find((r) => r.slug === s))
-    .filter((r): r is ProductRow => Boolean(r))
+    .filter((r): r is CardRow => Boolean(r))
     .map(mapProduct);
 }
 
-export async function getRelatedProducts(product: Product, limit = 4): Promise<Product[]> {
-  const relatedSlugs = product.related ?? [];
-  if (relatedSlugs.length > 0) {
-    const related = await getProductsBySlugs(relatedSlugs);
-    if (related.length >= limit) return related.slice(0, limit);
-    const seen = new Set(related.map((p) => p.slug));
-    seen.add(product.slug);
-    const sameCategory = await getProductsByCategory(product.category);
-    const fillers = sameCategory.filter((p) => !seen.has(p.slug));
-    return [...related, ...fillers].slice(0, limit);
+export async function getRelatedProducts(
+  product: Product,
+  limit = 4
+): Promise<Product[]> {
+  const supabase = createCatalogClient();
+  const { data: cat } = await supabase
+    .from("categories")
+    .select("id")
+    .eq("slug", product.category)
+    .maybeSingle();
+  if (!cat) return [];
+
+  const { data: variationRows } = await supabase
+    .from("product_variation_items")
+    .select("variation_id")
+    .eq("product_id", product.id);
+
+  let siblingIds = new Set<string>();
+  if (variationRows && variationRows.length > 0) {
+    const variationId = variationRows[0].variation_id;
+    const { data: siblings } = await supabase
+      .from("product_variation_items")
+      .select("product_id")
+      .eq("variation_id", variationId);
+    siblingIds = new Set((siblings ?? []).map((s: { product_id: string }) => s.product_id));
   }
-  const sameCategory = await getProductsByCategory(product.category);
-  return sameCategory.filter((p) => p.slug !== product.slug).slice(0, limit);
+
+  const { data, error } = await supabase
+    .from("products")
+    .select(CARD_SELECT)
+    .eq("category_id", cat.id)
+    .eq("is_active", true)
+    .gt("stock", 0)
+    .neq("id", product.id);
+  if (error) return [];
+
+  const rows = (data as CardRow[]).filter((r) => !siblingIds.has(r.id));
+
+  const sameSubcat = rows.filter((r) => r.subcategory === product.subcategory);
+  const others = rows.filter((r) => r.subcategory !== product.subcategory);
+  return [...sameSubcat, ...others].slice(0, limit).map(mapProduct);
 }
 
 // ── Categories ────────────────────────────────────────────────────────
@@ -412,7 +553,9 @@ export async function getAllCategories(): Promise<Category[]> {
   return (data as CategoryRow[]).map(mapCategory);
 }
 
-export async function getCategoryBySlug(slug: string): Promise<Category | undefined> {
+export async function getCategoryBySlug(
+  slug: string
+): Promise<Category | undefined> {
   const supabase = createCatalogClient();
   const { data, error } = await supabase
     .from("categories")
@@ -426,10 +569,16 @@ export async function getCategoryBySlug(slug: string): Promise<Category | undefi
 
 export async function getCategoryProductCount(slug: string): Promise<number> {
   const supabase = createCatalogClient();
+  const { data: cat } = await supabase
+    .from("categories")
+    .select("id")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (!cat) return 0;
   const { count, error } = await supabase
     .from("products")
-    .select("slug", { count: "exact", head: true })
-    .eq("category_slug", slug)
+    .select("id", { count: "exact", head: true })
+    .eq("category_id", cat.id)
     .eq("is_active", true);
   if (error) throw error;
   return count ?? 0;
@@ -450,7 +599,9 @@ export async function getAllBrands(): Promise<Brand[]> {
   return (data as BrandRow[]).map(mapBrand);
 }
 
-export async function getBrandBySlug(slug: string): Promise<Brand | undefined> {
+export async function getBrandBySlug(
+  slug: string
+): Promise<Brand | undefined> {
   const supabase = createCatalogClient();
   const { data, error } = await supabase
     .from("brands")
@@ -468,39 +619,48 @@ type OfferRow = {
   id: string; slug: string; title: string; description: string;
   badge: string; terms: string; starts_at: string | null; ends_at: string | null;
   status: string;
-  offer_products: { product_slug: string; position: number }[];
+  offer_products: {
+    product_id: string;
+    position: number;
+    product: { slug: string } | null;
+  }[];
 };
 
 function mapPromotion(row: OfferRow): Promotion {
+  const productSlugs = [...(row.offer_products ?? [])]
+    .sort((a, b) => a.position - b.position)
+    .map((op) => op.product?.slug ?? "")
+    .filter(Boolean);
   return {
     slug: row.slug,
     title: row.title,
     description: row.description,
     badge: row.badge,
-    productSlugs: sortByPos(row.offer_products ?? []).map((op) => op.product_slug),
+    productSlugs,
     startsAt: row.starts_at ?? undefined,
     endsAt: row.ends_at ?? undefined,
     terms: row.terms,
   };
 }
 
-/** Returns active + expired offers (not draft/scheduled). Storefront shows lifecycle states. */
 export async function getAllPromotions(): Promise<Promotion[]> {
   const supabase = createCatalogClient();
   const { data, error } = await supabase
     .from("offers")
-    .select("*, offer_products(product_slug, position)")
+    .select("*, offer_products(product_id, position, product:products!fk_offer_products_product_id(slug))")
     .in("status", ["active", "expired"])
     .order("ends_at", { ascending: false, nullsFirst: false });
   if (error) throw error;
   return (data as OfferRow[]).map(mapPromotion);
 }
 
-export async function getPromotionBySlug(slug: string): Promise<Promotion | undefined> {
+export async function getPromotionBySlug(
+  slug: string
+): Promise<Promotion | undefined> {
   const supabase = createCatalogClient();
   const { data, error } = await supabase
     .from("offers")
-    .select("*, offer_products(product_slug, position)")
+    .select("*, offer_products(product_id, position, product:products!fk_offer_products_product_id(slug))")
     .eq("slug", slug)
     .in("status", ["active", "expired"])
     .maybeSingle();
@@ -509,11 +669,12 @@ export async function getPromotionBySlug(slug: string): Promise<Promotion | unde
   return mapPromotion(data as OfferRow);
 }
 
-export async function getPromotionProducts(promo: Promotion): Promise<Product[]> {
+export async function getPromotionProducts(
+  promo: Promotion
+): Promise<Product[]> {
   return getProductsBySlugs(promo.productSlugs);
 }
 
-/** Checks if an offer is currently within its validity window. */
 export function isPromotionActive(promo: Promotion): boolean {
   const now = Date.now();
   if (promo.startsAt && +new Date(promo.startsAt) > now) return false;
@@ -522,8 +683,6 @@ export function isPromotionActive(promo: Promotion): boolean {
 }
 
 // ── Reviews ────────────────────────────────────────────────────────────
-
-
 
 // ── Store / business info ──────────────────────────────────────────────
 
