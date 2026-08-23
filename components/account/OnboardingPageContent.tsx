@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthContext } from "@/providers/AuthProvider";
 import { OnboardingFlow } from "@/components/account/OnboardingFlow";
@@ -13,7 +12,6 @@ export function OnboardingPageContent() {
   const searchParams = useSearchParams();
   const { user, refreshOnboarding } = useAuthContext();
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async () => {
     if (!user) return;
@@ -24,7 +22,6 @@ export function OnboardingPageContent() {
       .eq("id", user.id)
       .maybeSingle();
     setProfile(data as Profile | null);
-    setLoading(false);
   }, [user]);
 
   useEffect(() => {
@@ -41,19 +38,10 @@ export function OnboardingPageContent() {
     }
   }, [refreshOnboarding, searchParams, router]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        <span className="text-sm">Loading…</span>
-      </div>
-    );
-  }
-
   if (!profile) return null;
 
   return (
-    <div className="mt-8 mx-auto max-w-lg">
+    <div className="mx-auto max-w-lg">
       <OnboardingFlow profile={profile} onComplete={handleComplete} />
     </div>
   );

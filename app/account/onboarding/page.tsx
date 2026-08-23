@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 export default function AccountOnboardingPage() {
   return (
-    <div className="container-edge py-8 lg:py-12">
+    <div className="container-edge flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center py-8 lg:py-12">
       <AccountGate>
         <Suspense>
           <OnboardingPageContent />
