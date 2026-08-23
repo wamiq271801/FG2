@@ -80,7 +80,7 @@ const MESSAGES: Partial<Record<string, string>> = {
   SIGNUP_FAILED:               "Unable to create account. Please try again.",
   RESEND_FAILED:               "Unable to resend verification code.",
   // Password reset
-  RESET_FAILED:                "Unable to send reset link.",
+  RESET_FAILED:                "Unable to send reset code.",
   // OTP
   OTP_INVALID:                 "Invalid verification code.",
   OTP_EXPIRED:                 "That code has expired. Please request a new one.",

@@ -6,7 +6,7 @@ import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm";
 export const metadata: Metadata = {
   title: "Reset your password",
   description:
-    "Enter your account email and we'll send you a secure link to reset your Fusion Gadgets password.",
+    "Enter your account email and we'll send you a recovery code to reset your Fusion Gadgets password.",
   robots: { index: false, follow: false },
   alternates: { canonical: "/auth/forgot-password" },
 };
@@ -47,8 +47,7 @@ export default function ForgotPasswordPage() {
           </h1>
           <p className="mt-3 text-pretty text-sm leading-relaxed text-muted-foreground">
             Enter the email tied to your Fusion account and we&apos;ll send a
-            secure link to choose a new password. The link expires in 30
-            minutes.
+            6-digit recovery code. The code expires in 10 minutes.
           </p>
 
           <ForgotPasswordForm />

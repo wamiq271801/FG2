@@ -33,7 +33,7 @@ const ERROR_TITLES: Record<AuthErrorCode, string> = {
   SIGNUP_REJECTED: "Registration unavailable",
   SIGNUP_FAILED: "Unable to create account",
   RESEND_FAILED: "Unable to resend code",
-  RESET_FAILED: "Unable to send reset link",
+  RESET_FAILED: "Unable to send reset code",
   OTP_INVALID: "Invalid verification code",
   OTP_EXPIRED: "That code has expired",
   SIGNIN_FAILED: "Incorrect email or password",

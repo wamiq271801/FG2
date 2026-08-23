@@ -82,7 +82,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [onboardingState, setOnboardingState] = useState<OnboardingState>("resolving");
   const mergedForUserId = useRef<string | null>(null);
   const loadedUserId = useRef<string | null>(null);
-  const recoveryStateRef = useRef<RecoveryState>("none");
 
   const refreshOnboarding = async () => {
     const u = user;
@@ -97,7 +96,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const setRecoveryState = (s: RecoveryState) => {
     setRecoveryStateRaw(s);
-    recoveryStateRef.current = s;
   };
 
   useEffect(() => {
@@ -175,23 +173,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
       const u = toAuthUser(session?.user ?? null);
-
-      // Handle PASSWORD_RECOVERY event — this fires when the user clicks a
-      // recovery link and Supabase establishes a recovery session.
-      // The session contains a user, but the intent is password reset, not normal auth.
-      if (event === "PASSWORD_RECOVERY") {
-        setRecoveryStateRaw("recovering");
-        recoveryStateRef.current = "recovering";
-        // Still publish identity so the recovery session is recognized
-        publishIdentity(u);
-        return;
-      }
-
-      // Clear recovery state on any other auth event (except TOKEN_REFRESHED)
-      if (recoveryStateRef.current === "recovering" && event !== "TOKEN_REFRESHED") {
-        setRecoveryStateRaw("none");
-        recoveryStateRef.current = "none";
-      }
 
       // 1) Publish identity IMMEDIATELY — Header, AccountGate, review
       //    controls etc. re-render from context without waiting for any

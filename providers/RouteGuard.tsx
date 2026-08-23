@@ -10,7 +10,9 @@
  * Policy:
  *   - auth initializing / onboarding resolving → render children (no enforcement)
  *   - unauthenticated → render children (normal public/auth access)
- *   - recovery session + reset-password route → render children (ALLOW recovery)
+ *   - recovery session + /auth/forgot-password → render children (ALLOW recovery flow)
+ *   - recovery session + any other route → redirect to /auth/forgot-password
+ *   - authenticated + /auth/forgot-password (no recovery) → block
  *   - authenticated + auth-only route → null + replace("/")
  *   - authenticated + incomplete + not /account/onboarding → null + replace(/account/onboarding)
  *   - authenticated + incomplete + /account/onboarding → render children
@@ -24,14 +26,10 @@ import { useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuthContext } from "@/providers/AuthProvider";
 
-const AUTH_ONLY_ROUTES = new Set([
-  "/auth/signin",
-  "/auth/signup",
-  "/auth/forgot-password",
-]);
+const AUTH_ONLY_ROUTES = new Set(["/auth/signin", "/auth/signup"]);
 
 const ONBOARDING_PATH = "/account/onboarding";
-const RESET_PASSWORD_PATH = "/auth/reset-password";
+const FORGOT_PASSWORD_PATH = "/auth/forgot-password";
 
 function isSafeReturnTo(path: string): boolean {
   return path.startsWith("/") && !path.startsWith("//");
@@ -40,58 +38,66 @@ function isSafeReturnTo(path: string): boolean {
 export function RouteGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, state: authState, recoveryState, onboardingState } = useAuthContext();
+  const {
+    user,
+    state: authState,
+    recoveryState,
+    onboardingState,
+  } = useAuthContext();
   const navigatedRef = useRef<string | null>(null);
 
-  // ── DETERMINE IF ROUTE IS ALLOWED ─────────────────────────────────────
   const isAllowed = (() => {
-    // During bootstrap or resolving — allow rendering, no enforcement.
-    if (authState === "initializing" || onboardingState === "resolving") return true;
+    if (authState === "initializing" || onboardingState === "resolving")
+      return true;
 
-    // Recovery session + reset-password route → ALLOW (the only allowed path during recovery).
-    if (recoveryState === "recovering" && pathname === RESET_PASSWORD_PATH) return true;
+    // Recovery session + forgot-password route → ALLOW (the only allowed path during recovery).
+    if (
+      recoveryState === "recovering" &&
+      pathname === FORGOT_PASSWORD_PATH
+    )
+      return true;
 
-    // Recovery session + any other route → BLOCK (stay on reset-password).
+    // Recovery session + any other route → BLOCK (stay on forgot-password).
     if (recoveryState === "recovering") return false;
 
     // Unauthenticated — normal public/auth page access.
     if (authState === "unauthenticated" || !user) return true;
 
-    // Authenticated + reset-password route → NOT allowed (must be recovery session).
-    if (pathname === RESET_PASSWORD_PATH) return false;
+    // Authenticated + forgot-password route (without recovery) → NOT allowed.
+    if (pathname === FORGOT_PASSWORD_PATH) return false;
 
     // Authenticated + auth-only route → NOT allowed.
     if (AUTH_ONLY_ROUTES.has(pathname)) return false;
 
     // Authenticated + incomplete + on /account/onboarding → allowed.
-    if (onboardingState === "incomplete" && pathname === ONBOARDING_PATH) return true;
+    if (onboardingState === "incomplete" && pathname === ONBOARDING_PATH)
+      return true;
 
     // Authenticated + incomplete + NOT on /account/onboarding → NOT allowed.
     if (onboardingState === "incomplete") return false;
 
     // Authenticated + complete + on /account/onboarding → NOT allowed.
-    if (onboardingState === "complete" && pathname === ONBOARDING_PATH) return false;
+    if (onboardingState === "complete" && pathname === ONBOARDING_PATH)
+      return false;
 
-    // Everything else allowed.
     return true;
   })();
 
-  // ── NAVIGATION SIDE EFFECT ────────────────────────────────────────────
-  // Runs after render. For forbidden routes, replace to the correct destination.
   useEffect(() => {
     if (isAllowed) {
-      // Reset guard when route becomes allowed.
       navigatedRef.current = null;
       return;
     }
 
-    // Prevent repeated navigation for the same path.
     if (navigatedRef.current === pathname) return;
     navigatedRef.current = pathname;
 
-    // Recovery session + non-reset route → go to reset-password (stay in recovery flow).
-    if (recoveryState === "recovering" && pathname !== RESET_PASSWORD_PATH) {
-      router.replace(RESET_PASSWORD_PATH);
+    // Recovery session + non-forgot-password route → go to forgot-password.
+    if (
+      recoveryState === "recovering" &&
+      pathname !== FORGOT_PASSWORD_PATH
+    ) {
+      router.replace(FORGOT_PASSWORD_PATH);
       return;
     }
 
@@ -101,28 +107,43 @@ export function RouteGuard({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Authenticated + reset-password route (without recovery) → go home.
-    if (pathname === RESET_PASSWORD_PATH) {
+    // Authenticated + forgot-password route (without recovery) → go home.
+    if (pathname === FORGOT_PASSWORD_PATH) {
       router.replace("/");
       return;
     }
 
     // Authenticated + incomplete + not on onboarding → go to onboarding.
-    if (authState === "authenticated" && onboardingState === "incomplete" && pathname !== ONBOARDING_PATH) {
+    if (
+      authState === "authenticated" &&
+      onboardingState === "incomplete" &&
+      pathname !== ONBOARDING_PATH
+    ) {
       const returnTo = isSafeReturnTo(pathname) ? pathname : "/";
-      router.replace(`${ONBOARDING_PATH}?returnTo=${encodeURIComponent(returnTo)}`);
+      router.replace(
+        `${ONBOARDING_PATH}?returnTo=${encodeURIComponent(returnTo)}`
+      );
       return;
     }
 
     // Authenticated + complete + on onboarding → go home.
-    if (authState === "authenticated" && onboardingState === "complete" && pathname === ONBOARDING_PATH) {
+    if (
+      authState === "authenticated" &&
+      onboardingState === "complete" &&
+      pathname === ONBOARDING_PATH
+    ) {
       router.replace("/");
       return;
     }
-  }, [isAllowed, authState, recoveryState, onboardingState, pathname, router]);
+  }, [
+    isAllowed,
+    authState,
+    recoveryState,
+    onboardingState,
+    pathname,
+    router,
+  ]);
 
-  // ── RENDER ────────────────────────────────────────────────────────────
-  // If route is not allowed, render nothing (prevents forbidden page flash).
   if (!isAllowed) return null;
 
   return <>{children}</>;
