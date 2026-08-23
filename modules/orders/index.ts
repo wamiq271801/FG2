@@ -52,15 +52,6 @@ type OrderItemRow = {
   line_total: number;
 };
 
-type TimelineRow = {
-  id: number;
-  order_id: string;
-  step_label: string;
-  step_date: string | null;
-  step_index: number;
-  done: boolean;
-};
-
 type EventRow = {
   id: string;
   order_id: string;
@@ -72,7 +63,6 @@ type EventRow = {
 function mapOrder(
   row: OrderRow,
   items: OrderItemRow[],
-  timeline: TimelineRow[],
   events: EventRow[]
 ): Order {
   const orderItems: OrderItem[] = items.map((i) => ({
@@ -120,13 +110,6 @@ function mapOrder(
     trackingNumber: row.tracking_number ?? undefined,
     estimatedDelivery: row.estimated_delivery ?? undefined,
     events: orderEvents,
-    timeline: timeline
-      .sort((a, b) => a.step_index - b.step_index)
-      .map((t) => ({
-        label: t.step_label,
-        date: t.step_date ?? "",
-        done: t.done,
-      })),
   };
 }
 
@@ -153,23 +136,20 @@ export function useOrders() {
       const orderIds = (orderRows as OrderRow[]).map((o) => o.id);
       if (orderIds.length === 0) { setOrders([]); setLoading(false); return; }
 
-      const [itemsRes, timelineRes, eventsRes] = await Promise.all([
+      const [itemsRes, eventsRes] = await Promise.all([
         supabase.from("order_items").select("*").in("order_id", orderIds),
-        supabase.from("order_timeline").select("*").in("order_id", orderIds),
         supabase.from("order_events").select("*").in("order_id", orderIds),
       ]);
 
       if (cancelled) return;
 
-      const items     = (itemsRes.data    ?? []) as OrderItemRow[];
-      const timelines = (timelineRes.data ?? []) as TimelineRow[];
-      const events    = (eventsRes.data   ?? []) as EventRow[];
+      const items  = (itemsRes.data  ?? []) as OrderItemRow[];
+      const events = (eventsRes.data ?? []) as EventRow[];
 
       const mapped = (orderRows as OrderRow[]).map((row) =>
         mapOrder(
           row,
           items.filter((i) => i.order_id === row.id),
-          timelines.filter((t) => t.order_id === row.id),
           events.filter((e) => e.order_id === row.id)
         )
       );
@@ -204,9 +184,8 @@ export function useOrder(id: string) {
 
       if (error || !orderRow || cancelled) { setOrder(null); setLoading(false); return; }
 
-      const [itemsRes, timelineRes, eventsRes] = await Promise.all([
+      const [itemsRes, eventsRes] = await Promise.all([
         supabase.from("order_items").select("*").eq("order_id", id),
-        supabase.from("order_timeline").select("*").eq("order_id", id),
         supabase.from("order_events").select("*").eq("order_id", id),
       ]);
 
@@ -214,9 +193,8 @@ export function useOrder(id: string) {
 
       setOrder(mapOrder(
         orderRow as OrderRow,
-        (itemsRes.data    ?? []) as OrderItemRow[],
-        (timelineRes.data ?? []) as TimelineRow[],
-        (eventsRes.data   ?? []) as EventRow[]
+        (itemsRes.data ?? []) as OrderItemRow[],
+        (eventsRes.data ?? []) as EventRow[]
       ));
       setLoading(false);
     })();

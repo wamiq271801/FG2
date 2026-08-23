@@ -148,12 +148,7 @@ function Breadcrumbs({ items }: { items: { label: string; href?: string }[] }) {
 }
 
 function Timeline({ order }: { order: Order }) {
-  // Phase 8: prefer order_events (immutable history) over order_timeline.
-  // order_timeline is kept for backward compat until Phase 12 drops the table.
-  const hasEvents = order.events.length > 0;
-
-  if (hasEvents) {
-    // Render from immutable event history
+  if (order.events.length === 0) {
     return (
       <Card className="border-border/70">
         <CardHeader>
@@ -165,75 +160,43 @@ function Timeline({ order }: { order: Order }) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ol className="relative">
-            <span aria-hidden="true" className="absolute left-[7px] top-2 bottom-2 w-px bg-border" />
-            {order.events.map((event, i) => (
-              <li key={event.id} className="relative flex gap-4 pb-5 last:pb-0">
-                <span
-                  aria-hidden="true"
-                  className="relative z-10 mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border border-copper bg-copper text-copper-foreground"
-                >
-                  <Check className="h-2.5 w-2.5" strokeWidth={3} />
-                </span>
-                <div className="flex-1">
-                  <p className="text-sm font-medium leading-tight text-foreground">
-                    {formatEventType(event.eventType)}
-                  </p>
-                  <time dateTime={event.createdAt} className="font-mono text-[11px] text-muted-foreground">
-                    {formatDateTime(event.createdAt)}
-                  </time>
-                </div>
-              </li>
-            ))}
-          </ol>
+          <p className="text-sm text-muted-foreground">No timeline events yet.</p>
         </CardContent>
       </Card>
     );
   }
 
-  // Fallback: render from order_timeline (pre-Phase-8 orders)
-  const steps = order.timeline;
-  const lastDone = Math.max(-1, ...steps.map((s, i) => (s.done ? i : -1)));
   return (
     <Card className="border-border/70">
       <CardHeader>
         <CardTitle className="font-display text-xl tracking-tight">Order timeline</CardTitle>
         <CardDescription>
-          {order.status === "delivered" ? "Delivered. Hope you're enjoying it." : "Where your order is right now."}
+          {order.status === "delivered"
+            ? "Delivered. Hope you're enjoying it."
+            : "Where your order is right now."}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <ol className="relative">
           <span aria-hidden="true" className="absolute left-[7px] top-2 bottom-2 w-px bg-border" />
-          {steps.map((step, i) => {
-            const isDone    = step.done;
-            const isCurrent = i === lastDone + 1 && !step.done;
-            return (
-              <li key={`${step.label}-${i}`} className="relative flex gap-4 pb-5 last:pb-0">
-                <span
-                  aria-hidden="true"
-                  className={
-                    "relative z-10 mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border " +
-                    (isDone ? "border-copper bg-copper text-copper-foreground" :
-                     isCurrent ? "border-copper bg-card" : "border-border bg-card")
-                  }
-                >
-                  {isDone    && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
-                  {isCurrent && <span className="h-1.5 w-1.5 rounded-full bg-copper" />}
-                </span>
-                <div className="flex-1">
-                  <p className={"text-sm font-medium leading-tight " + (isDone || isCurrent ? "text-foreground" : "text-muted-foreground")}>
-                    {step.label}
-                  </p>
-                  {step.date && (
-                    <time dateTime={step.date} className="font-mono text-[11px] text-muted-foreground">
-                      {formatDate(step.date)}
-                    </time>
-                  )}
-                </div>
-              </li>
-            );
-          })}
+          {order.events.map((event) => (
+            <li key={event.id} className="relative flex gap-4 pb-5 last:pb-0">
+              <span
+                aria-hidden="true"
+                className="relative z-10 mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border border-copper bg-copper text-copper-foreground"
+              >
+                <Check className="h-2.5 w-2.5" strokeWidth={3} />
+              </span>
+              <div className="flex-1">
+                <p className="text-sm font-medium leading-tight text-foreground">
+                  {formatEventType(event.eventType)}
+                </p>
+                <time dateTime={event.createdAt} className="font-mono text-[11px] text-muted-foreground">
+                  {formatDateTime(event.createdAt)}
+                </time>
+              </div>
+            </li>
+          ))}
         </ol>
       </CardContent>
     </Card>

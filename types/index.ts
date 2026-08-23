@@ -250,10 +250,8 @@ export type Order = {
   paymentMethod: string;
   trackingNumber?: string;
   estimatedDelivery?: string;
-  /** Immutable event history from order_events (Phase 8+). */
+  /** Immutable event history from order_events. */
   events: OrderEvent[];
-  /** Pre-Phase-8 timeline steps from order_timeline. Present until Phase 12 drops the table. */
-  timeline: { label: string; date: string; done: boolean }[];
 };
 
 export type User = {
