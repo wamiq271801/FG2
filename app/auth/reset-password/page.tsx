@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Link } from "@/components/shared/Link";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { ResetPasswordForm } from "@/components/auth/ResetPasswordForm";
 
 export const metadata: Metadata = {
-  title: "Choose a new password",
+  title: "Reset your password",
   description:
-    "Set a new password for your Fusion Gadgets account using the secure link from your reset email.",
+    "Enter the recovery code from your email and set a new password for your Fusion Gadgets account.",
   robots: { index: false, follow: false },
   alternates: { canonical: "/auth/reset-password" },
 };
@@ -43,14 +44,16 @@ export default function ResetPasswordPage() {
             Account
           </p>
           <h1 className="mt-2 font-display text-3xl tracking-tight">
-            Choose a new password
+            Reset your password
           </h1>
           <p className="mt-3 text-pretty text-sm leading-relaxed text-muted-foreground">
-            Pick a strong password you haven&apos;t used before. Once you update
-            it, all your other devices will need to sign in again.
+            Enter the recovery code from your email, then choose a new
+            password. All your other devices will need to sign in again.
           </p>
 
-          <ResetPasswordForm />
+          <Suspense>
+            <ResetPasswordForm />
+          </Suspense>
 
           <div className="mt-6 flex items-center gap-2 text-xs text-muted-foreground">
             <ShieldCheck className="h-3.5 w-3.5 text-copper" />

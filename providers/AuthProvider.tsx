@@ -43,6 +43,7 @@ type AuthContextValue = {
   onboardingState: OnboardingState;
   ready: boolean;
   refreshOnboarding: () => Promise<void>;
+  setRecoveryState: (s: RecoveryState) => void;
 };
 
 const AuthContext = createContext<AuthContextValue>({
@@ -52,6 +53,7 @@ const AuthContext = createContext<AuthContextValue>({
   onboardingState: "resolving",
   ready: false,
   refreshOnboarding: async () => {},
+  setRecoveryState: () => {},
 });
 
 function toAuthUser(u: User | null): AuthUser | null {
@@ -76,7 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [state, setState] = useState<AuthState>("initializing");
-  const [recoveryState, setRecoveryState] = useState<RecoveryState>("none");
+  const [recoveryState, setRecoveryStateRaw] = useState<RecoveryState>("none");
   const [onboardingState, setOnboardingState] = useState<OnboardingState>("resolving");
   const mergedForUserId = useRef<string | null>(null);
   const loadedUserId = useRef<string | null>(null);
@@ -91,6 +93,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setOnboardingState("resolving");
     const result = await fetchOnboardingState(u.id);
     setOnboardingState(result);
+  };
+
+  const setRecoveryState = (s: RecoveryState) => {
+    setRecoveryStateRaw(s);
+    recoveryStateRef.current = s;
   };
 
   useEffect(() => {
@@ -173,7 +180,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // recovery link and Supabase establishes a recovery session.
       // The session contains a user, but the intent is password reset, not normal auth.
       if (event === "PASSWORD_RECOVERY") {
-        setRecoveryState("recovering");
+        setRecoveryStateRaw("recovering");
         recoveryStateRef.current = "recovering";
         // Still publish identity so the recovery session is recognized
         publishIdentity(u);
@@ -182,7 +189,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Clear recovery state on any other auth event (except TOKEN_REFRESHED)
       if (recoveryStateRef.current === "recovering" && event !== "TOKEN_REFRESHED") {
-        setRecoveryState("none");
+        setRecoveryStateRaw("none");
         recoveryStateRef.current = "none";
       }
 
@@ -236,6 +243,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       onboardingState,
       ready: state !== "initializing",
       refreshOnboarding,
+      setRecoveryState,
     }),
     [user, state, recoveryState, onboardingState]
   );

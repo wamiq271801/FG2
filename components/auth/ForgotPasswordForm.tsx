@@ -80,14 +80,19 @@ export function ForgotPasswordForm() {
             <p id="forgot-success-title" className="font-medium">
               If an account exists for{" "}
               <span className="font-medium text-foreground">{sentTo}</span>, a
-              reset link is on its way.
+              recovery code is on its way.
             </p>
             <p className="mt-1 text-muted-foreground">
-              The link expires in 30 minutes. Didn&apos;t get it? Check spam,
-              then try again in a minute.
+              Check your email for the 6-digit code. It expires in 10 minutes.
             </p>
           </div>
         </div>
+
+        <Button asChild className="press w-full bg-foreground text-background hover:bg-foreground/90">
+          <Link href={`/auth/reset-password?email=${encodeURIComponent(sentTo)}`}>
+            Enter recovery code
+          </Link>
+        </Button>
 
         <Button asChild variant="ghost" className="press w-full">
           <Link href="/auth/signin">Back to sign in</Link>
