@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ShoppingBag, Check } from "lucide-react";
+import { ShoppingBag, Check, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useCart } from "@/modules/cart";
+import { useCart, useProductInCart } from "@/modules/cart";
 import { useAuthContext } from "@/providers/AuthProvider";
 import { trackAddToCart } from "@/services/tracking";
 import { toast } from "sonner";
@@ -26,29 +26,33 @@ export function AddToCart({
   productId,
   quantity = 1,
   className,
-  label = "Add to bag",
   disabled,
 }: Props) {
   const add = useCart((s) => s.add);
   const { user } = useAuthContext();
   const router = useRouter();
-  const [added, setAdded] = useState(false);
   const [loading, setLoading] = useState(false);
+  const inCart = useProductInCart(productId);
 
   const isUnavailable = disabled || !productId;
 
   async function handleAdd() {
-    if (isUnavailable) return;
+    if (isUnavailable || inCart) {
+      // Already in cart — navigate to cart
+      router.push("/cart");
+      return;
+    }
     setLoading(true);
     try {
-      await add({ productId, quantity }, user?.id ?? null);
-      trackAddToCart(product.slug, quantity);
-      setAdded(true);
-      toast.success("Added to bag", {
-        description: product.name,
-        action: { label: "View bag", onClick: () => router.push("/cart") },
-      });
-      window.setTimeout(() => setAdded(false), 1600);
+      const result = await add({ productId, quantity }, user?.id ?? null);
+      if (result === "added") {
+        trackAddToCart(product.slug, quantity);
+        toast.success("Added to bag", {
+          description: product.name,
+          action: { label: "View bag", onClick: () => router.push("/cart") },
+        });
+      }
+      // If "already_in_cart", button already shows "View cart" — no toast needed
     } catch {
       toast.error("Couldn't add to bag", { description: "Please try again." });
     } finally {
@@ -63,13 +67,13 @@ export function AddToCart({
       disabled={isUnavailable || loading}
       className={cn("press", className)}
     >
-      {added ? (
+      {inCart ? (
         <>
-          <Check className="h-4 w-4" /> Added
+          <ArrowRight className="h-4 w-4" /> View cart
         </>
       ) : (
         <>
-          <ShoppingBag className="h-4 w-4" /> {label}
+          <ShoppingBag className="h-4 w-4" /> {isUnavailable ? "Unavailable" : "Add to bag"}
         </>
       )}
     </Button>

@@ -36,7 +36,7 @@ type CartState = {
   merging: boolean;
   loadedUserId: string | null;
 
-  add: (line: CartLine, userId: string | null) => Promise<void>;
+  add: (line: CartLine, userId: string | null) => Promise<"added" | "already_in_cart">;
   setQuantity: (productId: string, quantity: number, userId: string | null) => Promise<void>;
   remove: (productId: string, userId: string | null) => Promise<void>;
   clearGuest: () => void;
@@ -61,32 +61,30 @@ export const useCart = create<CartState>()(
       add: async (line, userId) => {
         // Validate quantity before any write
         const qty = Math.max(1, Math.min(99, line.quantity));
-        const safeLines: CartLine = { ...line, quantity: qty };
 
         if (userId) {
           const supabase = createClient();
+          // Check if product already exists in remote cart
+          const { data: existing } = await supabase
+            .from("cart_items")
+            .select("product_id")
+            .eq("user_id", userId)
+            .eq("product_id", line.productId)
+            .maybeSingle();
+          if (existing) return "already_in_cart";
+          // Insert only — never update existing quantity
           const { error } = await supabase
             .from("cart_items")
-            .upsert(
-              { user_id: userId, product_id: safeLines.productId, quantity: safeLines.quantity },
-              { onConflict: "user_id,product_id" }
-            );
+            .insert({ user_id: userId, product_id: line.productId, quantity: qty });
           if (error) throw error;
           await get().loadRemote(userId);
+          return "added";
         } else {
-          set((state) => {
-            const existing = state.guestLines.find((l) => l.productId === safeLines.productId);
-            if (existing) {
-              return {
-                guestLines: state.guestLines.map((l) =>
-                  l.productId === safeLines.productId
-                    ? { ...l, quantity: Math.min(99, l.quantity + safeLines.quantity) }
-                    : l
-                ),
-              };
-            }
-            return { guestLines: [...state.guestLines, safeLines] };
-          });
+          const { guestLines } = get();
+          const existing = guestLines.find((l) => l.productId === line.productId);
+          if (existing) return "already_in_cart";
+          set({ guestLines: [...guestLines, { productId: line.productId, quantity: qty }] });
+          return "added";
         }
       },
 
@@ -247,4 +245,15 @@ export function useCartLines() {
     error: useRemote ? remoteError : null,
     userId,
   };
+}
+
+/** Check whether a specific product is already in the cart. */
+export function useProductInCart(productId: string): boolean {
+  const { user } = useAuthContext();
+  const guestLines = useCart((s) => s.guestLines);
+  const remoteLines = useCart((s) => s.remoteLines);
+  const remoteLoaded = useCart((s) => s.remoteLoaded);
+  const useRemote = !!user && remoteLoaded;
+  const lines = useRemote ? remoteLines : guestLines;
+  return lines.some((l) => l.productId === productId);
 }

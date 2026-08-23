@@ -38,11 +38,11 @@ export function BuyAgainButton({
         // productId is required for the new cart model.
         // Items without productId are from pre-Phase-8 orders — skip them.
         if (!item.productId) continue;
-        await add(
+        const result = await add(
           { productId: item.productId, quantity: item.quantity },
           user?.id ?? null
         );
-        addedCount += item.quantity;
+        if (result === "added") addedCount += item.quantity;
       }
       if (addedCount === 0) {
         toast.error("Items not available", {

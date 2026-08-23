@@ -281,7 +281,7 @@ function CartLine({
             value={line.quantity}
             onChange={onQuantity}
             min={1}
-            max={10}
+            max={Math.max(1, line.product.stock)}
             label={`Quantity of ${line.product.name}`}
           />
           <div className="text-right">

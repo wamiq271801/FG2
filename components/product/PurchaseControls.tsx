@@ -85,12 +85,19 @@ export function PurchaseControls({ product, offers = [] }: Props) {
         </div>
       ) : (
         <div className="mt-6 flex flex-wrap items-center gap-3">
-          <QuantityStepper value={quantity} onChange={setQuantity} label="Quantity" />
+          <QuantityStepper
+            value={quantity}
+            onChange={setQuantity}
+            min={1}
+            max={Math.max(1, product.stock)}
+            disabled={product.stock <= 0}
+            label="Quantity"
+          />
           <AddToCart
             product={product}
             productId={product.id}
             quantity={quantity}
-            label={isPreorder ? "Pre-order" : "Add to bag"}
+            disabled={product.stock <= 0}
             className="h-9 min-w-[12rem] flex-1"
           />
         </div>

@@ -21,6 +21,8 @@ export type ResolvedCartLine = {
     accent: string;
     /** Derived availability string from is_active + is_preorder + stock. */
     availability: string;
+    /** Numeric stock value for quantity constraints. */
+    stock: number;
   };
 };
 
@@ -63,6 +65,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             visualKey: product.visualKey,
             accent: product.accent,
             availability: product.availability,
+            stock: product.stock,
           },
         };
       })
