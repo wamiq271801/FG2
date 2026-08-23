@@ -3,22 +3,20 @@
 /**
  * ResetPasswordForm — Set a new password during a Supabase recovery session.
  *
- * This is STEP B of the password-reset flow:
+ * STEP B of the password-reset flow:
  *   A: Request reset email (ForgotPasswordForm → Worker /auth/reset-password)
- *   B: Set new password (ResetPasswordForm → supabase.auth.updateUser)
+ *   B: Set new password (this form → supabase.auth.updateUser)
  *
  * The recovery session is established by Supabase when the user clicks
- * the recovery link from their email. This form only handles the actual
- * password update.
+ * the recovery link. AuthProvider detects PASSWORD_RECOVERY and sets
+ * recoveryState = "recovering". This form consumes that state.
  *
- * Auth state:
- *   - Recovery session detected by AuthProvider (PASSWORD_RECOVERY event)
- *   - RouteGuard allows access only during recovery session
- *   - No Turnstile required (user is already inside a valid recovery session)
+ * RouteGuard ensures only recovery sessions can access this page.
+ * This form does NOT do its own getSession() check — that races with
+ * Supabase's URL hash processing and produces false negatives.
  */
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Link } from "@/components/shared/Link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,6 +26,7 @@ import { Eye, EyeOff, Loader2, ShieldAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { errorTitle } from "@/lib/auth-errors";
 import { useOperation } from "@/hooks/use-operation";
+import { useAuthContext } from "@/providers/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,12 +54,11 @@ const schema = z
 type FormValues = z.infer<typeof schema>;
 
 export function ResetPasswordForm() {
-  const router = useRouter();
+  const { recoveryState, ready } = useAuthContext();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
-  const [sessionValid, setSessionValid] = useState<boolean | null>(null);
   const { start: startOp, stop: stopOp } = useOperation();
 
   const {
@@ -71,36 +69,6 @@ export function ResetPasswordForm() {
     resolver: zodResolver(schema),
     defaultValues: { password: "", confirmPassword: "" },
   });
-
-  // Check if there's a valid recovery session on mount
-  useEffect(() => {
-    let mounted = true;
-
-    const checkSession = async () => {
-      try {
-        const supabase = createClient();
-        const { data, error } = await supabase.auth.getSession();
-
-        if (!mounted) return;
-
-        if (error || !data.session) {
-          setSessionValid(false);
-          return;
-        }
-
-        // Session exists — the recovery session is valid
-        setSessionValid(true);
-      } catch {
-        if (mounted) setSessionValid(false);
-      }
-    };
-
-    checkSession();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   const onSubmit = async (values: FormValues) => {
     setServerError(null);
@@ -115,7 +83,6 @@ export function ResetPasswordForm() {
       stopOp();
 
       if (error) {
-        // Handle specific Supabase errors
         if (error.message?.includes("expired") || error.message?.includes("invalid")) {
           setServerError("This password reset link has expired. Please request a new one.");
         } else if (error.message?.includes("same password")) {
@@ -126,9 +93,6 @@ export function ResetPasswordForm() {
         return;
       }
 
-      // Password updated successfully
-      // The PASSWORD_RECOVERY session will transition to normal authenticated state
-      // via the AuthProvider's onAuthStateChange listener
       setDone(true);
     } catch {
       stopOp();
@@ -136,8 +100,9 @@ export function ResetPasswordForm() {
     }
   };
 
-  // Loading state while checking session
-  if (sessionValid === null) {
+  // Waiting for auth to initialize — show spinner.
+  // RouteGuard blocks the page during "initializing", but this is a safety net.
+  if (!ready) {
     return (
       <div className="mt-6 flex justify-center py-8">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -145,8 +110,10 @@ export function ResetPasswordForm() {
     );
   }
 
-  // Invalid/expired recovery session
-  if (!sessionValid) {
+  // Auth resolved but no recovery session — link is invalid/expired/already used.
+  // RouteGuard should have redirected, but this handles the edge case where
+  // the page renders before RouteGuard navigates away.
+  if (recoveryState !== "recovering") {
     return (
       <div
         className="mt-6 space-y-4"
@@ -297,7 +264,6 @@ export function ResetPasswordForm() {
 
       <Button
         type="submit"
-        disabled={!!serverError}
         className="press w-full bg-foreground text-background hover:bg-foreground/90"
       >
         Update password

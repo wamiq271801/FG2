@@ -202,7 +202,12 @@ export async function handleResetPassword(request: Request, env: Env): Promise<R
   if (!turnstileOk) return fail("TURNSTILE_FAILED", undefined, 422);
 
   // Enumeration-safe — always succeed externally
-  const result = await supabaseAuthFetch(env, "/auth/v1/recover", { email });
+  // redirect_to must be a query parameter, not a body parameter.
+  const result = await supabaseAuthFetch(
+    env,
+    "/auth/v1/recover?redirect_to=" + encodeURIComponent("https://fusiongadgets.shop/auth/reset-password"),
+    { email }
+  );
 
   // Record cooldown only when Supabase acknowledged the request.
   // Unknown emails return 200 (Supabase no-ops silently) so this fires

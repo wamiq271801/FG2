@@ -80,6 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [onboardingState, setOnboardingState] = useState<OnboardingState>("resolving");
   const mergedForUserId = useRef<string | null>(null);
   const loadedUserId = useRef<string | null>(null);
+  const recoveryStateRef = useRef<RecoveryState>("none");
 
   const refreshOnboarding = async () => {
     const u = user;
@@ -173,14 +174,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // The session contains a user, but the intent is password reset, not normal auth.
       if (event === "PASSWORD_RECOVERY") {
         setRecoveryState("recovering");
+        recoveryStateRef.current = "recovering";
         // Still publish identity so the recovery session is recognized
         publishIdentity(u);
         return;
       }
 
-      // Clear recovery state on any other auth event
-      if (recoveryState === "recovering" && event !== "TOKEN_REFRESHED") {
+      // Clear recovery state on any other auth event (except TOKEN_REFRESHED)
+      if (recoveryStateRef.current === "recovering" && event !== "TOKEN_REFRESHED") {
         setRecoveryState("none");
+        recoveryStateRef.current = "none";
       }
 
       // 1) Publish identity IMMEDIATELY — Header, AccountGate, review
