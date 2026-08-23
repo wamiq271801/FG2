@@ -117,10 +117,10 @@ export function useOrders() {
   const { user } = useAuthContext();
   const userId = user?.id ?? null;
   const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!userId) { setOrders([]); setLoading(false); return; }
+    if (!userId) return; // wait for auth to resolve
     let cancelled = false;
     setLoading(true);
     (async () => {
@@ -170,7 +170,7 @@ export function useOrder(id: string) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!userId) { setOrder(null); setLoading(false); return; }
+    if (!userId) return; // wait for auth to resolve — don't set loading=false
     let cancelled = false;
     setLoading(true);
     (async () => {
