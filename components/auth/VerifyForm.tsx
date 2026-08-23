@@ -15,6 +15,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useOperation } from "@/hooks/use-operation";
 import { resendSignupOtp } from "@/services/worker";
+import { useTurnstile } from "@/providers/TurnstileProvider";
 
 export function VerifyForm({ email, onVerified }: { email: string; onVerified: () => void }) {
   const [code, setCode] = useState("");
@@ -23,6 +24,7 @@ export function VerifyForm({ email, onVerified }: { email: string; onVerified: (
   const [serverError, setServerError] = useState<string | null>(null);
   const [clientError, setClientError] = useState<string | null>(null);
   const { start: startOp, stop: stopOp } = useOperation();
+  const { requestTurnstile } = useTurnstile();
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -71,7 +73,18 @@ export function VerifyForm({ email, onVerified }: { email: string; onVerified: (
   const onResend = async () => {
     setResending(true);
     try {
-      const result = await resendSignupOtp(email);
+      let turnstileToken: string;
+      try {
+        turnstileToken = await requestTurnstile("otp_resend");
+      } catch {
+        toast.error("Verification required", {
+          description: "Please complete the verification to resend the code.",
+        });
+        setResending(false);
+        return;
+      }
+
+      const result = await resendSignupOtp(email, turnstileToken);
       if (!result.success) {
         toast.error(result.error ?? errorTitle("RESEND_FAILED"));
       } else {

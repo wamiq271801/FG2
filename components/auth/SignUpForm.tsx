@@ -16,7 +16,7 @@ import { Link } from "@/components/shared/Link";
 import { useOperation } from "@/hooks/use-operation";
 import { register } from "@/services/worker";
 import { errorTitle } from "@/lib/auth-errors";
-import { TurnstileWidget, type TurnstileState } from "./TurnstileWidget";
+import { useTurnstile } from "@/providers/TurnstileProvider";
 
 // Password policy — must stay in sync with worker/src/lib/validation.ts validatePassword().
 const passwordSchema = z
@@ -43,17 +43,12 @@ const schema = z
 
 type FormValues = z.infer<typeof schema>;
 
-const TURNSTILE_SITE_KEY =
-  process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ||
-  "1x00000000000000000000AA";
-
 export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => void }) {
   const [serverError, setServerError] = useState<string | null>(null);
-  const [turnstileState, setTurnstileState] = useState<TurnstileState>("idle");
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const { start: startOp, stop: stopOp } = useOperation();
+  const { requestTurnstile } = useTurnstile();
 
   const {
     register: registerField,
@@ -76,7 +71,10 @@ export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => 
   const onSubmit = async (values: FormValues) => {
     setServerError(null);
 
-    if (!turnstileToken || turnstileState !== "success") {
+    let turnstileToken: string;
+    try {
+      turnstileToken = await requestTurnstile("signup");
+    } catch {
       setServerError("Please complete the verification and try again.");
       return;
     }
@@ -86,8 +84,6 @@ export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => 
       const result = await register(values.email, values.password, turnstileToken);
 
       stopOp();
-      setTurnstileToken(null);
-      setTurnstileState("expired");
 
       if (!result.success) {
         setServerError(result.error ?? errorTitle("SIGNUP_FAILED"));
@@ -100,8 +96,6 @@ export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => 
       onRegistered(values.email);
     } catch {
       stopOp();
-      setTurnstileToken(null);
-      setTurnstileState("expired");
       setServerError(errorTitle("NETWORK_ERROR"));
     }
   };
@@ -204,14 +198,6 @@ export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => 
         )}
       </div>
 
-      <div className="space-y-1.5">
-        <TurnstileWidget
-          siteKey={TURNSTILE_SITE_KEY}
-          onToken={setTurnstileToken}
-          onStateChange={setTurnstileState}
-        />
-      </div>
-
       <div className="flex items-start gap-2 pt-1">
         <Checkbox
           id="signup-terms"
@@ -240,7 +226,6 @@ export function SignUpForm({ onRegistered }: { onRegistered: (email: string) => 
 
       <Button
         type="submit"
-        disabled={turnstileState === "loading"}
         className="press w-full bg-foreground text-background hover:bg-foreground/90"
       >
         Create account

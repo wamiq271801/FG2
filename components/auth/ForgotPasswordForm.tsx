@@ -15,6 +15,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 
 import { requestPasswordReset } from "@/services/worker";
 import { errorTitle } from "@/lib/auth-errors";
+import { useTurnstile } from "@/providers/TurnstileProvider";
 
 const schema = z.object({
   email: z.email("Enter a valid email address"),
@@ -26,6 +27,7 @@ export function ForgotPasswordForm() {
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
+  const { requestTurnstile } = useTurnstile();
 
   const {
     register,
@@ -40,7 +42,16 @@ export function ForgotPasswordForm() {
     setServerError(null);
     setSubmitting(true);
     try {
-      const result = await requestPasswordReset(values.email);
+      let turnstileToken: string;
+      try {
+        turnstileToken = await requestTurnstile("password_reset");
+      } catch {
+        setServerError("Please complete the verification and try again.");
+        setSubmitting(false);
+        return;
+      }
+
+      const result = await requestPasswordReset(values.email, turnstileToken);
       if (!result.success) {
         setServerError(result.error ?? errorTitle("RESET_FAILED"));
         setSubmitting(false);

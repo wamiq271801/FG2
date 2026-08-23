@@ -7,7 +7,7 @@
 import type { Env } from "../config/env";
 import { supabaseAuthFetch, supabaseSignup } from "../infrastructure/supabase";
 import { fail, success } from "../http/response";
-import { validateRegistration, validateEmailOnly } from "./validation";
+import { validateRegistration, validateEmailWithTurnstile } from "./validation";
 import {
   checkRegisterIp,
   checkRegisterEmail,
@@ -57,7 +57,7 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
   const emailAllowed = await checkRegisterEmail(env, email);
   if (!emailAllowed) return fail("RATE_LIMITED", undefined, 429);
 
-  const turnstileOk = await verifyTurnstile(env, turnstileToken, ip);
+  const turnstileOk = await verifyTurnstile(env, turnstileToken, "signup", ip);
   if (!turnstileOk) return fail("TURNSTILE_FAILED", undefined, 422);
 
   const token          = generateAuthorizationToken();
@@ -102,14 +102,15 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
 // OTP resend rate limits:
 //   Email: 3 per 24 hours
 //   IP:    5 per 5 minutes (burst protection)
+//   Turnstile: required with action "otp_resend"
 
 export async function handleResendSignup(request: Request, env: Env): Promise<Response> {
   const ip   = clientIp(request);
   const body = await request.json().catch(() => null);
-  const validation = validateEmailOnly(body);
+  const validation = validateEmailWithTurnstile(body);
   if (!validation.ok) return fail("VALIDATION_ERROR", validation.error);
 
-  const { email } = validation.data;
+  const { email, turnstileToken } = validation.data;
 
   // Email limit: 3 per 24 hours
   const emailAllowed = await checkOtpResendEmail(env, email);
@@ -118,6 +119,10 @@ export async function handleResendSignup(request: Request, env: Env): Promise<Re
   // IP burst: 5 per 5 minutes
   const ipAllowed = await checkOtpResendIp(env, ip);
   if (!ipAllowed) return fail("RATE_LIMITED", undefined, 429);
+
+  // Turnstile verification
+  const turnstileOk = await verifyTurnstile(env, turnstileToken, "otp_resend", ip);
+  if (!turnstileOk) return fail("TURNSTILE_FAILED", undefined, 422);
 
   const result = await supabaseAuthFetch(env, "/auth/v1/resend", {
     email,
@@ -134,6 +139,7 @@ export async function handleResendSignup(request: Request, env: Env): Promise<Re
 //   Email:   1 per 24 hours
 //   IP:      3 per 24 hours
 //   Cooldown: 24-hour lockout after a successful reset
+//   Turnstile: required with action "password_reset"
 //
 // Enumeration-safe: always returns success regardless of whether the email
 // exists. Supabase silently no-ops for unknown emails.
@@ -141,10 +147,10 @@ export async function handleResendSignup(request: Request, env: Env): Promise<Re
 export async function handleResetPassword(request: Request, env: Env): Promise<Response> {
   const ip   = clientIp(request);
   const body = await request.json().catch(() => null);
-  const validation = validateEmailOnly(body);
+  const validation = validateEmailWithTurnstile(body);
   if (!validation.ok) return fail("VALIDATION_ERROR", validation.error);
 
-  const { email } = validation.data;
+  const { email, turnstileToken } = validation.data;
 
   // Post-reset cooldown: if a successful reset was recorded in the last 24h,
   // reject immediately before the request reaches Supabase.
@@ -158,6 +164,10 @@ export async function handleResetPassword(request: Request, env: Env): Promise<R
   // IP limit: 3 per 24 hours
   const ipAllowed = await checkPasswordResetIp(env, ip);
   if (!ipAllowed) return fail("RATE_LIMITED", undefined, 429);
+
+  // Turnstile verification
+  const turnstileOk = await verifyTurnstile(env, turnstileToken, "password_reset", ip);
+  if (!turnstileOk) return fail("TURNSTILE_FAILED", undefined, 422);
 
   // Enumeration-safe — always succeed externally
   const result = await supabaseAuthFetch(env, "/auth/v1/recover", { email });

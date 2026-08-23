@@ -6,6 +6,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { CartProvider } from "@/providers/CartProvider";
 import { AuthProvider } from "@/providers/AuthProvider";
+import { TurnstileProvider } from "@/providers/TurnstileProvider";
 import { RouteGuard } from "@/providers/RouteGuard";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { NavigationProgress } from "@/components/layout/NavigationProgress";
@@ -112,22 +113,24 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AuthProvider>
-            <CartProvider>
-              <RouteGuard>
-                <a
-                  href="#main"
-                  className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:shadow-lg"
-                >
-                  Skip to content
-                </a>
-                <NavigationProgress />
-                <SiteHeader />
-                <main id="main" className="flex-1">
-                  {children}
-                </main>
-                <OperationOverlay />
-              </RouteGuard>
-            </CartProvider>
+            <TurnstileProvider>
+              <CartProvider>
+                <RouteGuard>
+                  <a
+                    href="#main"
+                    className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:shadow-lg"
+                  >
+                    Skip to content
+                  </a>
+                  <NavigationProgress />
+                  <SiteHeader />
+                  <main id="main" className="flex-1">
+                    {children}
+                  </main>
+                  <OperationOverlay />
+                </RouteGuard>
+              </CartProvider>
+            </TurnstileProvider>
           </AuthProvider>
         </ThemeProvider>
         <Toaster />

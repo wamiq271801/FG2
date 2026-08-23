@@ -35,14 +35,20 @@ export async function register(
   return { success: true };
 }
 
-export async function resendSignupOtp(email: string): Promise<{ success: boolean; error?: string }> {
-  const result = await workerPost("auth/resend-signup", { email });
+export async function resendSignupOtp(
+  email: string,
+  turnstileToken: string
+): Promise<{ success: boolean; error?: string }> {
+  const result = await workerPost("auth/resend-signup", { email, turnstileToken });
   if (!result.success) return { success: false, error: resolveWorkerError(result.error) };
   return { success: true };
 }
 
-export async function requestPasswordReset(email: string): Promise<{ success: boolean; error?: string }> {
-  const result = await workerPost("auth/reset-password", { email });
+export async function requestPasswordReset(
+  email: string,
+  turnstileToken: string
+): Promise<{ success: boolean; error?: string }> {
+  const result = await workerPost("auth/reset-password", { email, turnstileToken });
   if (!result.success) return { success: false, error: resolveWorkerError(result.error) };
   return { success: true };
 }

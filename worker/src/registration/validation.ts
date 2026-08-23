@@ -55,3 +55,16 @@ export function validateEmailOnly(body: unknown): {
   if (!isValidEmail(email)) return { ok: false, error: "Enter a valid email address." };
   return { ok: true, data: { email } };
 }
+
+export function validateEmailWithTurnstile(body: unknown): {
+  ok: true;
+  data: { email: string; turnstileToken: string };
+} | { ok: false; error: string } {
+  if (typeof body !== "object" || body === null) return { ok: false, error: "Invalid request body." };
+  const b = body as Record<string, unknown>;
+  const email          = typeof b.email          === "string" ? normalizeEmail(b.email) : "";
+  const turnstileToken = typeof b.turnstileToken  === "string" ? b.turnstileToken.trim() : "";
+  if (!isValidEmail(email)) return { ok: false, error: "Enter a valid email address." };
+  if (!turnstileToken)      return { ok: false, error: "Verification failed. Please try again." };
+  return { ok: true, data: { email, turnstileToken } };
+}
