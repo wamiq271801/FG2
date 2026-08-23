@@ -21,12 +21,22 @@ export async function handleCreateOrder(request: Request, env: Env): Promise<Res
   const ip = clientIp(request);
 
   // 2. User rate limit: 5 per 15 minutes (per implementation.md)
-  const userAllowed = await checkOrderCreationUser(env, user.id);
-  if (!userAllowed) return fail("RATE_LIMITED", "Too many checkout attempts. Please wait a moment.", 429);
+  const userResult = await checkOrderCreationUser(env, user.id);
+  if (!userResult.allowed) {
+    if (userResult.reason === "infrastructure_error") {
+      return fail("RATE_LIMITED", undefined, 429);
+    }
+    return fail("RATE_LIMITED", "Too many checkout attempts. Please wait a moment.", 429);
+  }
 
   // 3. IP burst protection: 10 per 5 minutes (per implementation.md)
-  const ipAllowed = await checkOrderCreationIp(env, ip);
-  if (!ipAllowed) return fail("RATE_LIMITED", "Too many requests. Please try again shortly.", 429);
+  const ipResult = await checkOrderCreationIp(env, ip);
+  if (!ipResult.allowed) {
+    if (ipResult.reason === "infrastructure_error") {
+      return fail("RATE_LIMITED", undefined, 429);
+    }
+    return fail("RATE_LIMITED", "Too many requests. Please try again shortly.", 429);
+  }
 
   // 4. Validate minimal payload
   const body = await request.json().catch(() => null);

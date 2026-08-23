@@ -16,7 +16,7 @@ import {
   checkPasswordResetEmail,
   checkPasswordResetIp,
   checkPasswordResetCooldown,
-  recordPasswordResetSuccess,
+  recordPasswordResetCooldown,
   clientIp,
 } from "../security/rate-limit";
 import { verifyTurnstile } from "../infrastructure/turnstile";
@@ -26,6 +26,22 @@ import {
   generateAuthorizationToken,
   sha256Hex,
 } from "./authorization";
+
+// ─── Helper: handle rate-limit result ────────────────────────────────────
+//
+// Converts a RateLimitResult into the appropriate Worker error response.
+// Distinguishes infrastructure failures from actual rate-limit rejections.
+
+function rateLimitFail(
+  result: { allowed: boolean; reason?: "rate_limited" | "infrastructure_error" },
+  rateLimitCode: "RATE_LIMITED" | "OTP_RESEND_RATE_LIMITED" = "RATE_LIMITED"
+): ReturnType<typeof fail> | null {
+  if (result.allowed) return null;
+  if (result.reason === "infrastructure_error") {
+    return fail("RATE_LIMITED", undefined, 429);
+  }
+  return fail(rateLimitCode, undefined, 429);
+}
 
 // ─── Register ─────────────────────────────────────────────────────────────
 //
@@ -44,8 +60,9 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
   const ip = clientIp(request);
 
   // IP rate limit: 5 per 15 minutes
-  const ipAllowed = await checkRegisterIp(env, ip);
-  if (!ipAllowed) return fail("RATE_LIMITED", undefined, 429);
+  const ipResult = await checkRegisterIp(env, ip);
+  const ipFail = rateLimitFail(ipResult);
+  if (ipFail) return ipFail;
 
   const body = await request.json().catch(() => null);
   const validation = validateRegistration(body);
@@ -54,8 +71,9 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
   const { email, password, turnstileToken } = validation.data;
 
   // Email rate limit: 3 per 15 minutes
-  const emailAllowed = await checkRegisterEmail(env, email);
-  if (!emailAllowed) return fail("RATE_LIMITED", undefined, 429);
+  const emailResult = await checkRegisterEmail(env, email);
+  const emailFail = rateLimitFail(emailResult);
+  if (emailFail) return emailFail;
 
   const turnstileOk = await verifyTurnstile(env, turnstileToken, "signup", ip);
   if (!turnstileOk) return fail("TURNSTILE_FAILED", undefined, 422);
@@ -113,12 +131,14 @@ export async function handleResendSignup(request: Request, env: Env): Promise<Re
   const { email, turnstileToken } = validation.data;
 
   // Email limit: 3 per 24 hours
-  const emailAllowed = await checkOtpResendEmail(env, email);
-  if (!emailAllowed) return fail("OTP_RESEND_RATE_LIMITED", undefined, 429);
+  const emailResult = await checkOtpResendEmail(env, email);
+  const emailFail = rateLimitFail(emailResult, "OTP_RESEND_RATE_LIMITED");
+  if (emailFail) return emailFail;
 
   // IP burst: 5 per 5 minutes
-  const ipAllowed = await checkOtpResendIp(env, ip);
-  if (!ipAllowed) return fail("RATE_LIMITED", undefined, 429);
+  const ipResult = await checkOtpResendIp(env, ip);
+  const ipFail = rateLimitFail(ipResult);
+  if (ipFail) return ipFail;
 
   // Turnstile verification
   const turnstileOk = await verifyTurnstile(env, turnstileToken, "otp_resend", ip);
@@ -136,10 +156,19 @@ export async function handleResendSignup(request: Request, env: Env): Promise<Re
 // ─── Password Reset ────────────────────────────────────────────────────────
 //
 // Password reset rate limits (intentionally aggressive):
-//   Email:   1 per 24 hours
-//   IP:      3 per 24 hours
-//   Cooldown: 24-hour lockout after a successful reset
+//   Email:   1 per 24 hours (attempt limit)
+//   IP:      3 per 24 hours (attempt limit)
+//   Cooldown: 24-hour lockout after a successful reset (dedicated cooldown)
 //   Turnstile: required with action "password_reset"
+//
+// Flow:
+//   1. Validate email
+//   2. Check email attempt limit
+//   3. Check IP attempt limit
+//   4. Check successful-reset cooldown (READ-ONLY)
+//   5. Turnstile verification
+//   6. Supabase /auth/v1/recover
+//   7. If recovery acknowledged → record cooldown
 //
 // Enumeration-safe: always returns success regardless of whether the email
 // exists. Supabase silently no-ops for unknown emails.
@@ -152,18 +181,21 @@ export async function handleResetPassword(request: Request, env: Env): Promise<R
 
   const { email, turnstileToken } = validation.data;
 
+  // Email attempt limit: 1 per 24 hours
+  const emailResult = await checkPasswordResetEmail(env, email);
+  const emailFail = rateLimitFail(emailResult);
+  if (emailFail) return emailFail;
+
+  // IP attempt limit: 3 per 24 hours
+  const ipResult = await checkPasswordResetIp(env, ip);
+  const ipFail = rateLimitFail(ipResult);
+  if (ipFail) return ipFail;
+
   // Post-reset cooldown: if a successful reset was recorded in the last 24h,
-  // reject immediately before the request reaches Supabase.
-  const cooldownAllowed = await checkPasswordResetCooldown(env, email);
-  if (!cooldownAllowed) return fail("RATE_LIMITED", undefined, 429);
-
-  // Email limit: 1 per 24 hours
-  const emailAllowed = await checkPasswordResetEmail(env, email);
-  if (!emailAllowed) return fail("RATE_LIMITED", undefined, 429);
-
-  // IP limit: 3 per 24 hours
-  const ipAllowed = await checkPasswordResetIp(env, ip);
-  if (!ipAllowed) return fail("RATE_LIMITED", undefined, 429);
+  // reject immediately before the request reaches Turnstile or Supabase.
+  const cooldownResult = await checkPasswordResetCooldown(env, email);
+  const cooldownFail = rateLimitFail(cooldownResult);
+  if (cooldownFail) return cooldownFail;
 
   // Turnstile verification
   const turnstileOk = await verifyTurnstile(env, turnstileToken, "password_reset", ip);
@@ -172,12 +204,12 @@ export async function handleResetPassword(request: Request, env: Env): Promise<R
   // Enumeration-safe — always succeed externally
   const result = await supabaseAuthFetch(env, "/auth/v1/recover", { email });
 
-  // Record success only when Supabase acknowledged the request.
+  // Record cooldown only when Supabase acknowledged the request.
   // Unknown emails return 200 (Supabase no-ops silently) so this fires
   // for real resets and for unknown emails equally — intentional. The
   // cooldown protects the endpoint from enumeration regardless.
   if (result.ok) {
-    await recordPasswordResetSuccess(env, email);
+    await recordPasswordResetCooldown(env, email);
   }
 
   return success();

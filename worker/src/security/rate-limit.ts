@@ -36,7 +36,7 @@ import { supabaseRestFetch } from "../infrastructure/supabase";
 // deployment. If the key is rotated, the existing rate-limit records become
 // unreachable (they will expire naturally via the window DELETE).
 
-async function hmacHex(env: Env, input: string): Promise<string> {
+export async function hmacHex(env: Env, input: string): Promise<string> {
   const enc = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
@@ -54,11 +54,22 @@ async function hmacHex(env: Env, input: string): Promise<string> {
   return hex;
 }
 
+// ─── Rate-limit result type ───────────────────────────────────────────────
+//
+// Distinguishes between:
+//   { allowed: true }           — request permitted
+//   { allowed: false }          — actual rate-limit rejection
+//   { allowed: false, error }   — infrastructure failure (RPC error)
+
+export type RateLimitResult =
+  | { allowed: true }
+  | { allowed: false; reason: "rate_limited" | "infrastructure_error" };
+
 // ─── Core check ──────────────────────────────────────────────────────────
 //
 // Calls the check_rate_limit(action, dimension, subject_hash, max, window)
-// RPC atomically (delete expired → insert → count).
-// Returns true = allowed, false = rate-limited.
+// RPC atomically (delete expired → insert → count → return).
+// Returns a RateLimitResult distinguishing rate-limit from infrastructure error.
 
 async function checkRateLimitRpc(
   env: Env,
@@ -67,7 +78,7 @@ async function checkRateLimitRpc(
   subjectHash: string,
   max: number,
   windowSeconds: number
-): Promise<boolean> {
+): Promise<RateLimitResult> {
   const result = await supabaseRestFetch(
     env,
     "POST",
@@ -80,19 +91,68 @@ async function checkRateLimitRpc(
       p_window_seconds:  windowSeconds,
     }
   );
-  return result.ok && result.data === true;
+
+  // Infrastructure failure (network error, timeout, non-2xx response)
+  if (!result.ok) {
+    return { allowed: false, reason: "infrastructure_error" };
+  }
+
+  // RPC returned a value — check if it's the expected boolean
+  if (typeof result.data !== "boolean") {
+    return { allowed: false, reason: "infrastructure_error" };
+  }
+
+  return result.data ? { allowed: true } : { allowed: false, reason: "rate_limited" };
+}
+
+// ─── Cooldown RPC ────────────────────────────────────────────────────────
+//
+// Calls the dedicated cooldown functions for password-reset success tracking.
+// These are separate from the generic rate limiter.
+
+async function callCooldownRpc(
+  env: Env,
+  functionName: string,
+  emailHash: string,
+  windowSeconds?: number
+): Promise<RateLimitResult> {
+  const params: Record<string, unknown> = { p_email_hash: emailHash };
+  if (windowSeconds !== undefined) {
+    params.p_window_seconds = windowSeconds;
+  }
+
+  const result = await supabaseRestFetch(
+    env,
+    "POST",
+    `/rest/v1/rpc/${functionName}`,
+    params
+  );
+
+  if (!result.ok) {
+    return { allowed: false, reason: "infrastructure_error" };
+  }
+
+  if (functionName === "check_password_reset_cooldown") {
+    return result.data === true
+      ? { allowed: true }
+      : { allowed: false, reason: "rate_limited" };
+  }
+
+  // record_password_reset_cooldown doesn't return a value — success means recorded
+  return { allowed: true };
 }
 
 // ─── Public rate-limit checks ─────────────────────────────────────────────
 //
 // One named function per action + dimension combination.
 // Callers never construct rate-limit keys manually — all key logic lives here.
+// Each function returns RateLimitResult for proper error handling.
 
 /**
  * Registration — IP dimension.
  * Policy: 5 attempts per 15 minutes.
  */
-export async function checkRegisterIp(env: Env, ip: string): Promise<boolean> {
+export async function checkRegisterIp(env: Env, ip: string): Promise<RateLimitResult> {
   const hash = await hmacHex(env, ip);
   return checkRateLimitRpc(env, "register", "ip", hash, 5, 900);
 }
@@ -101,7 +161,7 @@ export async function checkRegisterIp(env: Env, ip: string): Promise<boolean> {
  * Registration — email dimension.
  * Policy: 3 attempts per 15 minutes.
  */
-export async function checkRegisterEmail(env: Env, email: string): Promise<boolean> {
+export async function checkRegisterEmail(env: Env, email: string): Promise<RateLimitResult> {
   const hash = await hmacHex(env, email);
   return checkRateLimitRpc(env, "register", "email", hash, 3, 900);
 }
@@ -110,7 +170,7 @@ export async function checkRegisterEmail(env: Env, email: string): Promise<boole
  * OTP resend — email dimension.
  * Policy: 3 attempts per 24 hours.
  */
-export async function checkOtpResendEmail(env: Env, email: string): Promise<boolean> {
+export async function checkOtpResendEmail(env: Env, email: string): Promise<RateLimitResult> {
   const hash = await hmacHex(env, email);
   return checkRateLimitRpc(env, "otp_resend", "email", hash, 3, 86400);
 }
@@ -120,7 +180,7 @@ export async function checkOtpResendEmail(env: Env, email: string): Promise<bool
  * Policy: 5 per 5 minutes.
  * Defined value: 5/300 — applied consistently per implementation.md requirement.
  */
-export async function checkOtpResendIp(env: Env, ip: string): Promise<boolean> {
+export async function checkOtpResendIp(env: Env, ip: string): Promise<RateLimitResult> {
   const hash = await hmacHex(env, ip);
   return checkRateLimitRpc(env, "otp_resend", "ip", hash, 5, 300);
 }
@@ -129,7 +189,7 @@ export async function checkOtpResendIp(env: Env, ip: string): Promise<boolean> {
  * Password reset — email dimension.
  * Policy: 1 attempt per 24 hours (intentionally aggressive).
  */
-export async function checkPasswordResetEmail(env: Env, email: string): Promise<boolean> {
+export async function checkPasswordResetEmail(env: Env, email: string): Promise<RateLimitResult> {
   const hash = await hmacHex(env, email);
   return checkRateLimitRpc(env, "password_reset", "email", hash, 1, 86400);
 }
@@ -138,30 +198,28 @@ export async function checkPasswordResetEmail(env: Env, email: string): Promise<
  * Password reset — IP dimension.
  * Policy: 3 attempts per 24 hours.
  */
-export async function checkPasswordResetIp(env: Env, ip: string): Promise<boolean> {
+export async function checkPasswordResetIp(env: Env, ip: string): Promise<RateLimitResult> {
   const hash = await hmacHex(env, ip);
   return checkRateLimitRpc(env, "password_reset", "ip", hash, 3, 86400);
 }
 
 /**
- * Password reset — post-success cooldown on email.
+ * Password reset — post-success cooldown check (READ-ONLY).
  * Policy: after a successful reset, block another reset for 24 hours.
- * Uses a separate action key so the pre-reset limit and post-reset cooldown
- * are tracked independently.
+ * Returns true if NO active cooldown exists (allowed to proceed).
  */
-export async function recordPasswordResetSuccess(env: Env, email: string): Promise<void> {
+export async function checkPasswordResetCooldown(env: Env, email: string): Promise<RateLimitResult> {
   const hash = await hmacHex(env, email);
-  // Insert a single entry under the cooldown action.
-  // The check function will count it within the 24h window.
-  // We intentionally set max=0 so any subsequent call returns false.
-  await checkRateLimitRpc(env, "password_reset_cooldown", "email", hash, 0, 86400);
+  return callCooldownRpc(env, "check_password_reset_cooldown", hash, 86400);
 }
 
-export async function checkPasswordResetCooldown(env: Env, email: string): Promise<boolean> {
+/**
+ * Password reset — record successful cooldown (WRITE).
+ * Called ONLY after Supabase recovery is successfully acknowledged.
+ */
+export async function recordPasswordResetCooldown(env: Env, email: string): Promise<void> {
   const hash = await hmacHex(env, email);
-  // max=0 means even 1 existing entry = rate-limited.
-  // Returns true (allowed) only when the window contains no entries yet.
-  return checkRateLimitRpc(env, "password_reset_cooldown", "email", hash, 0, 86400);
+  await callCooldownRpc(env, "record_password_reset_cooldown", hash);
 }
 
 /**
@@ -169,7 +227,7 @@ export async function checkPasswordResetCooldown(env: Env, email: string): Promi
  * Policy: 5 attempts per 15 minutes.
  * User UUID is stored directly (not hashed — UUID is not sensitive PII).
  */
-export async function checkOrderCreationUser(env: Env, userId: string): Promise<boolean> {
+export async function checkOrderCreationUser(env: Env, userId: string): Promise<RateLimitResult> {
   return checkRateLimitRpc(env, "order_create", "user", userId, 5, 900);
 }
 
@@ -178,7 +236,7 @@ export async function checkOrderCreationUser(env: Env, userId: string): Promise<
  * Policy: 10 per 5 minutes.
  * Defined value: 10/300 — applied consistently per implementation.md requirement.
  */
-export async function checkOrderCreationIp(env: Env, ip: string): Promise<boolean> {
+export async function checkOrderCreationIp(env: Env, ip: string): Promise<RateLimitResult> {
   const hash = await hmacHex(env, ip);
   return checkRateLimitRpc(env, "order_create", "ip", hash, 10, 300);
 }

@@ -32,11 +32,14 @@ export type AuthUser = {
 
 export type AuthState = "initializing" | "authenticated" | "unauthenticated";
 
+export type RecoveryState = "none" | "recovering";
+
 export type OnboardingState = "resolving" | "complete" | "incomplete" | "not-required";
 
 type AuthContextValue = {
   user: AuthUser | null;
   state: AuthState;
+  recoveryState: RecoveryState;
   onboardingState: OnboardingState;
   ready: boolean;
   refreshOnboarding: () => Promise<void>;
@@ -45,6 +48,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue>({
   user: null,
   state: "initializing",
+  recoveryState: "none",
   onboardingState: "resolving",
   ready: false,
   refreshOnboarding: async () => {},
@@ -72,6 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [state, setState] = useState<AuthState>("initializing");
+  const [recoveryState, setRecoveryState] = useState<RecoveryState>("none");
   const [onboardingState, setOnboardingState] = useState<OnboardingState>("resolving");
   const mergedForUserId = useRef<string | null>(null);
   const loadedUserId = useRef<string | null>(null);
@@ -163,6 +168,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!mounted) return;
       const u = toAuthUser(session?.user ?? null);
 
+      // Handle PASSWORD_RECOVERY event — this fires when the user clicks a
+      // recovery link and Supabase establishes a recovery session.
+      // The session contains a user, but the intent is password reset, not normal auth.
+      if (event === "PASSWORD_RECOVERY") {
+        setRecoveryState("recovering");
+        // Still publish identity so the recovery session is recognized
+        publishIdentity(u);
+        return;
+      }
+
+      // Clear recovery state on any other auth event
+      if (recoveryState === "recovering" && event !== "TOKEN_REFRESHED") {
+        setRecoveryState("none");
+      }
+
       // 1) Publish identity IMMEDIATELY — Header, AccountGate, review
       //    controls etc. re-render from context without waiting for any
       //    downstream data (cart/wishlist/orders/profile/onboarding).
@@ -209,11 +229,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       user,
       state,
+      recoveryState,
       onboardingState,
       ready: state !== "initializing",
       refreshOnboarding,
     }),
-    [user, state, onboardingState]
+    [user, state, recoveryState, onboardingState]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

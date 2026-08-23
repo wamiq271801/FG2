@@ -10,6 +10,7 @@
  * Policy:
  *   - auth initializing / onboarding resolving → render children (no enforcement)
  *   - unauthenticated → render children (normal public/auth access)
+ *   - recovery session + reset-password route → render children (ALLOW recovery)
  *   - authenticated + auth-only route → null + replace("/")
  *   - authenticated + incomplete + not /account/onboarding → null + replace(/account/onboarding)
  *   - authenticated + incomplete + /account/onboarding → render children
@@ -30,6 +31,7 @@ const AUTH_ONLY_ROUTES = new Set([
 ]);
 
 const ONBOARDING_PATH = "/account/onboarding";
+const RESET_PASSWORD_PATH = "/auth/reset-password";
 
 function isSafeReturnTo(path: string): boolean {
   return path.startsWith("/") && !path.startsWith("//");
@@ -38,7 +40,7 @@ function isSafeReturnTo(path: string): boolean {
 export function RouteGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, state: authState, onboardingState } = useAuthContext();
+  const { user, state: authState, recoveryState, onboardingState } = useAuthContext();
   const navigatedRef = useRef<string | null>(null);
 
   // ── DETERMINE IF ROUTE IS ALLOWED ─────────────────────────────────────
@@ -46,8 +48,17 @@ export function RouteGuard({ children }: { children: React.ReactNode }) {
     // During bootstrap or resolving — allow rendering, no enforcement.
     if (authState === "initializing" || onboardingState === "resolving") return true;
 
+    // Recovery session + reset-password route → ALLOW (the only allowed path during recovery).
+    if (recoveryState === "recovering" && pathname === RESET_PASSWORD_PATH) return true;
+
+    // Recovery session + any other route → BLOCK (stay on reset-password).
+    if (recoveryState === "recovering") return false;
+
     // Unauthenticated — normal public/auth page access.
     if (authState === "unauthenticated" || !user) return true;
+
+    // Authenticated + reset-password route → NOT allowed (must be recovery session).
+    if (pathname === RESET_PASSWORD_PATH) return false;
 
     // Authenticated + auth-only route → NOT allowed.
     if (AUTH_ONLY_ROUTES.has(pathname)) return false;
@@ -78,8 +89,20 @@ export function RouteGuard({ children }: { children: React.ReactNode }) {
     if (navigatedRef.current === pathname) return;
     navigatedRef.current = pathname;
 
+    // Recovery session + non-reset route → go to reset-password (stay in recovery flow).
+    if (recoveryState === "recovering" && pathname !== RESET_PASSWORD_PATH) {
+      router.replace(RESET_PASSWORD_PATH);
+      return;
+    }
+
     // Auth-only route → go home.
     if (AUTH_ONLY_ROUTES.has(pathname)) {
+      router.replace("/");
+      return;
+    }
+
+    // Authenticated + reset-password route (without recovery) → go home.
+    if (pathname === RESET_PASSWORD_PATH) {
       router.replace("/");
       return;
     }
@@ -96,7 +119,7 @@ export function RouteGuard({ children }: { children: React.ReactNode }) {
       router.replace("/");
       return;
     }
-  }, [isAllowed, authState, onboardingState, pathname, router]);
+  }, [isAllowed, authState, recoveryState, onboardingState, pathname, router]);
 
   // ── RENDER ────────────────────────────────────────────────────────────
   // If route is not allowed, render nothing (prevents forbidden page flash).
