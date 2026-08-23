@@ -167,7 +167,7 @@ export function useOrder(id: string) {
   const { user } = useAuthContext();
   const userId = user?.id ?? null;
   const [order, setOrder] = useState<Order | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!userId) { setOrder(null); setLoading(false); return; }
