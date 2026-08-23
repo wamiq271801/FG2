@@ -53,7 +53,7 @@ export function OnboardingPageContent() {
   if (!profile) return null;
 
   return (
-    <div className="mt-8 max-w-lg">
+    <div className="mt-8 mx-auto max-w-lg">
       <OnboardingFlow profile={profile} onComplete={handleComplete} />
     </div>
   );
