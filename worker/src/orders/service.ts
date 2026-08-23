@@ -124,7 +124,7 @@ export async function handleCheckoutSummary(request: Request, env: Env): Promise
     "GET",
     `/rest/v1/cart_items?user_id=eq.${encodeURIComponent(user.id)}` +
     `&select=product_id,quantity,product:products!fk_cart_items_product_id(` +
-    `id,slug,name,price,compare_at,stock,is_preorder,is_active,visual_key,accent,sku)`,
+    `id,slug,name,price,compare_at_price,stock,is_preorder,is_active,visual_key,accent,sku)`,
   );
 
   if (!result.ok) return fail("SUMMARY_FAILED", undefined, 500);
@@ -134,7 +134,7 @@ export async function handleCheckoutSummary(request: Request, env: Env): Promise
     quantity: number;
     product: {
       id: string; slug: string; name: string;
-      price: number; compare_at: number | null;
+      price: number; compare_at_price: number | null;
       stock: number | null; is_preorder: boolean; is_active: boolean;
       visual_key: string; accent: string; sku: string;
     } | null;
@@ -156,8 +156,8 @@ export async function handleCheckoutSummary(request: Request, env: Env): Promise
     if (!p) return null;
 
     const unitPrice    = p.price;
-    const lineDiscount = p.compare_at && p.compare_at > p.price
-      ? (p.compare_at - p.price) * row.quantity
+    const lineDiscount = p.compare_at_price && p.compare_at_price > p.price
+      ? (p.compare_at_price - p.price) * row.quantity
       : 0;
     const lineTotal = unitPrice * row.quantity;
 

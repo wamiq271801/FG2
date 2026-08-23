@@ -54,7 +54,7 @@ export function ProductCard({ product, className, compact, priority }: Props) {
           )}
           {/* Derived badge states — from authoritative product/offer state.
               No product_badges table. Per implementation.md:
-              Sale → compare_at > price | New → addedAt within 60 days
+              Sale → compare_at_price > price | New → addedAt within 60 days
               Preorder → isPreorder | Out of stock → availability */}
           <div className="absolute left-3 top-3 flex flex-col items-start gap-1.5">
             {product.compareAt && product.compareAt > product.price && (
