@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,11 +16,10 @@ type Props = {
   onComplete: () => void;
 };
 
-// Step driven by persisted onboarding_state — resumes correctly after browser closure.
-// profile_required (incomplete)  → Step 1: name + phone
-// address_optional               → Step 2: address or skip
 export function OnboardingFlow({ profile, onComplete }: Props) {
-  const isStep2 = profile.onboarding_state === "address_optional";
+  const [currentStep, setCurrentStep] = useState<1 | 2>(
+    profile.onboarding_state === "address_optional" ? 2 : 1
+  );
 
   // Step 1 state
   const [fullName, setFullName] = useState(profile.full_name ?? "");
@@ -40,7 +38,7 @@ export function OnboardingFlow({ profile, onComplete }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { start: startOp, stop: stopOp } = useOperation();
 
-  // --- Step 1 ---
+  // --- Step 1 → advance to Step 2 (does NOT end onboarding) ---
   async function handleStep1() {
     setError(null);
     if (fullName.trim().length < 2) {
@@ -62,11 +60,10 @@ export function OnboardingFlow({ profile, onComplete }: Props) {
       setError(result.error);
       return;
     }
-    // onComplete triggers the gate to re-read persisted state → resumes Step 2
-    onComplete();
+    setCurrentStep(2);
   }
 
-  // --- Step 2 — save address ---
+  // --- Step 2 — save address → end onboarding ---
   async function handleStep2Save() {
     setError(null);
     if (!line1.trim() || !city.trim() || !state.trim() || !postcode.trim()) {
@@ -100,7 +97,7 @@ export function OnboardingFlow({ profile, onComplete }: Props) {
     onComplete();
   }
 
-  // --- Step 2 — skip address ---
+  // --- Step 2 — skip address → end onboarding ---
   async function handleStep2Skip() {
     setError(null);
     startOp("Finishing setup");
@@ -118,13 +115,13 @@ export function OnboardingFlow({ profile, onComplete }: Props) {
       {/* Step indicator */}
       <div>
         <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
-          Account setup · Step {isStep2 ? "2" : "1"} of 2
+          Account setup · Step {currentStep} of 2
         </p>
         <h1 className="mt-2 font-display text-3xl tracking-tight">
-          {isStep2 ? "Add a delivery address" : "Complete your profile"}
+          {currentStep === 2 ? "Add a delivery address" : "Complete your profile"}
         </h1>
         <p className="mt-3 text-pretty text-sm leading-relaxed text-muted-foreground">
-          {isStep2
+          {currentStep === 2
             ? "Add an address now or skip — you can always add one at checkout."
             : "We need your name and phone number to process orders."}
         </p>
@@ -136,7 +133,7 @@ export function OnboardingFlow({ profile, onComplete }: Props) {
         </Alert>
       )}
 
-      {!isStep2 ? (
+      {currentStep === 1 ? (
         /* ── Step 1: Profile ── */
         <div className="space-y-4">
           <div className="space-y-1.5">
