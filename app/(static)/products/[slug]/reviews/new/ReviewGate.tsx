@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useReviewEligibility } from "@/modules/review/useReviewEligibility";
+import { ReviewForm } from "@/components/review/ReviewForm";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 
@@ -17,11 +18,9 @@ type GateState =
 export function ReviewGate({
   productId,
   slug,
-  renderForm,
 }: {
   productId: string;
   slug: string;
-  renderForm: (productId: string) => React.ReactNode;
 }) {
   const router = useRouter();
   const eligibility = useReviewEligibility(productId);
@@ -84,7 +83,9 @@ export function ReviewGate({
   }
 
   if (state.status === "eligible") {
-    return <>{renderForm(productId)}</>;
+    // Rendered here rather than passed from the server page — functions
+    // cannot cross the Server→Client component boundary.
+    return <ReviewForm mode={{ kind: "create", productId }} slug={slug} />;
   }
 
   // hasReview → redirect is in-flight.

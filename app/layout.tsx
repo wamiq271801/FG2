@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Fraunces } from "next/font/google";
 import "./globals.css";
-import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
-import { ThemeProvider } from "@/providers/ThemeProvider";
 import { CartProvider } from "@/providers/CartProvider";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { TurnstileProvider } from "@/providers/TurnstileProvider";
@@ -97,7 +95,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en">
       <body
         className={cn(
           geistSans.variable,
@@ -106,34 +104,26 @@ export default function RootLayout({
           "antialiased bg-background text-foreground min-h-screen flex flex-col font-sans"
         )}
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="light"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <AuthProvider>
-            <TurnstileProvider>
-              <CartProvider>
-                <RouteGuard>
-                  <a
-                    href="#main"
-                    className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:shadow-lg"
-                  >
-                    Skip to content
-                  </a>
-                  <NavigationProgress />
-                  <SiteHeader />
-                  <main id="main" className="flex-1">
-                    {children}
-                  </main>
-                  <OperationOverlay />
-                </RouteGuard>
-              </CartProvider>
-            </TurnstileProvider>
-          </AuthProvider>
-        </ThemeProvider>
-        <Toaster />
+        <AuthProvider>
+          <TurnstileProvider>
+            <CartProvider>
+              <RouteGuard>
+                <a
+                  href="#main"
+                  className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:shadow-lg"
+                >
+                  Skip to content
+                </a>
+                <NavigationProgress />
+                <SiteHeader />
+                <main id="main" className="flex-1">
+                  {children}
+                </main>
+                <OperationOverlay />
+              </RouteGuard>
+            </CartProvider>
+          </TurnstileProvider>
+        </AuthProvider>
         <Sonner />
       </body>
     </html>

@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getProductBySlug } from "@/modules/catalog/products";
 import { ProductVisual } from "@/components/shared/ProductVisual";
-import { ReviewForm } from "@/components/review/ReviewForm";
 import { ReviewGate } from "./ReviewGate";
 
 export const revalidate = 0; // dynamic — auth-dependent
@@ -71,12 +70,11 @@ export default async function WriteReviewPage({ params }: { params: Params }) {
           </div>
         </header>
 
+        {/* The gate renders the form itself client-side — function props
+            cannot cross the Server→Client component boundary. */}
         <ReviewGate
           productId={product.id}
           slug={product.slug}
-          renderForm={(productId) => (
-            <ReviewForm mode={{ kind: "create", productId }} slug={product.slug} />
-          )}
         />
       </div>
     </main>

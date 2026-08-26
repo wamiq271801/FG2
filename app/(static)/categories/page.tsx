@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Link } from "@/components/shared/Link";
 import { ArrowRight } from "lucide-react";
-import { getAllCategories, getCategoryProductCount } from "@/modules/catalog/categories";
+import { getAllCategories, getCategoryProductCounts } from "@/modules/catalog/categories";
 import { ProductVisual } from "@/components/shared/ProductVisual";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import type { ProductVisualKey } from "@/types";
@@ -34,10 +34,11 @@ const visualForCategory: Record<string, ProductVisualKey> = {
 export const revalidate = 300;
 
 export default async function CategoriesPage() {
-  const categories = await getAllCategories();
-  const counts = await Promise.all(
-    categories.map((c) => getCategoryProductCount(c.id))
-  );
+  const [categories, countMap] = await Promise.all([
+    getAllCategories(),
+    getCategoryProductCounts(),
+  ]);
+  const counts = categories.map((c) => countMap.get(c.id) ?? 0);
 
   return (
     <div className="container-edge py-8 lg:py-12">

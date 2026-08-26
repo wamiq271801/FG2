@@ -13,17 +13,39 @@ import {
   X,
 } from "lucide-react";
 import { useCartContext } from "@/providers/CartProvider";
-import type { ResolvedCartLine } from "@/providers/CartProvider";
 import { useCart } from "@/modules/cart";
 import { useAuthContext } from "@/providers/AuthProvider";
+import { useProductsByIds } from "@/modules/catalog/useProducts";
 import { ProductVisual } from "@/components/shared/ProductVisual";
 import { QuantityStepper } from "@/components/product/QuantityStepper";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatPrice } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import type { Product } from "@/types";
+
+/**
+ * A resolved cart line: the stored cart line + current product data.
+ * Product details are resolved HERE (cart surface only) rather than in the
+ * global CartProvider, so unrelated routes never query product records.
+ */
+export type ResolvedCartLine = {
+  /** Cart line identity — the product UUID. */
+  productId: string;
+  quantity: number;
+  product: {
+    name: string;
+    /** URL slug from the resolved product — link generation only. */
+    slug: string;
+    price: number;
+    visualKey: string;
+    accent: string;
+    /** Derived availability string from is_active + is_preorder + stock. */
+    availability: string;
+    /** Numeric stock value for quantity constraints. */
+    stock: number;
+  };
+};
 
 type Props = {
   /** Suggested products shown in the empty state (server-rendered source). */
@@ -44,13 +66,40 @@ const SHIPPING_FLAT = 149;
  * component owns only the interactive cart surface.
  */
 export function CartItems({ suggestedProducts = [] }: Props) {
-  const { lines, ready, subtotal, count } = useCartContext();
+  const { lines: cartLines, ready } = useCartContext();
+
+  // Resolve display data by productId — only on the cart surface.
+  const productIds = [...new Set(cartLines.map((l) => l.productId))];
+  const { products, loading: productsLoading } = useProductsByIds(productIds);
+
+  const lines: ResolvedCartLine[] = cartLines
+    .map((line): ResolvedCartLine | null => {
+      const product = products.find((p) => p.id === line.productId);
+      if (!product) return null;
+      return {
+        productId: line.productId,
+        quantity: line.quantity,
+        product: {
+          name: product.name,
+          slug: product.slug,
+          price: product.price,
+          visualKey: product.visualKey,
+          accent: product.accent,
+          availability: product.availability,
+          stock: product.stock,
+        },
+      };
+    })
+    .filter((l): l is ResolvedCartLine => l !== null);
+
+  const count = lines.reduce((n, l) => n + l.quantity, 0);
+  const subtotal = lines.reduce((n, l) => n + l.quantity * l.product.price, 0);
 
   // Loading state — render a neutral skeleton until the cart store has
-  // rehydrated from localStorage. This avoids a hydration mismatch (the server
-  // always renders an empty cart; the client must wait for `ready` before
-  // showing persisted lines).
-  if (!ready) {
+  // rehydrated from localStorage AND display data is resolved. This avoids a
+  // hydration mismatch (the server always renders an empty cart; the client
+  // must wait for `ready` before showing persisted lines).
+  if (!ready || (cartLines.length > 0 && productsLoading)) {
     return <CartSkeleton />;
   }
 

@@ -13,7 +13,8 @@ import { ReviewActions } from "@/components/review/ReviewActions";
 
 export const revalidate = 300;
 
-type Params = Promise<{ slug: string; searchParams: { page?: string } }>;
+type Params = Promise<{ slug: string }>;
+type SearchParams = Promise<{ page?: string | string[] | undefined }>;
 
 export async function generateMetadata({
   params,
@@ -33,12 +34,19 @@ export async function generateMetadata({
 
 const PAGE_SIZE = 20;
 
-export default async function ProductReviewsPage({ params }: { params: Params }) {
-  const { slug, searchParams } = await params;
+export default async function ProductReviewsPage({
+  params,
+  searchParams,
+}: {
+  params: Params;
+  searchParams: SearchParams;
+}) {
+  const { slug } = await params;
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
-  const pageRaw = Number(searchParams.page);
+  const sp = await searchParams;
+  const pageRaw = Number(Array.isArray(sp.page) ? sp.page[0] : sp.page);
   const page = Number.isFinite(pageRaw) && pageRaw > 0 ? Math.floor(pageRaw) : 1;
 
   const [summary, { reviews, totalPages }] = await Promise.all([

@@ -1,14 +1,16 @@
 "use client"
 
-import { useTheme } from "next-themes"
 import { Toaster as Sonner, ToasterProps } from "sonner"
 
+/**
+ * App-wide Sonner toaster. The storefront ships a single light theme only,
+ * so the toast theme is pinned to "light" (identical to the previous
+ * next-themes-resolved value).
+ */
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
-
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme="light"
       className="toaster group"
       style={
         {

@@ -1,97 +1,51 @@
 "use client";
 
 import { createContext, useContext, useMemo, useRef } from "react";
-import { useCart, useCartLines } from "@/modules/cart";
-import { useProductsByIds } from "@/modules/catalog/useProducts";
+import { useCartLines, type CartLine } from "@/modules/cart";
 
 /**
- * A resolved cart line: the stored cart line + current product data.
- * productId is the UUID of the actual sellable product — the only identity.
+ * Global cart context — cart IDENTITY only (product ids + quantities).
+ *
+ * The header badge, guards and checkout gate need only membership/count, so
+ * the provider resolves no product data. Surfaces that must display product
+ * details (the cart page) resolve them locally via useProductsByIds, which
+ * reuses data already fetched during the session.
+ *
+ * A hold-last-good snapshot keeps the badge/cart from flashing empty during
+ * the guest→remote swap after sign-in: useCartLines keeps serving guest data
+ * until the remote load completes, and the last fully-ready snapshot is held
+ * while a transition is still in flight.
  */
-export type ResolvedCartLine = {
-  /** Cart line identity — the product UUID. */
-  productId: string;
-  quantity: number;
-  product: {
-    name: string;
-    /** URL slug from the resolved product — link generation only. */
-    slug: string;
-    price: number;
-    visualKey: string;
-    accent: string;
-    /** Derived availability string from is_active + is_preorder + stock. */
-    availability: string;
-    /** Numeric stock value for quantity constraints. */
-    stock: number;
-  };
-};
-
 type CartContextValue = {
-  lines: ResolvedCartLine[];
+  lines: CartLine[];
   count: number;
-  subtotal: number;
   ready: boolean;
 };
 
 const CartContext = createContext<CartContextValue>({
   lines: [],
   count: 0,
-  subtotal: 0,
   ready: false,
 });
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const { lines, ready, loading } = useCartLines();
+  const { lines, ready } = useCartLines();
 
-  // Resolve display data by productId.
-  const productIds = useMemo(
-    () => [...new Set(lines.map((l) => l.productId).filter(Boolean))],
+  const count = useMemo(
+    () => lines.reduce((n, l) => n + l.quantity, 0),
     [lines]
   );
-  const { products, loading: productsLoading } = useProductsByIds(productIds);
 
-  const resolvedLines: ResolvedCartLine[] = useMemo(() => {
-    return lines
-      .map((line): ResolvedCartLine | null => {
-        const product = products.find((p) => p.id === line.productId);
-        if (!product) return null;
-        return {
-          productId: line.productId,
-          quantity: line.quantity,
-          product: {
-            name: product.name,
-            slug: product.slug,
-            price: product.price,
-            visualKey: product.visualKey,
-            accent: product.accent,
-            availability: product.availability,
-            stock: product.stock,
-          },
-        };
-      })
-      .filter((l): l is ResolvedCartLine => l !== null);
-  }, [lines, products]);
-
-  const count = resolvedLines.reduce((n, l) => n + l.quantity, 0);
-  const subtotal = resolvedLines.reduce((n, l) => n + l.quantity * l.product.price, 0);
-
-  // During auth transition, useCartLines keeps returning guest data (ready=true)
-  // until remote data is loaded. Once remote data is loaded, ready=true and
-  // lines come from remote. If lines is empty but products are still loading,
-  // keep ready=false so the badge doesn't flash zero.
-  const fullyReady = ready && !loading && (productIds.length === 0 || !productsLoading);
-
-  const resolvedSnapshot = useMemo<CartContextValue>(
-    () => ({ lines: resolvedLines, count, subtotal, ready: true }),
-    [resolvedLines, count, subtotal]
+  const snapshot = useMemo<CartContextValue>(
+    () => ({ lines, count, ready: true }),
+    [lines, count]
   );
 
-  // Hold-last-good: right after the guest→remote swap, remote-only products
-  // briefly re-resolve display data. Serve the previous valid snapshot during
-  // that gap instead of flashing an empty cart / zero badge.
-  const lastGoodRef = useRef(resolvedSnapshot);
-  if (fullyReady) lastGoodRef.current = resolvedSnapshot;
-  const value = fullyReady ? resolvedSnapshot : lastGoodRef.current;
+  // Hold-last-good: while a load/merge is in flight (ready=false), keep
+  // serving the previous valid snapshot instead of flashing an empty cart.
+  const lastGoodRef = useRef(snapshot);
+  if (ready) lastGoodRef.current = snapshot;
+  const value = ready ? snapshot : lastGoodRef.current;
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

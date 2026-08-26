@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createClient } from "@/lib/supabase/client";
+import { invalidateReviewEligibility } from "@/modules/review/useReviewEligibility";
 import { useOperation } from "@/hooks/use-operation";
 
 type Mode =
@@ -49,6 +50,9 @@ export function ReviewForm({ mode, slug }: { mode: Mode; slug: string }) {
           body: body.trim(),
         });
         if (err) { setError(friendlyError(err.message)); stopOp(); setSubmitting(false); return; }
+        // The user now has a review for this product — drop the cached
+        // eligibility answer so review controls reflect the new state.
+        invalidateReviewEligibility(mode.productId);
       } else {
         const { error: err } = await supabase
           .from("product_reviews")

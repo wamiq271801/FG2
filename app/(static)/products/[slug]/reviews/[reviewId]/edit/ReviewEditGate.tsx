@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuthContext } from "@/providers/AuthProvider";
+import { ReviewForm } from "@/components/review/ReviewForm";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import type { Review } from "@/types";
@@ -16,10 +17,10 @@ type State =
 
 export function ReviewEditGate({
   review,
-  renderForm,
+  slug,
 }: {
   review: Review;
-  renderForm: () => React.ReactNode;
+  slug: string;
 }) {
   const router = useRouter();
   const { state: authState, user } = useAuthContext();
@@ -67,5 +68,16 @@ export function ReviewEditGate({
       </div>
     );
   }
-  return <>{renderForm()}</>;
+  // Rendered here rather than passed from the server page — functions
+  // cannot cross the Server→Client component boundary.
+  return (
+    <ReviewForm
+      mode={{
+        kind: "edit",
+        reviewId: review.id,
+        initial: { rating: review.rating, title: review.title, body: review.body },
+      }}
+      slug={slug}
+    />
+  );
 }

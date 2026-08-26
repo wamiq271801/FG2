@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { SearchResults } from "@/components/search/SearchResults";
 import { getTrendingProducts } from "@/modules/catalog/products";
-import { getAllCategories, getCategoryProductCount } from "@/modules/catalog/categories";
+import { getAllCategories, getCategoryProductCounts } from "@/modules/catalog/categories";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -39,16 +39,15 @@ export default async function SearchPage() {
   // Server-render the trending products + categories so the shell (landing +
   // empty states) renders instantly. The actual search query runs client-side
   // via the public Supabase client.
-  const [trendingProducts, categories] = await Promise.all([
+  const [trendingProducts, categories, countMap] = await Promise.all([
     getTrendingProducts(4),
     getAllCategories(),
+    getCategoryProductCounts(),
   ]);
-  const categoriesWithCounts = await Promise.all(
-    categories.map(async (c) => ({
-      ...c,
-      productCount: await getCategoryProductCount(c.id),
-    }))
-  );
+  const categoriesWithCounts = categories.map((c) => ({
+    ...c,
+    productCount: countMap.get(c.id) ?? 0,
+  }));
 
   return (
     <div className="container-edge py-8 lg:py-12">

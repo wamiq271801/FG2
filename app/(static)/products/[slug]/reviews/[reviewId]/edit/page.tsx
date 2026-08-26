@@ -4,7 +4,6 @@ import Link from "next/link";
 import { getProductBySlug } from "@/modules/catalog/products";
 import { getReviewById } from "@/modules/review/data";
 import { ProductVisual } from "@/components/shared/ProductVisual";
-import { ReviewForm } from "@/components/review/ReviewForm";
 import { ReviewEditGate } from "./ReviewEditGate";
 
 export const revalidate = 0;
@@ -73,19 +72,9 @@ export default async function EditReviewPage({ params }: { params: Params }) {
           </div>
         </header>
 
-        <ReviewEditGate
-          review={review}
-          renderForm={() => (
-            <ReviewForm
-              mode={{
-                kind: "edit",
-                reviewId: review.id,
-                initial: { rating: review.rating, title: review.title, body: review.body },
-              }}
-              slug={product.slug}
-            />
-          )}
-        />
+        {/* The gate renders the form itself client-side — function props
+            cannot cross the Server→Client component boundary. */}
+        <ReviewEditGate review={review} slug={product.slug} />
       </div>
     </main>
   );

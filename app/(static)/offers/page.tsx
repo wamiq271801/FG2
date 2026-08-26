@@ -10,10 +10,7 @@ import {
 } from "lucide-react";
 import { getOnSaleProducts, getProductsByIds } from "@/modules/catalog/products";
 import { getAllCategories } from "@/modules/catalog/categories";
-import {
-  getAllPromotions,
-  getPromotionBySlug,
-} from "@/modules/catalog/offers";
+import { getAllPromotions } from "@/modules/catalog/offers";
 import { ProductCard } from "@/components/shared/ProductCard";
 import { ProductVisual } from "@/components/shared/ProductVisual";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
@@ -47,12 +44,15 @@ const FEATURED_PROMO_SLUG = "festive-edit";
 export const revalidate = 300;
 
 export default async function OffersPage() {
-  const [promotions, featured, onSale, allCategories] = await Promise.all([
+  const [promotions, onSale, allCategories] = await Promise.all([
     getAllPromotions(),
-    getPromotionBySlug(FEATURED_PROMO_SLUG),
     getOnSaleProducts(),
     getAllCategories(),
   ]);
+  // The featured promo is part of the promotions list already fetched above
+  // (same status filter) — derive it instead of re-querying by slug.
+  const featured =
+    promotions.find((p) => p.slug === FEATURED_PROMO_SLUG) ?? undefined;
   const featuredProducts = featured
     ? await getProductsByIds(featured.productIds)
     : [];

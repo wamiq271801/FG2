@@ -3,7 +3,7 @@ import { Link } from "@/components/shared/Link";
 import { Suspense } from "react";
 import { ArrowRight, PackageOpen, SlidersHorizontal } from "lucide-react";
 import { getAllProducts } from "@/modules/catalog/products";
-import { getAllCategories, getCategoryProductCount } from "@/modules/catalog/categories";
+import { getAllCategories } from "@/modules/catalog/categories";
 import { getAllBrands } from "@/modules/catalog/brands";
 import {
   applyFilters,
@@ -93,9 +93,15 @@ async function ShopInner({
   const page = paginate(sorted, filters.page);
 
   // Facets: counts computed against the un-filtered-by-this-facet set.
-  const catCounts = await Promise.all(
-    allCategories.map((c) => getCategoryProductCount(c.id))
-  );
+  // Category counts come from the already-loaded product list — no extra
+  // per-category count queries.
+  const catCountMap = new Map<string, number>();
+  for (const p of allProducts) {
+    if (p.categoryId) {
+      catCountMap.set(p.categoryId, (catCountMap.get(p.categoryId) ?? 0) + 1);
+    }
+  }
+  const catCounts = allCategories.map((c) => catCountMap.get(c.id) ?? 0);
   const catFacets: FilterFacet[] = allCategories
     .map((c, i) => ({ slug: c.slug, name: c.name, count: catCounts[i] }))
     .filter((c) => c.count > 0);

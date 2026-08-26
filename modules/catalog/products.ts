@@ -9,6 +9,7 @@
  * consumed only by the product-detail page. No other surface loads it.
  */
 
+import { cache } from "react";
 import { createCatalogClient } from "@/lib/supabase/catalog";
 import type { Product, ProductVariation, VariationItem } from "@/types";
 import {
@@ -35,21 +36,28 @@ export async function getAllProducts(): Promise<Product[]> {
   return asRows<ProductRow>(data).map(mapProductRow);
 }
 
-/** Route-level resolution: the only place a slug identifies a product. */
-export async function getProductBySlug(
-  slug: string
-): Promise<Product | undefined> {
-  const supabase = createCatalogClient();
-  const { data, error } = await supabase
-    .from("products")
-    .select(PRODUCT_DETAIL_SELECT)
-    .eq("slug", slug)
-    .eq("is_active", true)
-    .maybeSingle();
-  if (error) throw error;
-  const row = asSingle<FullProductRow>(data);
-  return row ? mapProductRow(row) : undefined;
-}
+/**
+ * Route-level resolution: the only place a slug identifies a product.
+ *
+ * Memoized per request with React `cache` — generateMetadata() and page()
+ * both resolve the same slug within one render, and previously issued two
+ * identical Supabase queries. ISR behavior is unaffected: cache() scopes to
+ * the in-flight request, not across requests/revalidations.
+ */
+export const getProductBySlug = cache(
+  async (slug: string): Promise<Product | undefined> => {
+    const supabase = createCatalogClient();
+    const { data, error } = await supabase
+      .from("products")
+      .select(PRODUCT_DETAIL_SELECT)
+      .eq("slug", slug)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (error) throw error;
+    const row = asSingle<FullProductRow>(data);
+    return row ? mapProductRow(row) : undefined;
+  }
+);
 
 /** Detail-shaped products by internal identity, returned in request order. */
 export async function getProductsByIds(ids: string[]): Promise<Product[]> {
@@ -68,20 +76,25 @@ export async function getProductsByIds(ids: string[]): Promise<Product[]> {
     .map(mapProductRow);
 }
 
-/** Active products of a category, resolved by internal identity. */
-export async function getProductsByCategoryId(
-  categoryId: string
-): Promise<Product[]> {
-  const supabase = createCatalogClient();
-  const { data, error } = await supabase
-    .from("products")
-    .select(PRODUCT_CARD_SELECT)
-    .eq("category_id", categoryId)
-    .eq("is_active", true)
-    .order("added_at", { ascending: false });
-  if (error) throw error;
-  return asRows<ProductRow>(data).map(mapProductRow);
-}
+/**
+ * Active products of a category, resolved by internal identity.
+ *
+ * Memoized per request — a category render resolves the same category twice
+ * (shell header count + results list) and previously queried twice.
+ */
+export const getProductsByCategoryId = cache(
+  async (categoryId: string): Promise<Product[]> => {
+    const supabase = createCatalogClient();
+    const { data, error } = await supabase
+      .from("products")
+      .select(PRODUCT_CARD_SELECT)
+      .eq("category_id", categoryId)
+      .eq("is_active", true)
+      .order("added_at", { ascending: false });
+    if (error) throw error;
+    return asRows<ProductRow>(data).map(mapProductRow);
+  }
+);
 
 // ── Circulation-backed sections ───────────────────────────────────────
 //
@@ -219,6 +232,27 @@ export async function getTrendingProducts(limit = 6): Promise<Product[]> {
 // ── Related products ──────────────────────────────────────────────────
 
 /**
+ * A product's variation membership (variation_id or undefined).
+ *
+ * Memoized per request — getRelatedProducts() and getProductVariation()
+ * both need the same membership row within one product-page render and
+ * previously issued two identical queries.
+ */
+const getVariationMembership = cache(
+  async (productId: string): Promise<string | undefined> => {
+    const supabase = createCatalogClient();
+    const { data, error } = await supabase
+      .from("product_variation_items")
+      .select("variation_id")
+      .eq("product_id", productId)
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data?.variation_id;
+  }
+);
+
+/**
  * Algorithmic recommendations scoped to the product's category. Selectable
  * alternatives of the current product are excluded here so variation
  * internals never leak into the UI.
@@ -242,18 +276,12 @@ export async function getRelatedProducts(
   if (!categoryId) return [];
 
   const excluded = new Set<string>([product.id]);
-  const { data: membership, error: membershipError } = await supabase
-    .from("product_variation_items")
-    .select("variation_id")
-    .eq("product_id", product.id)
-    .limit(1)
-    .maybeSingle();
-  if (membershipError) throw membershipError;
-  if (membership) {
+  const membershipVariationId = await getVariationMembership(product.id);
+  if (membershipVariationId) {
     const { data: siblings, error: siblingsError } = await supabase
       .from("product_variation_items")
       .select("product_id")
-      .eq("variation_id", membership.variation_id);
+      .eq("variation_id", membershipVariationId);
     if (siblingsError) throw siblingsError;
     for (const s of siblings ?? []) excluded.add(s.product_id);
   }
@@ -298,39 +326,33 @@ function mapVariationItemRow(row: VariationItemRow): VariationItem {
  * Returns undefined when the product has no membership or fewer than two
  * valid items — such products simply render without a selector.
  */
-export async function getProductVariation(
-  productId: string
-): Promise<ProductVariation | undefined> {
-  const supabase = createCatalogClient();
+export const getProductVariation = cache(
+  async (productId: string): Promise<ProductVariation | undefined> => {
+    const supabase = createCatalogClient();
 
-  const { data: membership, error: membershipError } = await supabase
-    .from("product_variation_items")
-    .select("variation_id")
-    .eq("product_id", productId)
-    .limit(1)
-    .maybeSingle();
-  if (membershipError) throw membershipError;
-  if (!membership) return undefined;
+    const variationId = await getVariationMembership(productId);
+    if (!variationId) return undefined;
 
-  const { data, error } = await supabase
-    .from("product_variation_items")
-    .select(
-      `id, variation_id, product_id, option_label, position,
-       products!product_variation_items_product_id_fkey(
-         id, slug, name, price, compare_at_price, currency,
-         stock, is_active, is_preorder,
-         product_images(url, position, is_primary)
-       )`
-    )
-    .eq("variation_id", membership.variation_id)
-    .order("position", { ascending: true });
-  if (error) throw error;
+    const { data, error } = await supabase
+      .from("product_variation_items")
+      .select(
+        `id, variation_id, product_id, option_label, position,
+         products!product_variation_items_product_id_fkey(
+           id, slug, name, price, compare_at_price, currency,
+           stock, is_active, is_preorder,
+           product_images(url, position, is_primary)
+         )`
+      )
+      .eq("variation_id", variationId)
+      .order("position", { ascending: true });
+    if (error) throw error;
 
-  const rows = asRows<VariationItemRow>(data);
-  if (rows.length < 2) return undefined;
+    const rows = asRows<VariationItemRow>(data);
+    if (rows.length < 2) return undefined;
 
-  return {
-    id: membership.variation_id,
-    items: rows.map(mapVariationItemRow),
-  };
-}
+    return {
+      id: variationId,
+      items: rows.map(mapVariationItemRow),
+    };
+  }
+);
