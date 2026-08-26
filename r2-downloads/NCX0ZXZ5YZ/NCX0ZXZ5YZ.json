@@ -1,0 +1,52 @@
+{
+  "id": "NCX0ZXZ5YZ",
+  "sku": null,
+  "slug": "tyre-shape-bluetooth-speaker",
+  "name": "Tyre Shape Bluetooth Speaker",
+  "subtitle": "Compact tyre-shaped wireless Bluetooth speaker",
+  "brand_id": null,
+  "category_id": "FSV5RPTMZC4K",
+  "subcategory": "Bluetooth Speakers",
+  "tagline": "Distinctive shape, portable sound",
+  "description": "Tyre Shape Bluetooth Speaker is a compact portable speaker with Bluetooth 4.2 wireless connectivity, 5W RMS output, USB charging, and Micro SD card support. Its black tyre-inspired design provides a distinctive look while keeping music playback portable for everyday indoor or outdoor use.",
+  "story": "Designed around a tyre-inspired form, this speaker combines its distinctive shape with straightforward portable playback options. Bluetooth 4.2 allows wireless audio streaming from compatible devices, while USB charging supports recharging the built-in battery. Micro SD card support offers another playback option without relying solely on Bluetooth. The compact, lightweight design and black finish suit users who want a small speaker that is easy to carry for casual listening at home or outdoors.",
+  "price": 799,
+  "compare_at_price": 1499,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 1,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "Bluetooth 4.2 wireless audio streaming",
+    "5W RMS speaker power output",
+    "USB rechargeable for portable use",
+    "Micro SD card playback support"
+  ],
+  "includes": [],
+  "specs": {
+    "product_type": "Portable Bluetooth Speaker",
+    "color": "Black",
+    "design": "Tyre-shaped",
+    "bluetooth_version": "4.2",
+    "power_output": "5W RMS",
+    "charging": "USB rechargeable",
+    "charging_time": "Approximately 2 hours",
+    "playback_time": "Up to 6 hours depending on usage",
+    "connectivity_options": [
+      "Bluetooth",
+      "USB",
+      "Micro SD"
+    ],
+    "weight": "Lightweight for easy portability",
+    "dimensions": "Compact and portable design"
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": "2025-04-18T17:58:10.772+00:00",
+  "updated_at": "2026-04-20T13:42:32.438975+00:00"
+}

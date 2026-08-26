@@ -1,0 +1,50 @@
+{
+  "id": "YHD5B7LVK9",
+  "sku": null,
+  "slug": "samsung-35w-power-adapter-duo-ep-ta220",
+  "name": "Samsung 35W Power Adapter Duo",
+  "subtitle": "Dual-port USB-C and USB-A charger",
+  "brand_id": null,
+  "category_id": "VX91NU9DTVRC",
+  "subcategory": "mobile-charger",
+  "tagline": "Charge two devices from one socket",
+  "description": "Samsung EP-TA220 is a dual-port wall charger with USB-C and USB-A outputs. The USB-C port delivers up to 35W when used alone under supported charging conditions, while USB-A supports up to 15W for compatible devices and accessories.",
+  "story": "The EP-TA220 is useful when you want one compact adapter for a phone and a second USB-powered device. Use the USB-C port alone for supported higher-power charging, or connect two devices and let the adapter distribute output between them. Its 100–240 V input supports use across many regions with the appropriate plug arrangement. Actual charging speed depends on device and cable compatibility. The compact black form keeps the setup simple for desks, bedside charging, or travel.",
+  "price": 999,
+  "compare_at_price": 1999,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 2,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "USB-C output up to 35W",
+    "USB-A output up to 15W",
+    "Charge two devices simultaneously",
+    "100–240V input for broad use"
+  ],
+  "includes": [],
+  "specs": {
+    "brand": "Samsung",
+    "model_number": "EP-TA220",
+    "color": "Black",
+    "ports": {
+      "USB-C": "1",
+      "USB-A": "1"
+    },
+    "USB-C_output": "Up to 35W when used alone under supported Super Fast Charging 2.0 / PD 3.0 conditions",
+    "USB-A_output": "Up to 15W Adaptive Fast Charging",
+    "simultaneous_output": "USB-C up to 20W + USB-A up to 15W, depending on connected devices",
+    "input_voltage": "100–240V, 50/60Hz",
+    "dimensions": "49 × 28 × 79.65 mm",
+    "weight": "92.3 g"
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": "2025-04-18T18:16:49.57+00:00",
+  "updated_at": "2026-02-17T10:05:37.648501+00:00"
+}

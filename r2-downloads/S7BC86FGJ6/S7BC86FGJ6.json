@@ -1,0 +1,59 @@
+{
+  "id": "S7BC86FGJ6",
+  "sku": null,
+  "slug": "3-in-1-handheld-vacuum",
+  "name": "3-in-1 Handheld Vacuum",
+  "subtitle": "Cordless USB rechargeable compact cleaner",
+  "brand_id": null,
+  "category_id": "M3CUAE0NBSYA",
+  "subcategory": "Car Accessories",
+  "tagline": "Compact cleaning for everyday messes",
+  "description": "This 3-in-1 handheld vacuum is a cordless, USB-rechargeable cleaner for quick dust and debris removal in cars, homes, and offices. Its compact design supports everyday cleaning, while three included attachments help reach different surfaces and tighter spaces.",
+  "story": "Designed for small cleanups without bringing out a full-size vacuum, this handheld cleaner suits car interiors, desks, and other compact spaces. The cordless rechargeable design makes it easier to move between areas, while the included brush tool, flat nozzle, and extension tube provide different cleaning options. A reusable washable filter supports repeated use, and the supplied USB charging cable allows convenient recharging. Its compact format also makes it practical to store in a vehicle, bag, or workspace.",
+  "price": 1399,
+  "compare_at_price": 2999,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 1,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "Cordless USB rechargeable cleaning design",
+    "Three versatile cleaning attachments included",
+    "Reusable washable filter for repeated use",
+    "Compact for car home office"
+  ],
+  "includes": [
+    "1 x Handheld Vacuum Cleaner",
+    "3 x Cleaning Attachments",
+    "1 x USB Charging Cable"
+  ],
+  "specs": {
+    "color": "Black",
+    "product_type": "Handheld Car Vacuum Cleaner",
+    "power_source": "Built-in rechargeable battery",
+    "charging": "USB charging",
+    "attachments": [
+      "Brush tool",
+      "Flat nozzle",
+      "Extension tube"
+    ],
+    "filter_type": "Reusable, washable filter",
+    "ideal_for": [
+      "Car",
+      "Home",
+      "Office",
+      "Travel",
+      "Camping"
+    ],
+    "noise_level": "Low-noise operation"
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": "2025-04-28T06:18:13.41+00:00",
+  "created_at": "2025-04-28T06:18:13.41+00:00",
+  "updated_at": "2026-02-17T10:05:37.648501+00:00"
+}

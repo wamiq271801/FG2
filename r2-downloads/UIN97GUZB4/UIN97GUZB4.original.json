@@ -1,0 +1,90 @@
+{
+  "id": "UIN97GUZB4",
+  "slug": "wireless-earbuds-transparent-charging-case",
+  "h1": "Wireless Earbuds with Transparent Charging Case",
+  "short_description": "These wireless earbuds feature a transparent charging case that highlights a modern, tech-inspired design while remaining compact and easy to carry.\nDesigned for everyday listening, they deliver clear audio output with stable Bluetooth connectivity for...",
+  "description": "\r\nThese wireless earbuds feature a transparent charging case that highlights a modern, tech-inspired design while remaining compact and easy to carry.\r\nDesigned for everyday listening, they deliver clear audio output with stable Bluetooth connectivity for music, videos, and calls.\r\n\r\nThe earbuds include built-in microphones for hands-free calling and touch controls that let you manage playback and calls effortlessly.\r\nAn ergonomic in-ear shape ensures a comfortable fit for extended use, making them suitable for daily commutes, casual listening, and work-from-home setups.\r\n\r\nCompatible with both Android and iOS devices, these earbuds focus on style, simplicity, and practical performance at an accessible price point.\r\n",
+  "brand": "FUSION GADGETS",
+  "sku": null,
+  "category_id": "851F22BBV077",
+  "category_slug": "in-ear-headphones",
+  "price": 249,
+  "mrp": 499,
+  "discount": 50,
+  "currency": "INR",
+  "stock": 4,
+  "status": "Active",
+  "is_featured": false,
+  "images": [
+    {
+      "alt": "Wireless earbuds with transparent charging case",
+      "url": "https://image.fusiongadgets.in/UIN97GUZB4/images/UIN97GUZB4_00.avif",
+      "is_primary": true
+    },
+    {
+      "alt": "Transparent case wireless earbuds open view",
+      "url": "https://image.fusiongadgets.in/UIN97GUZB4/images/UIN97GUZB4_01.avif",
+      "is_primary": false
+    },
+    {
+      "alt": "In-ear wireless earbuds close-up design",
+      "url": "https://image.fusiongadgets.in/UIN97GUZB4/images/UIN97GUZB4_02.avif",
+      "is_primary": false
+    }
+  ],
+  "features": [
+    "Transparent charging case with modern design",
+    "Wireless Bluetooth connectivity for daily use",
+    "Built-in microphone for hands-free calls",
+    "Touch controls for music and call management",
+    "Comfortable in-ear fit for extended listening",
+    "Compact and pocket-friendly charging case",
+    "Compatible with Android and iOS devices"
+  ],
+  "specifications": {
+    "Controls": "Touch-sensitive",
+    "Fit Type": "In-ear",
+    "Microphone": "Built-in",
+    "Connectivity": "Bluetooth",
+    "Product Type": "True Wireless Earbuds",
+    "Charging Case": "Transparent design",
+    "Battery Backup": "Up to 4–6 hours (earbuds), additional backup via case",
+    "Charging Method": "Wired charging (port varies by batch)",
+    "Compatible Devices": "Android phones, iPhones, tablets, laptops"
+  },
+  "tags": [
+    "wireless earbuds",
+    "transparent charging case",
+    "bluetooth earbuds",
+    "budget wireless earbuds",
+    "touch control earbuds",
+    "fusion gadgets earbuds"
+  ],
+  "meta_title": "Wireless Earbuds with Transparent Charging Case",
+  "meta_description": "Buy wireless earbuds with transparent charging case, touch controls, built-in mic, and Bluetooth connectivity. Stylish budget earbuds by Fusion Gadgets.",
+  "canonical_url": "https://fusiongadgets.in/product/ultrapods-ear-buds-with-transparent-charging-case-mic-240-bluetooth-headset-proc",
+  "created_at": "2025-04-19T17:28:49.891+00:00",
+  "updated_at": "2026-02-17T10:05:37.648501+00:00",
+  "faq": [
+    {
+      "answer": "Yes, they are compatible with both Android and iOS devices.",
+      "question": "Do these earbuds work with Android and iPhone?"
+    },
+    {
+      "answer": "Yes, built-in microphones support hands-free calling.",
+      "question": "Do the earbuds have a microphone?"
+    },
+    {
+      "answer": "The earbuds provide up to 4–6 hours of playback, with additional backup from the charging case.",
+      "question": "How long does the battery last?"
+    },
+    {
+      "answer": "Yes, touch controls allow you to manage calls and music.",
+      "question": "Are touch controls supported?"
+    },
+    {
+      "answer": "The transparent case showcases a modern design while remaining compact and portable.",
+      "question": "What is special about the charging case?"
+    }
+  ]
+}

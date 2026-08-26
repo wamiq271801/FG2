@@ -1,0 +1,51 @@
+{
+  "id": "6HIE86BOTO",
+  "sku": null,
+  "slug": "ldnio-36w-car-charger",
+  "name": "LDNIO 36W Car Charger",
+  "subtitle": "Dual-port charging with voltage display",
+  "brand_id": null,
+  "category_id": "M3CUAE0NBSYA",
+  "subcategory": "car-accessories",
+  "tagline": "Charge two devices on the road",
+  "description": "LDNIO 36W car charger provides USB-C and USB-A ports for charging two compatible USB-powered devices from a 12–24V vehicle socket. Quick Charge 3.0 support and an LED voltage display add practical charging and vehicle-voltage monitoring functions in a compact black adapter.",
+  "story": "Made for charging on the road, this adapter can power two compatible USB devices from a standard 12–24V vehicle socket. The separate USB-C and USB-A ports suit different cable types, while Quick Charge 3.0 is available for compatible devices. Its LED display shows vehicle voltage, adding a useful reference during everyday driving. The compact black housing keeps the charger easy to store and use in cars, SUVs, or other vehicles with a compatible socket.",
+  "price": 499,
+  "compare_at_price": 1999,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 2,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "Up to 36W total output",
+    "USB-C and USB-A charging ports",
+    "Quick Charge 3.0 support",
+    "LED vehicle voltage display"
+  ],
+  "includes": [],
+  "specs": {
+    "brand": "LDNIO",
+    "product_type": "Car Charging Adapter",
+    "color": "Black",
+    "input_voltage": "DC 12–24V",
+    "output_ports": [
+      "USB-C",
+      "USB-A"
+    ],
+    "total_power_output": "Up to 36W",
+    "fast_charging_technology": "Quick Charge 3.0",
+    "dual_device_charging": true,
+    "led_display": "Vehicle voltage display",
+    "housing_material": "Fire-resistant PC",
+    "compatible_devices": "USB-powered smartphones, tablets, and accessories"
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": "2025-04-11T14:06:31.279+00:00",
+  "updated_at": "2026-02-17T10:05:37.320569+00:00"
+}

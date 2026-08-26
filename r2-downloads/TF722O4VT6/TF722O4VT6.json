@@ -1,0 +1,62 @@
+{
+  "id": "TF722O4VT6",
+  "sku": null,
+  "slug": "cordless-pressure-washer-kit",
+  "name": "Cordless Pressure Washer Kit",
+  "subtitle": "Portable washer with dual batteries",
+  "brand_id": null,
+  "category_id": "M3CUAE0NBSYA",
+  "subcategory": "Car Accessories",
+  "tagline": "Cordless cleaning with extended reach",
+  "description": "This cordless pressure washer kit uses dual 21V lithium-ion batteries and delivers up to 40 bar of pressure. The portable washer includes an 8 m hose, spray tips, foam lance, and carry case for cleaning cars, bikes, patios, and other outdoor surfaces.",
+  "story": "Built for portable washing where a mains-powered machine may be inconvenient, this kit can draw fresh water from a tap or bucket. The 8 m high-pressure hose provides extra reach around vehicles and outdoor areas, while interchangeable 0°, 15°, and 25° spray tips offer different coverage patterns. A foam lance is included for applying cleaning foam. Quick-connect fittings support tool-free assembly, and the hard-shell carry case keeps the washer and accessories organized for storage or transport.",
+  "price": 1599,
+  "compare_at_price": 2999,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 1,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "Dual 21V lithium-ion battery power",
+    "Up to 40 bar pressure",
+    "Three interchangeable spray tip angles",
+    "Eight metre high-pressure hose included"
+  ],
+  "includes": [
+    "Cordless pressure washer",
+    "2 x 21V lithium-ion batteries",
+    "8 m high-pressure hose",
+    "0°, 15°, and 25° spray tips",
+    "Foam lance",
+    "Hard-shell carry case"
+  ],
+  "specs": {
+    "model": "Cordless Portable Pressure Washer Gun Kit",
+    "power_source": "DC 21V battery",
+    "battery": "2 x 21V 4Ah lithium-ion",
+    "max_pressure": "40 bar (580 PSI)",
+    "flow_rate": "1.5 L/min",
+    "pump_type": "Ceramic-piston",
+    "hose_length": "8 m",
+    "nozzle_types": [
+      "0° spray tip",
+      "15° spray tip",
+      "25° spray tip",
+      "Foam lance"
+    ],
+    "water_source": "Fresh water from tap or bucket",
+    "materials": "ABS housing; stainless-steel lance",
+    "charging_time": "3–4 hours",
+    "weight": "3.1 kg with battery installed",
+    "carry_case": "Hard-shell with custom foam inserts"
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": "2025-04-17T08:40:46.264+00:00",
+  "created_at": "2025-04-17T08:40:46.264+00:00",
+  "updated_at": "2026-02-17T10:05:37.648501+00:00"
+}

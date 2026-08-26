@@ -1,0 +1,61 @@
+{
+  "id": "06RJ67LDQ2",
+  "sku": null,
+  "slug": "manual-lint-remover",
+  "name": "Manual Lint Remover",
+  "subtitle": "Reusable manual lint remover for fabrics",
+  "brand_id": null,
+  "category_id": "TQMGONIS0EJR",
+  "subcategory": "Lint Removers",
+  "tagline": "Sweep away surface fuzz",
+  "description": "A reusable manual lint remover with a blue plastic handle and metal blade, made for lifting lint, fuzz, fabric pills, and pet hair from clothes, upholstery, curtains, and bedding. Its battery-free design needs no charging or disposable refill sheets.",
+  "story": "Use gentle strokes over a flat fabric surface and work section by section on larger items such as sofas, curtains, or bedsheets. The approximate 17 cm by 13 cm size keeps the tool compact while the handle provides a straightforward grip during cleaning. Because the remover is manual and reusable, there is no battery or charging specification to manage. Delicate or loosely woven fabrics still deserve a cautious test on a small area first, since the supplied information does not confirm universal fabric safety.",
+  "price": 99,
+  "compare_at_price": 179,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 3,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "Reusable manual fabric cleaning tool",
+    "Metal blade with plastic handle",
+    "Battery-free operation without charging",
+    "Blue compact design for storage"
+  ],
+  "includes": [
+    "1 x Manual Lint Remover"
+  ],
+  "specs": {
+    "brand": "Generic",
+    "type": "Manual lint remover",
+    "color": "Blue",
+    "material": {
+      "handle": "Plastic",
+      "blade": "Metal"
+    },
+    "dimensions": {
+      "length": 17,
+      "width": 13,
+      "unit": "cm",
+      "approximate": true
+    },
+    "power_source": "Manual",
+    "battery_required": false,
+    "reusable": true,
+    "usage": [
+      "Clothes",
+      "Furniture",
+      "Curtains",
+      "Other fabrics"
+    ]
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": null,
+  "updated_at": null
+}

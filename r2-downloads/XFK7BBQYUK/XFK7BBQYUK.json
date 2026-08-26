@@ -1,0 +1,57 @@
+{
+  "id": "XFK7BBQYUK",
+  "sku": null,
+  "slug": "25w-usb-c-fast-charger",
+  "name": "25W USB-C Fast Charger",
+  "subtitle": "Compact white wall charging adapter",
+  "brand_id": null,
+  "category_id": "VX91NU9DTVRC",
+  "subcategory": "mobile-charger",
+  "tagline": "Compact power for compatible devices",
+  "description": "This 25W USB-C fast charging power adapter features a single USB Type-C output and adaptive 5V and 9V profiles within its rated range. Its compact white design is intended for compatible smartphones, tablets, earbuds cases, power banks, and other USB-C accessories.",
+  "story": "Designed as a compact everyday wall adapter, this charger fits naturally into home, office, and travel setups without adding unnecessary bulk. The single USB-C port keeps charging straightforward for one compatible device at a time. Its 25W maximum output can support faster charging where the connected device and cable support the required profile. The adapter accepts AC 100–240V input and includes stated protection against over-current, over-voltage, and excessive temperature during normal operation.",
+  "price": 449,
+  "compare_at_price": 999,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": "white",
+  "stock": 1,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "Up to 25W charging output",
+    "Single USB Type-C output port",
+    "Adaptive 5V and 9V profiles",
+    "Compact white travel-friendly design"
+  ],
+  "includes": [],
+  "specs": {
+    "color": "White",
+    "product_type": "USB-C fast charging wall power adapter",
+    "maximum_power_output": "25W",
+    "input_voltage": "AC 100–240V",
+    "connector_type": "USB Type-C",
+    "port_configuration": "Single USB Type-C output port",
+    "output_profiles": "5V / 9V adaptive within rated power",
+    "charging_protocol": "USB-C fast charging within supported 25W power profile",
+    "compatible_devices": [
+      "USB-C smartphones",
+      "Tablets",
+      "Earbuds cases",
+      "Power banks",
+      "USB-C accessories"
+    ],
+    "safety_features": [
+      "Over-current protection",
+      "Over-voltage protection",
+      "Temperature protection"
+    ]
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided",
+  "added_at": null,
+  "created_at": "2025-04-18T18:11:17.905+00:00",
+  "updated_at": "2026-02-17T10:05:37.648501+00:00"
+}

@@ -1,0 +1,52 @@
+{
+  "id": "KMUN2DTO13",
+  "sku": null,
+  "slug": "3-in-1-60w-fast-charging-cable-kit",
+  "name": "3-in-1 Charging Cable Kit",
+  "subtitle": "Compact multi-connector travel charging set",
+  "brand_id": null,
+  "category_id": "CI1504SFZ3CF",
+  "subcategory": "mobile-accessories",
+  "tagline": "One compact charging kit",
+  "description": "Compact 3-in-1 charging cable kit with USB-C, Lightning and Micro-USB connectors. The 10cm cable supports up to 60W power delivery and up to 480Mbps data transfer, while the integrated fold-out stand provides convenient phone positioning during charging.",
+  "story": "Designed for travel, power banks and tidy desk setups, this compact charging kit keeps several common connector options together in one case. The short cable helps reduce excess cable length when charging close to a power source. USB-C, Lightning and Micro-USB connector options make it useful across compatible devices, while the built-in stand adds a practical way to position a phone during charging. The organized case stores the included components together for easier carrying.",
+  "price": 149,
+  "compare_at_price": 299,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": "black",
+  "stock": 5,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "Three connector options in one",
+    "Supports up to 60W charging",
+    "Short 10cm cable design",
+    "Built-in fold-out phone stand"
+  ],
+  "includes": [
+    "1× 0.1m 3-in-1 fast-charging cable with integrated stand"
+  ],
+  "specs": {
+    "color": "Black",
+    "compatibility": "iPhone, Samsung, OnePlus, Mi, Oppo, Vivo, iQOO, etc.",
+    "stand_material": "ABS plastic",
+    "jacket_material": "PVC",
+    "operating_temperature": "−20°C to 60°C",
+    "cable_length": "0.1 m (10 cm)",
+    "connector_outputs": [
+      "USB-C",
+      "Lightning",
+      "Micro-USB"
+    ],
+    "data_transfer_rate": "Up to 480 Mbps",
+    "max_power_delivery": "60 W (20 V/3 A)"
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": "2025-04-19T08:16:51.12+00:00",
+  "created_at": "2025-04-19T08:16:51.12+00:00",
+  "updated_at": "2026-02-17T10:05:37.320569+00:00"
+}

@@ -1,0 +1,103 @@
+{
+  "id": "2EDKOQGUG8",
+  "slug": "amoled-bluetooth-calling-smartwatch-139-inch",
+  "h1": "1.39\" AMOLED Bluetooth Calling Smartwatch (Round Dial) – 464×464, Voice Assistant, Heart Rate & Sleep Tracking",
+  "short_description": "This 1.39\" AMOLED Bluetooth calling smartwatch is built for people who want a bright, premium-looking round dial and the freedom to answer calls from the wrist. The high‑resolution 464×464 AMOLED display pops with deep blacks and vivid color, so messages,...",
+  "description": "This 1.39\" AMOLED Bluetooth calling smartwatch is built for people who want a bright, premium-looking round dial and the freedom to answer calls from the wrist. The high‑resolution 464×464 AMOLED display pops with deep blacks and vivid color, so messages, caller ID, and watch faces look crisp indoors or under harsh daylight. Pair it to your phone and use the built‑in speaker and mic for quick calls on the move. Need hands-free control? Tap the voice assistant to call, set reminders, or check info without pulling out your phone.\n\nFor everyday wellness, it tracks heart rate and sleep, plus daily activity to keep you aware and consistent. Finished with a classic brown leather‑style strap and a clean metallic-look frame, it fits office hours, workouts, and weekends. Works with Android and iOS for easy syncing and smart notifications that keep you in the loop without distraction.\n",
+  "brand": "FUSION GADGETS",
+  "sku": null,
+  "category_id": "F4NN6JLVGB0Q",
+  "category_slug": "smartwatch",
+  "price": 1799,
+  "mrp": 4499,
+  "discount": 60,
+  "currency": "INR",
+  "stock": 1,
+  "status": "Active",
+  "is_featured": false,
+  "images": [
+    {
+      "alt": "1.39-inch AMOLED Bluetooth calling smartwatch with brown leather-style strap, round dial front view",
+      "url": "https://image.fusiongadgets.in/2EDKOQGUG8/images/2EDKOQGUG8_00.avif",
+      "is_primary": true
+    },
+    {
+      "alt": "Round dial Bluetooth calling smartwatch side profile showing metallic-style frame and button",
+      "url": "https://image.fusiongadgets.in/2EDKOQGUG8/images/2EDKOQGUG8_01.avif",
+      "is_primary": false
+    },
+    {
+      "alt": "AMOLED smartwatch 464x464 display showing notifications, watch face and vivid colors",
+      "url": "https://image.fusiongadgets.in/2EDKOQGUG8/images/2EDKOQGUG8_02.avif",
+      "is_primary": false
+    },
+    {
+      "alt": "Smartwatch brown strap close-up with classic finish and comfortable daily-wear design",
+      "url": "https://image.fusiongadgets.in/2EDKOQGUG8/images/2EDKOQGUG8_03.avif",
+      "is_primary": false
+    }
+  ],
+  "features": [
+    "1.39-inch AMOLED round display with sharp 464×464 clarity and rich contrast",
+    "Bluetooth calling with built-in speaker and microphone for quick wrist calls",
+    "Voice assistant support for hands-free tasks like calling, reminders, and quick commands",
+    "Heart rate and sleep tracking to stay aware of daily wellness and recovery",
+    "Multiple sports and activity modes to match walks, workouts, and routines",
+    "Smart notifications for calls, messages, and apps so you stay updated at a glance",
+    "Classic brown leather-style strap with a premium look for office and casual wear",
+    "Compatible with Android and iOS smartphones for easy pairing and syncing"
+  ],
+  "specifications": {
+    "Resolution": "464 × 464",
+    "Strap Color": "Brown",
+    "Battery Life": "Up to 7 days (typical usage)",
+    "Connectivity": "Bluetooth",
+    "Display Size": "1.39 inches",
+    "Display Type": "AMOLED",
+    "Product Type": "Smartwatch",
+    "Touch Screen": "Yes",
+    "Compatible OS": "Android and iOS",
+    "Activity Modes": "Multiple sports and activity modes",
+    "Strap Material": "Leather-style strap",
+    "Calling Feature": "Bluetooth calling",
+    "Health Tracking": "Heart rate and sleep tracking",
+    "Voice Assistant": "Supported"
+  },
+  "tags": [
+    "1.39 amoled smartwatch",
+    "amoled bluetooth calling smartwatch",
+    "round dial smartwatch 464x464",
+    "smartwatch with speaker and microphone",
+    "bluetooth calling watch for android and ios",
+    "smartwatch with voice assistant support",
+    "heart rate and sleep tracking smartwatch",
+    "fusion gadgets smartwatch"
+  ],
+  "meta_title": "1.39\" AMOLED Bluetooth Calling Smartwatch | 464×464 Round Dial, Voice Assistant, Health Tracking",
+  "meta_description": "Shop 1.39-inch AMOLED Bluetooth calling smartwatch with 464×464 display, built-in speaker & mic, voice assistant, heart rate & sleep tracking, smart notifications, Android & iOS support.",
+  "canonical_url": "https://fusiongadgets.in/product/fire-boltt-almighty-353mm-139-amoled-bt-calling-high-res-464464-voice-assistance",
+  "created_at": "2025-04-18T13:15:44.903+00:00",
+  "updated_at": "2026-02-17T10:05:37.320569+00:00",
+  "faq": [
+    {
+      "answer": "Yes. It supports Bluetooth calling when paired with a compatible Android or iOS smartphone, letting you answer and talk from your wrist using the built-in speaker and microphone.",
+      "question": "Does this smartwatch support Bluetooth calling?"
+    },
+    {
+      "answer": "It uses a 1.39-inch AMOLED touchscreen with a sharp 464 × 464 resolution for crisp text and vibrant colors.",
+      "question": "What kind of display does the watch use?"
+    },
+    {
+      "answer": "Yes. It offers heart rate monitoring and sleep tracking to help you stay aware of daily wellness and recovery patterns.",
+      "question": "Does the watch track health metrics?"
+    },
+    {
+      "answer": "Yes. It is compatible with most Android and iOS smartphones via Bluetooth.",
+      "question": "Is this smartwatch compatible with Android and iOS?"
+    },
+    {
+      "answer": "Yes. The strap is removable and can be swapped with compatible replacement straps when needed.",
+      "question": "Is the strap removable?"
+    }
+  ]
+}

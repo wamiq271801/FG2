@@ -1,0 +1,61 @@
+{
+  "id": "3Q2YZBF7H9",
+  "sku": null,
+  "slug": "diamond-strap-bluetooth-calling-smartwatch",
+  "name": "Diamond Strap Smartwatch",
+  "subtitle": "Bluetooth calling with dual straps",
+  "brand_id": null,
+  "category_id": "F4NN6JLVGB0Q",
+  "subcategory": "smartwatch",
+  "tagline": "Style, calling and everyday tracking",
+  "description": "This round-dial smartwatch combines Bluetooth calling with a 1.99-inch HD LTPS display and two interchangeable straps. Track heart rate, blood pressure, sleep and activities, choose from multiple sports modes, and switch between a diamond-style metal strap and silicone strap.",
+  "story": "Designed for users who want one watch for different occasions, this smartwatch comes with two distinct strap options. The diamond-style metal strap creates a dressier look, while the silicone strap suits active daily wear. Bluetooth calling keeps compatible phone calls accessible from the wrist, and the large round display provides space for time, notifications and watch information. Wellness and activity features include heart rate, blood pressure and sleep monitoring, along with more than 50 sports modes for tracking different routines.",
+  "price": 1599,
+  "compare_at_price": 1999,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": "rose-gold",
+  "stock": 2,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "1.99-inch HD LTPS display",
+    "Dual Bluetooth calling support",
+    "Two interchangeable straps included",
+    "Over 50 sports modes"
+  ],
+  "includes": [
+    "Smartwatch",
+    "Diamond-style metal strap",
+    "Silicone sport strap"
+  ],
+  "specs": {
+    "colour": "Rose Gold",
+    "display": "1.99-inch HD LTPS",
+    "bluetooth": "v4.2 and v3.0",
+    "calling": "Dual Bluetooth calling",
+    "dimensions": "46 x 46 x 12 mm",
+    "weight": "55 g",
+    "sports_modes": "50+",
+    "compatibility": "Android 5.0+ and iOS 10.0+",
+    "health_tracking": [
+      "Heart rate",
+      "Blood pressure",
+      "Sleep monitoring"
+    ],
+    "water_resistance": "IP67",
+    "charging": "Wireless charging",
+    "battery_life": "Up to 2 days",
+    "straps": [
+      "Diamond-style metal strap",
+      "Silicone sport strap"
+    ]
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided",
+  "added_at": null,
+  "created_at": "2025-04-17T09:32:59.672+00:00",
+  "updated_at": "2026-02-17T10:05:37.320569+00:00"
+}

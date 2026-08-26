@@ -1,0 +1,53 @@
+{
+  "id": "Y5K05KC81I",
+  "sku": null,
+  "slug": "smartwatch-9th-generation-209-inch-black",
+  "name": "9th Generation Smartwatch",
+  "subtitle": "Large display with Bluetooth calling",
+  "brand_id": null,
+  "category_id": "F4NN6JLVGB0Q",
+  "subcategory": "smartwatch",
+  "tagline": "Everyday calls and tracking",
+  "description": "This 9th Generation Smartwatch has a 2.09-inch LCD TFT display, Bluetooth connectivity for calling when paired, and basic heart rate, blood pressure and sleep tracking. Its 45 mm black case also supports multiple sports modes, wireless charging and everyday splash resistance.",
+  "story": "Designed for everyday wrist use, this 45 mm smartwatch combines a large display with phone-connected features and basic activity tracking. Bluetooth connectivity supports calls and notifications when used with a compatible Android or iOS phone. Multiple sports modes can help log routine activities, while heart rate, blood pressure and sleep features provide general wellness information. Wireless charging simplifies daily charging, and the splash-resistant design is intended for normal exposure to sweat and splashes rather than swimming or high-pressure water use.",
+  "price": 1799,
+  "compare_at_price": 2999,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 0,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "2.09-inch LCD TFT display",
+    "Bluetooth calling when phone is paired",
+    "Heart rate and sleep tracking",
+    "Multiple sports modes and wireless charging"
+  ],
+  "includes": [],
+  "specs": {
+    "color": "Black",
+    "case_size": "45 mm",
+    "display_size": "2.09 inches",
+    "display_type": "LCD TFT",
+    "connectivity": "Bluetooth",
+    "compatibility": "Android and iOS",
+    "bluetooth_range": "Up to 10 meters",
+    "health_sensors": [
+      "Heart Rate",
+      "Blood Pressure"
+    ],
+    "sleep_tracking": true,
+    "sports_modes": "Multiple",
+    "charging_method": "Wireless",
+    "water_resistance": "Splash Resistant",
+    "battery_life": "Up to 3-5 days, usage dependent"
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": "2025-04-17T11:20:11.625+00:00",
+  "created_at": "2025-04-17T11:20:11.625+00:00",
+  "updated_at": "2026-02-17T10:05:37.648501+00:00"
+}

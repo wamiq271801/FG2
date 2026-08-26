@@ -1,0 +1,64 @@
+{
+  "id": "4I0NV5WSKN",
+  "sku": null,
+  "slug": "rechargeable-double-ended-mist-fan",
+  "name": "Rechargeable Double-Ended Mist Fan",
+  "subtitle": "5000mAh Portable Fan With Spray",
+  "brand_id": null,
+  "category_id": "ZT0KTAWP3FZM",
+  "subcategory": "portable-fans",
+  "tagline": "Rechargeable airflow with refreshing mist",
+  "description": "This USB rechargeable mist fan combines two fan heads with fine spray mist for personal cooling at a desk, bedside, or during travel. Its 5000mAh battery, three speed levels, adjustable vertical tilt, and remote control support flexible everyday use.",
+  "story": "Built for personal spaces where a full-size fan is impractical, this compact unit combines directional airflow with a refillable 100ml water tank for optional misting. Choose among three speeds, angle the fan vertically, or use the remote from up to 5 metres. The rechargeable 5000mAh battery runs up to 8 hours on low, with shorter runtimes at higher speeds. USB Type-C charging and a listed noise level of ≤45 dB make it suited to desks, bedside use, study areas, and travel.",
+  "price": 999,
+  "compare_at_price": 1999,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 0,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "Dual fan heads for wider airflow",
+    "Fine mist from 100ml tank",
+    "5000mAh battery with three speeds",
+    "Remote control and vertical tilt"
+  ],
+  "includes": [
+    "Remote control"
+  ],
+  "specs": {
+    "color": "White",
+    "model": "Double-Ended Spray Fan",
+    "weight": "550 g",
+    "dimensions": "90 × 70 × 240 mm",
+    "materials": "ABS plastic; PC blades",
+    "battery_capacity": "5000 mAh Li-ion",
+    "fan_speeds": "3 levels",
+    "runtime": {
+      "low": "Up to 8 hours",
+      "medium": "Up to 5 hours",
+      "high": "Up to 3 hours"
+    },
+    "charging": {
+      "connector": "USB Type-C",
+      "input": "5 V ⎓ 2 A",
+      "charging_time": "About 4 hours"
+    },
+    "water_tank_capacity": "100 ml",
+    "noise_level": "≤45 dB",
+    "remote_range": "Up to 5 m",
+    "adjustment": "360° vertical tilt/rotation",
+    "safety_features": [
+      "Overheat protection",
+      "Short-circuit protection"
+    ]
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": "2025-04-17T09:02:23.332+00:00",
+  "updated_at": "2026-05-22T09:52:49.613151+00:00"
+}

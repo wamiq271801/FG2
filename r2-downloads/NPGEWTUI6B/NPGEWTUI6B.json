@@ -1,0 +1,58 @@
+{
+  "id": "NPGEWTUI6B",
+  "sku": null,
+  "slug": "airpods-pro-2-with-display-clone",
+  "name": "AirPods Pro 2 with Display Clone",
+  "subtitle": "White wireless earbuds with display case",
+  "brand_id": null,
+  "category_id": "851F22BBV077",
+  "subcategory": "In-Ear Headphones",
+  "tagline": "Control more from the case",
+  "description": "AirPods Pro 2 with Display Clone are white true wireless earbuds with a touchscreen charging case. The case provides media controls, brightness adjustment, wallpaper customization, and camera control, while the earbuds support Bluetooth connectivity, touch controls, ANC, ENC, Spatial Audio, and USB-C charging.",
+  "story": "The touchscreen charging case adds controls beyond the earbuds themselves, allowing users to access supported settings and functions directly from the case. It can manage media playback, brightness, wallpapers, and camera control as listed. The earbuds use touch sensors for additional control and support Bluetooth 5.3 connectivity. Listed battery figures are up to six hours for the earbuds and over 30 hours with the charging case. The supplied image shows the white earbuds and display interface.",
+  "price": 1999,
+  "compare_at_price": 2999,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 2,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "Touchscreen display on charging case",
+    "Media and camera control functions",
+    "ANC and ENC noise cancellation",
+    "Bluetooth 5.3 wireless connectivity"
+  ],
+  "includes": [],
+  "specs": {
+    "product_type": "True Wireless Earbuds",
+    "color": "White",
+    "controls": "Touchscreen on case, touch sensors on earbuds",
+    "connectivity": "Bluetooth 5.3",
+    "charging_port": "USB-C",
+    "charging_case": "Supports wireless charging",
+    "earbud_battery_life": "Up to 6 hours",
+    "total_battery_life": "Over 30 hours with charging case",
+    "water_resistance": "IPX4",
+    "features": [
+      "ANC",
+      "ENC",
+      "Spatial Audio",
+      "Media Controls",
+      "Camera Controls",
+      "Wallpaper Customization"
+    ],
+    "compatibility": [
+      "iOS",
+      "Android"
+    ]
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": "2025-04-18T14:49:13.23+00:00",
+  "updated_at": "2026-02-17T10:05:37.320569+00:00"
+}

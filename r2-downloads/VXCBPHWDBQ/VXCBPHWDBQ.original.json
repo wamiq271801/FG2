@@ -1,0 +1,103 @@
+{
+  "id": "VXCBPHWDBQ",
+  "slug": "t10-ultra-smartwatch-209-inch-infinite-display-with-bluetooth-calling-black",
+  "h1": "T10 Ultra Smartwatch 2.09 inch Infinite Display with Bluetooth Calling (Black)",
+  "short_description": "Overview: T10 Ultra is a budget-friendly smartwatch with a 2.09 inch infinite-style display aimed at users who want a large screen, Bluetooth calling and everyday health tracking in a familiar rectangular design.",
+  "description": "Overview: T10 Ultra is a budget-friendly smartwatch with a 2.09 inch infinite-style display aimed at users who want a large screen, Bluetooth calling and everyday health tracking in a familiar rectangular design.\r\n\r\nDisplay & Design: The extra-large 2.09 inch full-touch display is designed to provide an edge-to-edge style view for watch faces, menus and notifications. A sleek black strap and curved case profile help the watch blend with casual, office and workout outfits.\r\n\r\nHealth & Fitness: T10 Ultra supports common fitness and activity tracking features such as step counting, distance, estimated calories and multiple sports modes. It also offers basic heart rate monitoring and sleep tracking for general wellness awareness, not for medical use.\r\n\r\nConnectivity & Calling: With Bluetooth calling enabled, you can handle calls from the watch interface when it is paired with a compatible smartphone, making it easier to manage quick conversations on the move.\r\n\r\nDaily Use: Smart notifications for calls, messages and selected apps, along with a battery life rated for several days of typical use, make the T10 Ultra suitable as an everyday smartwatch for users who want core features without a complex interface.",
+  "brand": "HIWATCH",
+  "sku": null,
+  "category_id": "F4NN6JLVGB0Q",
+  "category_slug": "smartwatch",
+  "price": 699,
+  "mrp": 999,
+  "discount": 30,
+  "currency": "INR",
+  "stock": 4,
+  "status": "Active",
+  "is_featured": false,
+  "images": [
+    {
+      "alt": "T10 Ultra smartwatch with 2.09 inch infinite display and black strap front view",
+      "url": "https://image.fusiongadgets.in/VXCBPHWDBQ/images/VXCBPHWDBQ_00.avif",
+      "is_primary": true
+    },
+    {
+      "alt": "Side view of T10 Ultra smartwatch showing large curved display and buttons",
+      "url": "https://image.fusiongadgets.in/VXCBPHWDBQ/images/VXCBPHWDBQ_01.avif",
+      "is_primary": false
+    },
+    {
+      "alt": "T10 Ultra smartwatch displaying watch face on 2.09 inch infinite style screen",
+      "url": "https://image.fusiongadgets.in/VXCBPHWDBQ/images/VXCBPHWDBQ_02.avif",
+      "is_primary": false
+    },
+    {
+      "alt": "Rear view of T10 Ultra smartwatch showing sensors and charging area",
+      "url": "https://image.fusiongadgets.in/VXCBPHWDBQ/images/VXCBPHWDBQ_03.avif",
+      "is_primary": false
+    }
+  ],
+  "features": [
+    "2.09 inch infinite-style full-touch display for large, easy-to-read watch faces and menus.",
+    "Bluetooth calling support to make and receive calls from the watch when paired with a phone.",
+    "All-in-one fitness tracking with steps, distance, estimated calories and multiple sports modes.",
+    "Basic health monitoring including heart rate and sleep tracking for everyday wellness insights.",
+    "Smart notifications for calls, messages and supported app alerts directly on your wrist.",
+    "Sleek black strap and curved display design that suits gym, office and casual wear.",
+    "Battery life rated for several days under typical mixed use, depending on settings and features used."
+  ],
+  "specifications": {
+    "Display": "2.09\" Infinite Full Touch Display",
+    "Bluetooth": "Yes (Bluetooth Calling Enabled)",
+    "Battery Life": "Up to 5-7 Days (Typical Usage)",
+    "Compatibility": "Android & iOS",
+    "Fitness Modes": "Multiple Sports & Activity Modes",
+    "Notifications": "Call, Message, App Alerts",
+    "Strap Material": "Silicone (Black)",
+    "Health Features": "Heart Rate Monitor, Sleep Tracker",
+    "Water Resistance": "Splash & Sweat Resistant (IP Rating may vary)"
+  },
+  "tags": [
+    "t10 ultra smartwatch",
+    "t10 ultra 2.09 inch infinite display watch",
+    "smartwatch with bluetooth calling black strap",
+    "hiwatch t10 ultra fitness tracker",
+    "budget smartwatch with large display",
+    "smartwatch with heart rate and sleep tracking",
+    "t10 ultra smart watch notifications",
+    "black bluetooth calling smartwatch for android ios",
+    "2.09 inch full touch smartwatch",
+    "hiwatch t10 ultra smart watch"
+  ],
+  "meta_title": "T10 Ultra Smartwatch 2.09 inch Infinite Display with Bluetooth Calling (Black) | FUSION GADGETS",
+  "meta_description": "T10 Ultra smartwatch with 2.09 inch infinite-style HD display, Bluetooth calling, everyday fitness and activity tracking, heart rate and sleep monitoring, smart notifications and sleek black strap design for daily wear.",
+  "canonical_url": "https://fusiongadgets.in/t10-ultra-smartwatch-209-inch-infinite-display-with-bluetooth-calling-black",
+  "created_at": "2025-04-18T13:24:54.316+00:00",
+  "updated_at": "2026-02-17T10:05:37.648501+00:00",
+  "faq": [
+    {
+      "answer": "T10 Ultra is generally compatible with many Android and iOS smartphones that support Bluetooth connectivity and the recommended companion app. Check the product details for app links and OS version requirements.",
+      "question": "Is the T10 Ultra smartwatch compatible with Android and iOS phones?"
+    },
+    {
+      "answer": "Yes, when the watch is connected to your phone via Bluetooth, you can use the Bluetooth calling feature to handle calls from the watch interface.",
+      "question": "Can I make and receive calls directly from the T10 Ultra watch?"
+    },
+    {
+      "answer": "It supports basic heart rate monitoring, sleep tracking and common activity metrics like steps and estimated calories for everyday wellness awareness. These readings are not intended for medical use.",
+      "question": "What health features does the T10 Ultra offer?"
+    },
+    {
+      "answer": "Battery life is typically rated for several days under mixed use, but actual duration varies with brightness, watch face, notifications and Bluetooth calling usage.",
+      "question": "How long does the battery last on typical use?"
+    },
+    {
+      "answer": "It is described as splash and sweat resistant, suitable for everyday wear and light workouts within the stated rating. It is not positioned for swimming or high-pressure water exposure.",
+      "question": "Is the T10 Ultra smartwatch waterproof?"
+    },
+    {
+      "answer": "Yes, it includes multiple sports and activity modes intended to log different types of workouts and daily movement.",
+      "question": "Does the T10 Ultra support multiple sports modes?"
+    }
+  ]
+}

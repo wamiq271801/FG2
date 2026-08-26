@@ -1,0 +1,67 @@
+{
+  "id": "2EDKOQGUG8",
+  "sku": null,
+  "slug": "amoled-bluetooth-calling-smartwatch",
+  "name": "AMOLED Calling Smartwatch",
+  "subtitle": "Round AMOLED display with Bluetooth calling",
+  "brand_id": null,
+  "category_id": "F4NN6JLVGB0Q",
+  "subcategory": "Smartwatch",
+  "tagline": "Calls and tracking on wrist",
+  "description": "A round smartwatch with a 1.39-inch AMOLED touchscreen, 464 × 464 resolution, and Bluetooth calling support. It also provides voice assistant support, heart rate and sleep tracking, multiple activity modes, smart notifications, and Android and iOS compatibility.",
+  "story": "The watch combines communication and daily tracking in a round-dial format with a brown leather-style strap. Pair it with a compatible smartphone to use Bluetooth calling and receive supported notifications without checking the phone for every update. The 464 × 464 AMOLED touchscreen is the main interface for watch functions, while heart rate, sleep, and activity features provide recorded wellness information. Battery life is listed as up to 7 days under typical usage. Exact battery capacity and water-resistance details were not supplied.",
+  "price": 1799,
+  "compare_at_price": 4499,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 1,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "1.39-inch AMOLED round touchscreen display",
+    "Bluetooth calling with speaker and microphone",
+    "464 × 464 display resolution",
+    "Heart rate and sleep tracking"
+  ],
+  "includes": [],
+  "specs": {
+    "product_type": "Smartwatch",
+    "display": {
+      "type": "AMOLED",
+      "size": "1.39 inches",
+      "resolution": "464 × 464",
+      "touchscreen": true,
+      "shape": "Round"
+    },
+    "connectivity": "Bluetooth",
+    "calling_feature": "Bluetooth calling",
+    "voice_assistant": "Supported",
+    "health_tracking": [
+      "Heart rate tracking",
+      "Sleep tracking"
+    ],
+    "activity_modes": "Multiple sports and activity modes",
+    "smart_notifications": [
+      "Calls",
+      "Messages",
+      "Apps"
+    ],
+    "compatible_os": [
+      "Android",
+      "iOS"
+    ],
+    "strap": {
+      "color": "Brown",
+      "material": "Leather-style strap"
+    },
+    "battery_life": "Up to 7 days (typical usage)"
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": null,
+  "updated_at": null
+}

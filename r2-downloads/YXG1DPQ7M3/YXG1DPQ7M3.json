@@ -1,0 +1,75 @@
+{
+  "id": "YXG1DPQ7M3",
+  "sku": null,
+  "slug": "hello-watch-3-plus-gen-2",
+  "name": "Hello Watch 3 Plus",
+  "subtitle": "2.04-inch AMOLED Bluetooth calling smartwatch",
+  "brand_id": null,
+  "category_id": "F4NN6JLVGB0Q",
+  "subcategory": "smartwatch",
+  "tagline": "Smooth display, calls, and tracking",
+  "description": "Hello Watch 3 Plus Gen 2 is a smartwatch with a 2.04-inch AMOLED display, 60Hz refresh rate, Bluetooth calling, 1GB ROM, health tracking, sports modes, magnetic charging, and IP68 water resistance for everyday wear.",
+  "story": "Designed for daily wear, Hello Watch 3 Plus Gen 2 combines a large square display with calling and activity features in one wrist device. Pair it with a compatible Android or iOS phone to manage calls, notifications, settings, and health data through supported connectivity and companion-app functions. The interchangeable metal-style and silicone straps offer two wearing options. Battery life is rated at up to around three days, with actual results depending on brightness, notifications, calling, and other usage.",
+  "price": 4999,
+  "compare_at_price": 7999,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 1,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "2.04-inch AMOLED display with 60Hz",
+    "Bluetooth calling from your wrist",
+    "Heart rate and SpO₂ tracking",
+    "IP68 water resistance rating"
+  ],
+  "includes": [
+    "1× metal-style strap",
+    "1× silicone strap",
+    "Magnetic charging cable"
+  ],
+  "specs": {
+    "brand": "Hello",
+    "model": "Hello Watch 3 Plus Gen 2",
+    "edition": "2024 edition",
+    "display": "2.04-inch AMOLED",
+    "resolution": "450 × 450 pixels",
+    "refresh_rate": "60Hz",
+    "memory": "1GB ROM",
+    "user_interface": "OS10-style UI",
+    "connectivity": "Bluetooth 5.0 with BLE",
+    "calling": "Bluetooth calling",
+    "compatibility": "Android 6.0+ and iOS 11.0+",
+    "health_tracking": [
+      "Heart rate",
+      "SpO₂",
+      "Sleep monitoring"
+    ],
+    "sensors": [
+      "Heart rate sensor",
+      "SpO₂ sensor",
+      "Accelerometer",
+      "Gyroscope"
+    ],
+    "sports_modes": "Multiple",
+    "battery_capacity": "300mAh",
+    "battery_life": "Up to around 3 days of typical use",
+    "charging": "Magnetic charging cable, pogo-pin style",
+    "water_resistance": "IP68",
+    "dimensions": "Approx. 45 × 45 × 11 mm",
+    "weight": "Approx. 52g without strap",
+    "straps": [
+      "Metal-style strap",
+      "Silicone strap"
+    ],
+    "app_support": "Companion app for health data and settings"
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": "2025-04-17T09:42:21.941+00:00",
+  "updated_at": "2026-02-17T10:05:37.648501+00:00"
+}

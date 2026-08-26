@@ -1,0 +1,61 @@
+{
+  "id": "2P0FNOFJ4M",
+  "sku": null,
+  "slug": "400ml-glass-water-bottle",
+  "name": "400ml Glass Water Bottle",
+  "subtitle": "Borosilicate glass bottle with protective shell",
+  "brand_id": null,
+  "category_id": "20VMVV97JFUK",
+  "subcategory": "Water Bottles",
+  "tagline": "Compact hydration for daily carry",
+  "description": "A 400ml reusable water bottle with a BPA-free borosilicate glass inner bottle, protective plastic shell, and secure screw cap. Its compact handheld design is intended for carrying water and other drinks at school, the gym, office, home, or while travelling.",
+  "story": "The 400ml capacity suits shorter outings, desk use, gym sessions, or school days when regular refilling is available. A protective outer plastic shell surrounds the glass bottle, while the screw cap is listed as leak-proof for everyday carrying. The supplied product information also lists use with water, juice, smoothies, and flavoured drinks. It comes as one bottle and is reusable. Exact dimensions, weight, insulation performance, and dishwasher suitability were not provided, so those details are intentionally omitted.",
+  "price": 99,
+  "compare_at_price": 249,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 10,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "400ml compact reusable bottle capacity",
+    "BPA-free borosilicate glass inner bottle",
+    "Protective plastic outer shell",
+    "Leak-proof secure screw cap"
+  ],
+  "includes": [
+    "1 bottle"
+  ],
+  "specs": {
+    "brand": "Nice",
+    "product_type": "Glass water bottle",
+    "capacity": "400 ml",
+    "inner_material": "BPA-free borosilicate glass",
+    "outer_material": "Plastic shell",
+    "cap_type": "Secure screw cap",
+    "leak_proof": true,
+    "reusable": true,
+    "design": [
+      "Handheld",
+      "Compact",
+      "Travel-friendly"
+    ],
+    "ideal_for": [
+      "School",
+      "Gym",
+      "Office",
+      "Home",
+      "Travel"
+    ],
+    "color": "Varies based on availability",
+    "pack_content": "1 bottle"
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": null,
+  "updated_at": null
+}

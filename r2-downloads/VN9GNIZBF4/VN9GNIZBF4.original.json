@@ -1,0 +1,95 @@
+{
+  "id": "VN9GNIZBF4",
+  "slug": "wireless-earbuds-4th-gen-design-with-bluetooth-and-30-hours-playback",
+  "h1": "Wireless Earbuds 4th Gen Design with Bluetooth and Up to 30 Hours Playback",
+  "short_description": "Overview: These FUSION GADGETS wireless earbuds feature a 4th-generation inspired design and are built for everyday listening, calls and entertainment. The compact case and lightweight earbuds are aimed at users who want a simple, clean true wireless...",
+  "description": "Overview: These FUSION GADGETS wireless earbuds feature a 4th-generation inspired design and are built for everyday listening, calls and entertainment. The compact case and lightweight earbuds are aimed at users who want a simple, clean true wireless experience.\r\n\r\nSound & Performance: Tuned for balanced sound with an enhanced bass response, the earbuds are suitable for music, videos and casual gaming. A low-latency mode helps keep audio and visuals more in sync during video playback and light gaming sessions.\r\n\r\nBattery & Playback: With up to around 30 hours of total playback time when used with the charging case (based on typical conditions), these earbuds are intended to support day-to-day listening across commutes, office and leisure use.\r\n\r\nComfort & Fit: The in-ear design is made for a secure, comfortable fit over regular use, helping the earbuds stay in place during walking, commuting or light workouts.\r\n\r\nControls & Convenience: Touch controls let you manage music, calls and supported voice assistant features on compatible devices without reaching for your phone.\r\n\r\nEveryday Use: A build designed to handle sweat and light splashes makes these earbuds suitable for daily activity and workouts within reasonable limits, while the compact case keeps them easy to carry in pockets or bags.",
+  "brand": "FUSION GADGETS",
+  "sku": null,
+  "category_id": "851F22BBV077",
+  "category_slug": "in-ear-headphones",
+  "price": 799,
+  "mrp": 1199,
+  "discount": 33,
+  "currency": "INR",
+  "stock": 0,
+  "status": "Active",
+  "is_featured": false,
+  "images": [
+    {
+      "alt": "Wireless earbuds with 4th gen inspired design and charging case in white",
+      "url": "https://image.fusiongadgets.in/VN9GNIZBF4/images/VN9GNIZBF4_00.avif",
+      "is_primary": true
+    },
+    {
+      "alt": "Close up of wireless earbuds showing in ear ergonomic design",
+      "url": "https://image.fusiongadgets.in/VN9GNIZBF4/images/VN9GNIZBF4_01.avif",
+      "is_primary": false
+    },
+    {
+      "alt": "Wireless earbuds charging case close up with earbuds inside",
+      "url": "https://image.fusiongadgets.in/VN9GNIZBF4/images/VN9GNIZBF4_02.avif",
+      "is_primary": false
+    }
+  ],
+  "features": [
+    "4th generation inspired true wireless earbuds design with compact charging case.",
+    "Bluetooth connectivity for stable everyday audio and call performance.",
+    "Up to around 30 hours total playback time when used with the charging case.",
+    "Low latency support to help improve audio sync for videos and casual gaming.",
+    "Touch controls for managing music, calls and supported voice assistant functions.",
+    "Comfortable in-ear fit suitable for daily listening and light movement.",
+    "Build designed to handle sweat and light splashes during regular use."
+  ],
+  "specifications": {
+    "Color": "White",
+    "Controls": "Touch controls",
+    "Microphone": "Built-in",
+    "Audio Codec": "SBC",
+    "Connectivity": "Bluetooth",
+    "Design Style": "4th generation inspired",
+    "Product Type": "Wireless Earbuds (TWS)",
+    "Charging Port": "USB Type-C",
+    "Voice Assistant": "Supported",
+    "Water Resistance": "Suitable for sweat and light splashes",
+    "Bluetooth Version": "Bluetooth 5.0",
+    "Total Playback Time": "Up to 30 hours (with charging case)"
+  },
+  "tags": [
+    "wireless earbuds 4th gen design",
+    "bluetooth tws earbuds with charging case",
+    "budget wireless earbuds with 30 hours playback",
+    "low latency wireless earbuds for videos",
+    "in ear true wireless earphones with mic",
+    "FUSION GADGETS wireless audio earbuds",
+    "white wireless earbuds for daily use",
+    "tws earbuds with touch controls"
+  ],
+  "meta_title": "Wireless Earbuds 4th Gen Design with Bluetooth and Up to 30 Hours Playback | FUSION GADGETS",
+  "meta_description": "Wireless earbuds from FUSION GADGETS with 4th gen inspired design, Bluetooth connectivity, up to 30 hours total playback with charging case, low latency support, touch controls and in-ear fit for everyday listening and calls.",
+  "canonical_url": "https://fusiongadgets.in/wireless-earbuds-4th-gen-design-with-bluetooth-and-30-hours-playback",
+  "created_at": "2025-04-18T15:05:43.204+00:00",
+  "updated_at": "2026-02-17T10:05:37.648501+00:00",
+  "faq": [
+    {
+      "answer": "They are designed for everyday listening with balanced sound, clear vocals, and enhanced bass suitable for music, videos, and calls.",
+      "question": "What type of audio experience do these earbuds offer?"
+    },
+    {
+      "answer": "These earbuds do not include Active Noise Cancellation and rely on passive noise isolation from the in-ear fit.",
+      "question": "Do these earbuds support Active Noise Cancellation?"
+    },
+    {
+      "answer": "Low latency support helps improve audio sync for videos and casual gaming, though they are not intended for competitive gaming.",
+      "question": "Are these earbuds good for gaming?"
+    },
+    {
+      "answer": "Yes, they are designed to handle sweat and light splashes, making them suitable for workouts and daily activity.",
+      "question": "Can I use them during workouts?"
+    },
+    {
+      "answer": "The earbuds work with most smartphones, tablets, and Bluetooth-enabled devices.",
+      "question": "Which devices are compatible?"
+    }
+  ]
+}

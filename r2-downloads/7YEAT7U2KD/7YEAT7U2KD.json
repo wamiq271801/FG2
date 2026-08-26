@@ -1,0 +1,61 @@
+{
+  "id": "7YEAT7U2KD",
+  "sku": null,
+  "slug": "usb-rechargeable-electric-arc-lighter",
+  "name": "Electric Arc Lighter",
+  "subtitle": "USB rechargeable flexible neck lighter",
+  "brand_id": null,
+  "category_id": "T948NF94GBZB",
+  "subcategory": "gas-lighter",
+  "tagline": "Flexible ignition without an open flame",
+  "description": "USB rechargeable electric lighter with a flexible 360° metal neck and flameless plasma arc. It is designed for lighting gas stoves, candles, diya wicks, incense, and BBQ grills, with a safety lock and LED battery indicator for convenient everyday use.",
+  "story": "The flexible neck helps position the ignition tip around recessed burners, deep candle jars, and other hard-to-reach spots. Its plasma arc avoids the need for gas refills, while USB charging supports repeated use from the internal battery. A safety lock helps reduce accidental activation during storage, and the LED indicator shows the battery level. With its slim handle and bendable neck, it suits everyday kitchen lighting, festive diya and candle use, outdoor grilling, and similar household ignition tasks.",
+  "price": 349,
+  "compare_at_price": 799,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 1,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "360° flexible metal ignition neck",
+    "Windproof flameless plasma arc ignition",
+    "USB rechargeable internal battery power",
+    "Safety lock with LED indicator"
+  ],
+  "includes": [],
+  "specs": {
+    "product_type": "Electric arc lighter",
+    "weight": "100 g",
+    "material": [
+      "Stainless steel",
+      "Zinc alloy",
+      "Ceramic components"
+    ],
+    "dimensions": "28 cm x 2 cm x 3 cm",
+    "neck_type": "360° flexible metal neck",
+    "power_source": "USB rechargeable internal battery",
+    "battery_capacity": "200 mAh",
+    "charging_time": "Up to 1 hour",
+    "ignition_technology": "Flameless plasma arc",
+    "usage_per_charge": "Up to 400 ignitions",
+    "features": [
+      "Safety lock",
+      "LED battery indicator"
+    ],
+    "recommended_use": [
+      "Gas stoves",
+      "Candles",
+      "BBQ grills",
+      "Similar household applications"
+    ]
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": "2025-04-21T15:27:33.251+00:00",
+  "updated_at": "2026-02-17T10:05:37.320569+00:00"
+}

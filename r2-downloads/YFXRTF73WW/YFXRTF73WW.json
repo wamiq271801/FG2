@@ -1,0 +1,65 @@
+{
+  "id": "YFXRTF73WW",
+  "sku": null,
+  "slug": "mini-space-ceramic-room-heater",
+  "name": "Mini Space Room Heater",
+  "subtitle": "Compact ceramic heater for personal warmth",
+  "brand_id": null,
+  "category_id": "RY4LHZJEDQOV",
+  "subcategory": "electric-fan-heaters",
+  "tagline": "Compact warmth for small spaces",
+  "description": "This Mini Space Room Heater is a compact electric ceramic heater for targeted personal warmth in small indoor spaces. It has an adjustable thermostat, overheat protection, portable black ABS housing and low-noise operation, with image claims of odorless heating and no oxygen consumption.",
+  "story": "Made for desks, study corners and other compact indoor areas, this portable heater focuses on close-range personal use rather than heating large rooms. Its lightweight form makes moving and storing it easier, while the integrated handle-style design supports repositioning between spaces. The adjustable thermostat allows temperature adjustment, and overheat protection is listed as a safety feature. The supplied product information also identifies a ceramic heating element, electric power source and standard two-pin plug for use with compatible sockets.",
+  "price": 649,
+  "compare_at_price": 999,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 1,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "Compact ceramic personal space heater",
+    "Adjustable thermostat for temperature control",
+    "Overheat protection for normal operation",
+    "Odorless and low-noise operation claims"
+  ],
+  "includes": [
+    "Room Heater",
+    "User Manual"
+  ],
+  "specs": {
+    "color": "Black",
+    "product_type": "Mini Space Electric Room Heater",
+    "power_source": "Electric",
+    "heating_technology": "Ceramic Element",
+    "material": "ABS Plastic and Ceramic Heating Element",
+    "thermostat": "Adjustable",
+    "safety_features": [
+      "Overheat Protection"
+    ],
+    "plug_type": "Standard 2-pin plug",
+    "usage_area": [
+      "Desktop",
+      "Office",
+      "Small Rooms"
+    ],
+    "portability": "Lightweight and easy to carry",
+    "weight": "Approximately 400-600 g",
+    "power_consumption": "Approximately 400W-1000W, varies by model",
+    "dimensions": "Approximately 14 × 10 × 8 cm",
+    "visible_product_claims": [
+      "Odorless",
+      "No oxygen consumption",
+      "No light",
+      "Low noise"
+    ]
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": "2025-04-19T09:27:48.45+00:00",
+  "created_at": "2025-04-19T09:27:48.45+00:00",
+  "updated_at": "2026-02-17T10:05:37.648501+00:00"
+}

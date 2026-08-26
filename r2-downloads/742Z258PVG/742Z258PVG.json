@@ -1,0 +1,60 @@
+{
+  "id": "742Z258PVG",
+  "sku": null,
+  "slug": "hello-plum-amoled-smartwatch",
+  "name": "Hello Plum Smartwatch",
+  "subtitle": "Large AMOLED display with wellness tracking",
+  "brand_id": null,
+  "category_id": "F4NN6JLVGB0Q",
+  "subcategory": "smartwatch",
+  "tagline": "Track your day from wrist",
+  "description": "Hello Plum smartwatch features a 2.1-inch AMOLED full-touch display with Bluetooth 5.1 connectivity. It supports heart rate, SpO2, sleep, step, and calorie tracking, offers IP68 water resistance, and is compatible with iOS 10.0 and Android 5.0 or later.",
+  "story": "Designed for everyday wear, this smartwatch combines a large AMOLED screen with activity and wellness tracking in a single wrist device. Bluetooth connectivity supports pairing with compatible Android and iOS phones, while customizable watch faces let the display suit different looks. The listed sensors and tracking functions cover heart rate, SpO2, sleep, steps, and calories for general awareness. Its IP68 rating is provided for water resistance, and the stated battery life is up to two days depending on use.",
+  "price": 3399,
+  "compare_at_price": 4499,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 1,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "2.1-inch AMOLED full-touch display",
+    "Heart rate and SpO2 tracking",
+    "Bluetooth 5.1 phone connectivity",
+    "IP68 water resistance rating"
+  ],
+  "includes": [],
+  "specs": {
+    "model": "Hello Plum",
+    "brand": "Generic",
+    "display_type": "AMOLED Full-Touch HD",
+    "screen_size": "2.1 inches",
+    "connectivity": "Bluetooth 5.1",
+    "sensors": [
+      "Heart Rate Sensor",
+      "Accelerometer",
+      "SpO2"
+    ],
+    "tracking": [
+      "Heart rate",
+      "SpO2",
+      "Sleep",
+      "Steps",
+      "Calories"
+    ],
+    "battery_life": "Up to 2 days",
+    "compatibility": "iOS 10.0 and Android 5.0 or later",
+    "water_resistance": "IP68",
+    "additional_features": [
+      "Custom watch faces"
+    ]
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": "2025-04-14T15:23:06.805+00:00",
+  "updated_at": "2026-02-17T10:05:37.320569+00:00"
+}

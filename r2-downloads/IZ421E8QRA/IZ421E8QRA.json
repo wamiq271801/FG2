@@ -1,0 +1,63 @@
+{
+  "id": "IZ421E8QRA",
+  "sku": null,
+  "slug": "rechargeable-cob-keychain-work-light",
+  "name": "Rechargeable COB Keychain Light",
+  "subtitle": "USB-C charging with magnetic base",
+  "brand_id": null,
+  "category_id": "M7MWYZB53GYZ",
+  "subcategory": "Flashlights",
+  "tagline": "Compact light for hands-free tasks",
+  "description": "A compact COB keychain work light with USB-C charging, a 500mAh battery, and three lighting modes: High, Low, and Strobe. Its magnetic base and foldable stand provide hands-free positioning, while the keyring mount makes it suitable for carrying with everyday essentials.",
+  "story": "This small work light is built around flexible placement rather than a fixed handheld torch shape. Attach the magnetic base to a suitable metal surface, open the foldable stand, or carry it from a keyring depending on the situation. The COB light panel provides the main illumination, with High, Low, and Strobe modes available from the device. USB-C charging avoids the need for disposable batteries. Its listed uses include workshop tasks, repairs, emergencies, and outdoor situations, while exact runtime is not provided.",
+  "price": 149,
+  "compare_at_price": 249,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 6,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "Three High Low Strobe modes",
+    "Magnetic base for hands-free placement",
+    "Foldable stand for angled positioning",
+    "USB-C rechargeable 500mAh battery"
+  ],
+  "includes": [],
+  "specs": {
+    "product_type": "COB keychain work light",
+    "color": "Black",
+    "usage": [
+      "Workshop",
+      "Repairing",
+      "Emergency",
+      "Outdoor"
+    ],
+    "weight": "Approximately 50 g",
+    "material": [
+      "ABS Plastic",
+      "Aluminum Alloy"
+    ],
+    "dimensions": "Approximately 6 cm x 4 cm x 2 cm",
+    "charging_port": "USB-C",
+    "lighting_modes": [
+      "High",
+      "Low",
+      "Strobe"
+    ],
+    "battery_capacity": "500mAh",
+    "mounting_options": [
+      "Magnetic Base",
+      "Foldable Stand",
+      "Keyring"
+    ]
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": null,
+  "updated_at": null
+}

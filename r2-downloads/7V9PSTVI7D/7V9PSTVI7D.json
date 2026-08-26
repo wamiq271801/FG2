@@ -1,0 +1,63 @@
+{
+  "id": "7V9PSTVI7D",
+  "sku": null,
+  "slug": "t57-rugged-smartwatch-orange",
+  "name": "T57 Rugged Smartwatch",
+  "subtitle": "Large Display with Wireless Charging",
+  "brand_id": null,
+  "category_id": "F4NN6JLVGB0Q",
+  "subcategory": "Smartwatch",
+  "tagline": "Bold design for daily tracking",
+  "description": "The T57 rugged-style smartwatch features a 1.91-inch full-touch TFT LCD display, wireless charging, Bluetooth connectivity, and smart notifications. It supports heart rate and sleep tracking alongside multiple sports modes. The orange strap and 47 mm body give the watch a distinctive everyday look.",
+  "story": "Designed for users who prefer a large, easy-to-read smartwatch, the T57 combines everyday notifications with activity and wellness tracking. The full-touch screen provides access to watch functions, while Bluetooth connects it with compatible Android and iOS phones. Wireless charging simplifies the charging routine without plugging a cable into the watch. Multiple sports modes support activities such as walking, running, and cycling. Its 47 mm rugged-style body, ABS construction with metal accents, and bright orange strap create a bold appearance for regular daily wear.",
+  "price": 1399,
+  "compare_at_price": 1999,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": "Orange",
+  "stock": 0,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "Large 1.91-inch full-touch display",
+    "Wireless charging for everyday convenience",
+    "Heart rate and sleep tracking",
+    "Multiple sports and activity modes"
+  ],
+  "includes": [],
+  "specs": {
+    "model": "T57",
+    "product_type": "Smartwatch",
+    "body_size": "47 mm",
+    "strap_color": "Orange",
+    "display_size": "1.91 inches",
+    "display_type": "TFT LCD",
+    "touch_screen": "Yes, full touch",
+    "navigation": "Touch screen",
+    "charging_type": "Wireless charging",
+    "battery_life": "Up to 5-7 days typical usage",
+    "connectivity": "Bluetooth",
+    "compatible_os": [
+      "Android",
+      "iOS"
+    ],
+    "notifications": [
+      "Calls",
+      "SMS",
+      "App alerts"
+    ],
+    "health_tracking": [
+      "Heart rate",
+      "Sleep tracking"
+    ],
+    "sports_modes": "Multiple activity modes",
+    "build_material": "ABS with metal accents"
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": "2025-04-17T16:46:29.093+00:00",
+  "updated_at": "2026-02-17T10:05:37.320569+00:00"
+}

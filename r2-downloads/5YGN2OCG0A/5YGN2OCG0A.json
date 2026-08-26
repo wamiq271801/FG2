@@ -1,0 +1,60 @@
+{
+  "id": "5YGN2OCG0A",
+  "sku": null,
+  "slug": "havells-aquilla-1000w-dry-iron-orange",
+  "name": "Havells Aquilla Dry Iron",
+  "subtitle": "1000W iron with non-stick soleplate",
+  "brand_id": null,
+  "category_id": "TQMGONIS0EJR",
+  "subcategory": "Dry Iron",
+  "tagline": "Smooth ironing with simple control",
+  "description": "Havells Aquilla is a 1000W dry iron with an American Heritage non-stick coated soleplate, temperature control dial, and 360° swivel cord. Its aerodynamic plastic body, flat-type heating element, and button grooves support convenient everyday garment ironing.",
+  "story": "Built for regular household ironing, the Havells Aquilla combines straightforward heat control with features designed around garment handling. Select the temperature according to the fabric using the easy-grip dial, while the non-stick coated soleplate is designed for smooth movement across clothes. The 360° swivel cord allows easier maneuvering as you change direction, and button grooves help work around shirt details. With its 1000W heating power and dry-iron design, it suits everyday shirts, uniforms, sarees, and other garments.",
+  "price": 999,
+  "compare_at_price": 1199,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": "Orange",
+  "stock": 0,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "1000W power for faster heating",
+    "American Heritage non-stick soleplate",
+    "360° swivel cord maneuverability",
+    "Easy-grip temperature control dial"
+  ],
+  "includes": [
+    "Dry iron",
+    "Warranty card",
+    "User manual"
+  ],
+  "specs": {
+    "brand": "Havells",
+    "model": "Aquilla",
+    "model_number": "GHGDICEO100",
+    "type": "Dry Iron",
+    "color": "Amber",
+    "power": "1000 W",
+    "voltage": "230 V",
+    "frequency": "50 Hz",
+    "soleplate": "American Heritage non-stick coated",
+    "body": "Plastic",
+    "heating_element": "Flat-type",
+    "temperature_control": "Easy-grip control dial",
+    "cord": "360° swivel cord",
+    "design": "Aerodynamic",
+    "features": [
+      "Button grooves",
+      "Power indicator"
+    ],
+    "warranty": "2 years"
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "2-year product warranty",
+  "added_at": null,
+  "created_at": "2025-04-19T17:51:19.362+00:00",
+  "updated_at": "2026-05-22T09:54:40.646048+00:00"
+}

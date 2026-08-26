@@ -1,0 +1,65 @@
+{
+  "id": "1438SF0HAD",
+  "sku": null,
+  "slug": "extendable-microfiber-car-duster",
+  "name": "Extendable Microfiber Car Duster",
+  "subtitle": "Extendable microfiber duster for vehicle cleaning",
+  "brand_id": null,
+  "category_id": "M3CUAE0NBSYA",
+  "subcategory": "Car Cleaning Accessories",
+  "tagline": "Dust hard-to-reach vehicle areas",
+  "description": "An extendable microfiber car duster with a stainless steel handle and washable reusable head, intended for dry dust removal on vehicle exteriors and interiors. Its supplied dimensions include an approximately 28.5 to 34 inch handle range and an approximately 23 by 7 inch head.",
+  "story": "Between full washes, the duster can be used for routine dry dusting on cars and other listed surfaces. The microfiber head may be hand washed or machine washed, with air drying recommended in the supplied care instructions. Its stated uses also cover trucks, RVs, motorcycles, and home cleaning, while the telescoping handle adds reach for higher areas. The listing gives an approximate weight of 1.21 pounds, but no verified brand model or package contents beyond the single product are supplied.",
+  "price": 399,
+  "compare_at_price": 999,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 0,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "Extendable handle from 28.5 to 34 inches",
+    "Microfiber head for vehicle dusting",
+    "Washable by hand or machine",
+    "Air drying recommended after washing"
+  ],
+  "includes": [],
+  "specs": {
+    "brand": "Generic",
+    "type": "Microfiber car duster",
+    "color": "Available in various colors (subject to availability)",
+    "material": {
+      "head": "Microfiber",
+      "handle": "Stainless steel"
+    },
+    "weight": "Approximately 1.21 pounds",
+    "handle_length": {
+      "minimum": "Approximately 28.5 inches",
+      "maximum": "34 inches"
+    },
+    "head_dimensions": {
+      "length": "Approximately 23 inches",
+      "width": "7 inches"
+    },
+    "usage": [
+      "Cars",
+      "Trucks",
+      "RVs",
+      "Motorcycles",
+      "Home cleaning"
+    ],
+    "care_instructions": [
+      "Hand wash or machine wash",
+      "Air dry recommended"
+    ],
+    "reusable": true
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": null,
+  "updated_at": null
+}

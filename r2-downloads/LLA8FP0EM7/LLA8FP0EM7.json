@@ -1,0 +1,51 @@
+{
+  "id": "LLA8FP0EM7",
+  "sku": null,
+  "slug": "microfiber-mini-car-duster",
+  "name": "Microfiber Mini Car Duster",
+  "subtitle": "Washable handheld duster for everyday cleaning",
+  "brand_id": null,
+  "category_id": "M3CUAE0NBSYA",
+  "subcategory": "car-accessories",
+  "tagline": "Soft dusting for daily cleaning",
+  "description": "Handheld microfiber mini duster with a plastic handle for cleaning dust from car interiors, exteriors, home surfaces and kitchen areas. Its soft microfiber bristles are designed to lift and trap dust, while the compact washable design supports repeated everyday cleaning use.",
+  "story": "This compact duster is suited to quick cleaning tasks where a larger cleaning tool feels unnecessary. The microfiber head can be used across car surfaces, shelves, appliances and other household areas, while the handled design provides a simple grip during use. After cleaning, the duster can be washed and air dried for reuse. Its small size also makes it easier to store in a car, cleaning cupboard or kitchen utility area when not in use.",
+  "price": 199,
+  "compare_at_price": 499,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": "gray",
+  "stock": 1,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "Soft microfiber dust collecting bristles",
+    "Washable and reusable cleaning design",
+    "Compact handle for easy use",
+    "Suitable for multiple cleaning areas"
+  ],
+  "includes": [],
+  "specs": {
+    "color": "Assorted (subject to availability)",
+    "usage": [
+      "Car interiors",
+      "Car exteriors",
+      "Home",
+      "Kitchen"
+    ],
+    "weight": "Approximately 200 g",
+    "materials": [
+      "Microfiber bristles",
+      "Plastic handle"
+    ],
+    "dimensions": "Approximately 12 x 8 x 6 cm",
+    "care_instructions": "Hand wash recommended; air dry"
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": "2025-04-18T13:55:46.905+00:00",
+  "created_at": "2025-04-18T13:55:46.905+00:00",
+  "updated_at": "2026-02-17T10:05:37.320569+00:00"
+}

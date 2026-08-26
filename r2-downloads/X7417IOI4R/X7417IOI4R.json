@@ -1,0 +1,58 @@
+{
+  "id": "X7417IOI4R",
+  "sku": null,
+  "slug": "t900-pro-max-smartwatch",
+  "name": "T900 Pro Max Smartwatch",
+  "subtitle": "Large display with Bluetooth calling",
+  "brand_id": null,
+  "category_id": "F4NN6JLVGB0Q",
+  "subcategory": "smartwatch",
+  "tagline": "Calls, tracking, and customizable style",
+  "description": "T900 Pro Max is a smartwatch with a 1.69-inch HD full-touch display, Bluetooth calling, over 100 watch faces, activity modes, heart rate and sleep tracking, breathing exercises, and IP68 water resistance. It connects with compatible Android and iOS smartphones.",
+  "story": "Built for everyday wrist use, the T900 Pro Max combines a large touchscreen with calling, notifications, and customizable watch faces in one compact device. Multiple activity modes help record daily movement and workouts, while heart rate, sleep, and breathing features provide general wellness information. Bluetooth connectivity keeps call functions and phone-linked features accessible from the watch. The IP68-rated construction is suited to exposure such as everyday splashes and sweat within its stated rating, making it practical for routine wear.",
+  "price": 699,
+  "compare_at_price": 999,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 2,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "1.69-inch HD full-touch display",
+    "Bluetooth calling with paired smartphones",
+    "Over 100 customizable watch faces",
+    "IP68-rated protection from water exposure"
+  ],
+  "includes": [],
+  "specs": {
+    "model_name": "T900 Pro Max",
+    "display": "1.69-inch Full Touch HD Screen",
+    "connectivity": "Bluetooth",
+    "call_function": "Supports dial and receive calls via Bluetooth",
+    "compatibility": "Android and iOS",
+    "watch_faces": "100+ customizable dials",
+    "menu_styles": "Multiple menu layout options",
+    "health_tracking": [
+      "Real-time heart rate",
+      "Sleep monitor",
+      "Breathing exercises"
+    ],
+    "water_resistance": "IP68",
+    "additional_functions": [
+      "Stopwatch",
+      "Brightness adjustment",
+      "Message notifications",
+      "Custom dial"
+    ],
+    "battery_life": "Long-lasting with reduced power consumption system",
+    "app_support": "Connects via dedicated app for full functionality"
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided",
+  "added_at": null,
+  "created_at": "2025-04-17T15:41:32.883+00:00",
+  "updated_at": "2026-02-17T10:05:37.648501+00:00"
+}

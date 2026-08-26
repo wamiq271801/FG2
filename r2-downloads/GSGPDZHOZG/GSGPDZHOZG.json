@@ -1,0 +1,60 @@
+{
+  "id": "GSGPDZHOZG",
+  "sku": null,
+  "slug": "dual-output-charging-cable",
+  "name": "Dual Output Charging Cable",
+  "subtitle": "USB-A cable with dual outputs",
+  "brand_id": null,
+  "category_id": "D3ASCOC3RCF9",
+  "subcategory": "Charging Cables",
+  "tagline": "One input, two outputs",
+  "description": "A 65W multi-output charging cable with one USB-A input and two output connectors: USB-C and Lightning. It supports PD 3.0 and QC 3.0, offers up to 480Mbps data transfer, and measures approximately 1.2 meters for everyday charging and syncing.",
+  "story": "The USB-A input suits chargers, car adapters, power banks, and other sources that use a standard USB-A port, while the two output tips let you connect to USB-C or Lightning devices. For buyers replacing separate cables, the practical distinction is simple: the source side is USB-A only, so a USB-C charger port cannot connect directly without another adapter. The 1.2-meter length gives moderate reach, while 480Mbps keeps the cable useful for basic USB 2.0 data syncing alongside charging. Details on package contents are not verified, so no accessories are listed.",
+  "price": 299,
+  "compare_at_price": 799,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 8,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "Single USB-A input connector",
+    "Dual USB-C and Lightning outputs",
+    "Up to 65W charging support",
+    "480Mbps data transfer capability"
+  ],
+  "includes": [],
+  "specs": {
+    "cable_type": "Multi-output charging cable",
+    "input_connectors": [
+      "USB-A"
+    ],
+    "output_connectors": [
+      "USB-C",
+      "Lightning"
+    ],
+    "maximum_power_output": "65W",
+    "fast_charging_standards": [
+      "PD 3.0",
+      "QC 3.0"
+    ],
+    "e_mark_chip": true,
+    "data_transfer_speed": "Up to 480Mbps",
+    "length": "Approximately 1.2 meters (4 feet)",
+    "compatible_devices": [
+      "iPhone 16/15/14/13/12/11",
+      "iPad",
+      "MacBook",
+      "Android devices",
+      "Laptops"
+    ]
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": null,
+  "updated_at": null
+}

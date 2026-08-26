@@ -1,0 +1,48 @@
+{
+  "id": "RZ5X5658MQ",
+  "sku": null,
+  "slug": "20w-usb-c-power-adapter",
+  "name": "20W USB-C Power Adapter",
+  "subtitle": "White USB-C charger for compatible devices",
+  "brand_id": null,
+  "category_id": "VX91NU9DTVRC",
+  "subcategory": "Mobile Charger",
+  "tagline": "Compact power for daily charging",
+  "description": "This white 20W USB-C power adapter provides charging for compatible USB-C devices. Its compact design suits home, office, and travel use. The adapter is listed as compatible with iPhone 8 and later, plus selected iPad Pro and iPad Air models.",
+  "story": "Designed as a simple wall charging solution, this adapter uses a USB-C output and delivers up to 20W of power. Its compact white body is easy to carry between home, work, and travel locations. A compatible charging cable is required and is not included. The supplied product information lists compatibility with iPhone 8 and later, along with selected iPad Pro and iPad Air models, while the USB-C connection also supports charging other compatible devices.",
+  "price": 549,
+  "compare_at_price": 999,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 1,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "20W power output for charging",
+    "USB-C connector for compatible devices",
+    "Compact design for easy portability",
+    "White finish matches supplied image"
+  ],
+  "includes": [],
+  "specs": {
+    "product_type": "USB-C Power Adapter",
+    "color": "White",
+    "power_output": "20W",
+    "connector_type": "USB-C",
+    "compatible_devices": [
+      "USB-C enabled devices",
+      "iPhone 8 and later",
+      "Selected iPad Pro models",
+      "Selected iPad Air models"
+    ],
+    "charging_cable": "Sold separately"
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": null,
+  "updated_at": null
+}

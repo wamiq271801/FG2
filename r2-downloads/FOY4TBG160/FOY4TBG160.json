@@ -1,0 +1,87 @@
+{
+  "id": "FOY4TBG160",
+  "sku": null,
+  "slug": "almighty-139-amoled-smartwatch",
+  "name": "Almighty AMOLED Smartwatch",
+  "subtitle": "Round display with Bluetooth calling",
+  "brand_id": null,
+  "category_id": "F4NN6JLVGB0Q",
+  "subcategory": "smartwatch",
+  "tagline": "Sharp display, calls, and tracking",
+  "description": "A round smartwatch with a 1.39-inch AMOLED display, Bluetooth calling, and a black leather strap. It supports SpO2, heart rate, blood pressure, sleep tracking, sports modes, smart notifications, voice assistant functions, music control, and remote camera control.",
+  "story": "Designed for everyday wrist use, this smartwatch combines a round 454×454 AMOLED screen with calling and phone-connected controls. The leather strap and zinc alloy dial suit a more traditional watch style, while Bluetooth 5.0 provides wireless connectivity. Track activity and selected wellness metrics throughout the day, then use supported phone features such as notifications, music control, and remote camera control. Magnetic-style charging details are not provided, but the listed charging time is approximately two hours with battery life rated up to 10 days under normal usage.",
+  "price": 1799,
+  "compare_at_price": 4499,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": "black",
+  "stock": 1,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "1.39-inch AMOLED round display",
+    "Bluetooth calling with speaker microphone",
+    "Up to 10-day battery",
+    "SpO2, heart rate, sleep tracking"
+  ],
+  "includes": [
+    "Smartwatch",
+    "Charging Cable",
+    "User Manual"
+  ],
+  "specs": {
+    "model": "BSW013",
+    "product_type": "Smartwatch",
+    "display": {
+      "size": "1.39 inches",
+      "type": "AMOLED",
+      "resolution": "454x454"
+    },
+    "dial_shape": "Round",
+    "dimensions": "46.6 x 50.6 x 10.4 mm",
+    "weight": "Approximately 80 grams",
+    "dial_material": "Zinc Alloy",
+    "strap_material": "Leather",
+    "strap_color": "Black",
+    "connectivity": {
+      "bluetooth_version": "5.0",
+      "operating_range": "Up to 10 meters",
+      "calling": "Bluetooth calling"
+    },
+    "touchscreen": true,
+    "battery": {
+      "normal_usage": "Up to 10 days",
+      "standby": "Up to 20 days",
+      "charging_time": "Approximately 2 hours"
+    },
+    "water_resistance": "IP67",
+    "compatible_os": [
+      "Android 4.4 or above",
+      "iOS 8.0 or above"
+    ],
+    "sensors": [
+      "SpO2",
+      "Heart Rate",
+      "Blood Pressure",
+      "Accelerometer",
+      "Barometer",
+      "Gyro Sensor",
+      "Light Sensor"
+    ],
+    "features": [
+      "Voice assistant support",
+      "Sleep tracking",
+      "Multiple sports modes",
+      "Music control",
+      "Remote camera control",
+      "Smart notifications"
+    ]
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": "2025-04-17T17:35:50.214+00:00",
+  "updated_at": "2026-02-17T10:05:37.320569+00:00"
+}

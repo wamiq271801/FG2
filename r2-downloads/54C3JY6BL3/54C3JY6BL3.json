@@ -1,0 +1,64 @@
+{
+  "id": "54C3JY6BL3",
+  "sku": null,
+  "slug": "hk10-pro-max-ultra-2-smartwatch",
+  "name": "HK10 Pro Max Ultra",
+  "subtitle": "AMOLED Calling Smartwatch With Health Tracking",
+  "brand_id": null,
+  "category_id": "F4NN6JLVGB0Q",
+  "subcategory": "smartwatch",
+  "tagline": "Big display, calling, daily tracking",
+  "description": "The HK10 Pro Max Ultra 2 smartwatch features a 2.04-inch AMOLED display, Bluetooth calling, voice assistant support, and wellness tracking for heart rate, SpO2, sleep, and steps. It also supports sports modes, notifications, custom watch faces, and magnetic USB charging.",
+  "story": "Designed for everyday connectivity and activity tracking, this smartwatch combines a large 420×486 AMOLED display with wrist-based Bluetooth calling through its built-in microphone and speaker. Pair it with Android or iOS using the Wearfit Pro app to manage notifications and watch settings. Its interchangeable 49mm straps let you change the look for different occasions. IP67 splash and sweat resistance supports regular workouts and daily wear, while magnetic USB charging provides a straightforward way to recharge the watch.",
+  "price": 3799,
+  "compare_at_price": 4998.99,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 1,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "2.04-inch AMOLED 420×486 display",
+    "Bluetooth calling with mic speaker",
+    "Heart rate SpO2 sleep tracking",
+    "IP67 splash and sweat resistance"
+  ],
+  "includes": [
+    "Magnetic USB charging cable"
+  ],
+  "specs": {
+    "model": "Wearfit HK10 Pro Max Ultra 2",
+    "display": "2.04-inch AMOLED, 420×486 pixels",
+    "charging": "Magnetic USB charging cable",
+    "material": "Alloy body with soft silicone straps",
+    "bluetooth": "Bluetooth 5.0",
+    "strap_type": "Interchangeable 49mm straps",
+    "app_support": "Wearfit Pro",
+    "battery_life": "2–3 days typical use; 4+ days standby",
+    "compatibility": "Android 5.0+; iOS 10.0+",
+    "health_sensors": [
+      "Heart rate",
+      "SpO2",
+      "Sleep monitor",
+      "Pedometer"
+    ],
+    "water_resistance": "IP67 splash and sweat-resistant",
+    "connectivity_features": [
+      "Bluetooth calling",
+      "Voice assistant",
+      "Notifications"
+    ],
+    "other_features": [
+      "Sports modes",
+      "Custom watch faces"
+    ]
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": "2025-04-14T16:41:24.62+00:00",
+  "updated_at": "2026-02-17T10:05:37.320569+00:00"
+}

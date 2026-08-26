@@ -1,0 +1,47 @@
+{
+  "id": "3CNPODLM3Y",
+  "sku": null,
+  "slug": "usb-a-to-usb-c-cable",
+  "name": "USB-C Charging Cable",
+  "subtitle": "120cm USB-A to USB-C cable",
+  "brand_id": null,
+  "category_id": "D3ASCOC3RCF9",
+  "subcategory": "Charging Cables",
+  "tagline": "Charge and sync with ease",
+  "description": "A 120cm USB-A to USB-C cable supporting charging currents up to 3A and data transfer speeds up to 480Mbps. It connects USB-C compatible smartphones, tablets, and accessories to standard USB-A chargers, power banks, laptops, car chargers, and other compatible USB-A ports.",
+  "story": "The 1.2m cable length provides more reach than a short charging lead for desk, bedside, or other everyday setups. Its USB-A to USB-C connector arrangement also supports data syncing at up to 480Mbps, alongside charging up to the stated 3A maximum. Actual charging speed depends on the connected charger and device. The supplied information identifies compatibility with USB-C enabled smartphones, tablets, and accessories, but does not provide cable material, wattage, fast-charging protocol certification, package contents, or warranty details.",
+  "price": 179,
+  "compare_at_price": 279,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 2,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "120cm cable for everyday reach",
+    "USB-A to USB-C connection",
+    "Supports charging up to 3A",
+    "Data transfer up to 480Mbps"
+  ],
+  "includes": [],
+  "specs": {
+    "product_type": "USB charging and data cable",
+    "cable_type": "USB-A to USB-C",
+    "length": "120 cm",
+    "charging_current": "Up to 3.0 A",
+    "data_transfer_speed": "Up to 480 Mbps",
+    "compatibility": [
+      "USB-C enabled smartphones",
+      "USB-C enabled tablets",
+      "USB-C accessories"
+    ]
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": null,
+  "updated_at": null
+}

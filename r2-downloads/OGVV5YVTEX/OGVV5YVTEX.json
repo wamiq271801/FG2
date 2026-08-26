@@ -1,0 +1,53 @@
+{
+  "id": "OGVV5YVTEX",
+  "sku": null,
+  "slug": "intelligence-learning-book",
+  "name": "Intelligence Learning Book",
+  "subtitle": "Interactive English learning book for kids",
+  "brand_id": null,
+  "category_id": "3SYXDB7WC919",
+  "subcategory": "Educational Toys",
+  "tagline": "Touch, listen, and learn",
+  "description": "Intelligence Learning Book is an interactive English educational book for children aged three and above. Touch-sensitive areas play sounds, words, and songs while introducing alphabets, numbers, animal names, common words, and other early-learning content through visual and auditory activities.",
+  "story": "Designed for early learning, this interactive book combines printed visuals with touch-activated audio activities. Children can explore English learning topics including alphabets, numbers, animal names, common words, and songs at their own pace. The image shows a colorful book-style layout with illustrated learning sections and interactive controls. It requires three AA batteries, which are not included. Its compact format makes it suitable for introducing basic vocabulary and phonetic learning through hands-on listening and touch-based interaction.",
+  "price": 449,
+  "compare_at_price": 799,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 0,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "Touch-sensitive areas play learning sounds",
+    "Covers alphabets numbers and animals",
+    "Includes songs and common words",
+    "Made for children aged three plus"
+  ],
+  "includes": [],
+  "specs": {
+    "product_type": "Interactive Educational Learning Book",
+    "language": "English",
+    "age_recommendation": "3 years and above",
+    "material": "Durable, child-safe plastic with a colorful finish",
+    "dimensions": "Approximately 26 cm x 22 cm x 2.5 cm",
+    "weight": "Approximately 500 grams",
+    "power_source": "Requires 3 AA batteries",
+    "batteries_included": false,
+    "interaction": "Touch-sensitive areas play sounds, words, or songs",
+    "included_content": [
+      "Alphabets",
+      "Numbers",
+      "Animal names",
+      "Common words",
+      "Songs"
+    ]
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": "2025-04-29T16:58:50.336+00:00",
+  "updated_at": "2026-05-22T09:55:23.158803+00:00"
+}

@@ -1,0 +1,60 @@
+{
+  "id": "6OGLFQL91V",
+  "sku": null,
+  "slug": "mini-rechargeable-led-flashlight",
+  "name": "Mini Rechargeable LED Flashlight",
+  "subtitle": "XPE torch and COB work light",
+  "brand_id": null,
+  "category_id": "M7MWYZB53GYZ",
+  "subcategory": "flashlights",
+  "tagline": "Compact light for everyday emergencies",
+  "description": "This mini rechargeable LED flashlight combines a focused XPE torch with a side COB work light for portable illumination. Three lighting modes, USB charging, splash resistance, a compact aluminum alloy body, and clip-and-lanyard carry options support everyday, travel, camping, repair, and emergency use.",
+  "story": "The front XPE light is suited to focused illumination, while the side COB panel provides broader light for nearby tasks. Cycle between the listed High Beam, Strobe, and Side COB modes according to the situation. USB charging removes the need for disposable batteries, and the compact form can be carried using its pen clip or hanging rope. Its splash-resistant construction is intended for light rain and splashes, while the aluminum alloy body is specified for daily handling and travel.",
+  "price": 179,
+  "compare_at_price": 299,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 8,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "Focused XPE front torch light",
+    "Wide COB side work light",
+    "Three listed lighting modes",
+    "USB rechargeable compact aluminum body"
+  ],
+  "includes": [],
+  "specs": {
+    "color": "Black",
+    "weight": "Approximately 200 g",
+    "material": "Aluminum Alloy",
+    "dimensions": "Approximately 9 cm x 2.5 cm x 2.5 cm",
+    "power_source": "Built-in Rechargeable Battery",
+    "lighting_modes": [
+      "High Beam",
+      "Strobe",
+      "Side COB Light"
+    ],
+    "light_types": [
+      "XPE front light",
+      "COB side light"
+    ],
+    "charging_method": "USB Charging",
+    "water_resistance": "Splash-Resistant",
+    "carry_features": [
+      "Pen clip",
+      "Hanging rope"
+    ],
+    "additional_features": [
+      "SOS"
+    ]
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": "2025-04-18T14:26:08.807+00:00",
+  "updated_at": "2026-02-17T10:05:37.320569+00:00"
+}

@@ -1,0 +1,78 @@
+{
+  "id": "IJW32SDEYB",
+  "sku": null,
+  "slug": "lyne-lancer-16-smartwatch",
+  "name": "LYNE Lancer 16 Smartwatch",
+  "subtitle": "2.1-inch TFT display with Bluetooth calling",
+  "brand_id": null,
+  "category_id": "F4NN6JLVGB0Q",
+  "subcategory": "Smartwatch",
+  "tagline": "Calls, tracking, and everyday control",
+  "description": "LYNE Lancer 16 is a smartwatch with a 2.1-inch TFT display, Bluetooth calling, and rotating crown navigation. It tracks heart rate, sleep, steps, and calories, supports multiple sports modes, and works with Android and iOS devices.",
+  "story": "The large 2.1-inch display gives the watch a spacious interface for checking calls, notifications, and watch faces. Bluetooth connectivity also enables calling and music control when paired with a compatible phone. A rotating crown provides another way to move through menus, while Find My Device helps locate the paired smartphone. With over 100 customizable watch faces, the appearance can be changed without replacing the watch. Battery life is listed as up to seven days under typical usage, and actual runtime depends on how the watch is used.",
+  "price": 1799,
+  "compare_at_price": 3999,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 1,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "2.1-inch TFT touchscreen display",
+    "Bluetooth calling and music control",
+    "Rotating crown for menu navigation",
+    "IP65 water and dust resistance"
+  ],
+  "includes": [
+    "Smartwatch",
+    "USB Magnetic Charging Cable",
+    "User Manual",
+    "Warranty Card"
+  ],
+  "specs": {
+    "brand": "Lyne",
+    "model": "Lancer 16",
+    "display": "2.1-inch TFT, 240 x 240 pixels",
+    "navigation": "Rotating Crown",
+    "watch_faces": "Over 100 customizable options",
+    "battery_life": "Up to 7 Days (Typical Usage)",
+    "connectivity": [
+      "Bluetooth"
+    ],
+    "bluetooth_features": [
+      "Calling",
+      "Music Control"
+    ],
+    "sports_modes": [
+      "Running",
+      "Cycling"
+    ],
+    "sports_modes_type": "Multiple",
+    "body_material": "Metal Frame",
+    "strap_color": "Black",
+    "compatibility": [
+      "Android",
+      "iOS"
+    ],
+    "health_features": [
+      "Heart Rate Monitor",
+      "Sleep Tracking",
+      "Step Counter",
+      "Calorie Tracker"
+    ],
+    "water_resistance": "IP65",
+    "additional_features": [
+      "Smart Notifications",
+      "Music Control",
+      "Find My Device"
+    ]
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": null,
+  "updated_at": null
+}

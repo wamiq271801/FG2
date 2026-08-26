@@ -1,0 +1,58 @@
+{
+  "id": "ZTIK2Z7FO5",
+  "sku": null,
+  "slug": "fusion-gadgets-wireless-tws-earbuds",
+  "name": "Wireless TWS Earbuds",
+  "subtitle": "Bluetooth 5.0 earbuds with touch controls",
+  "brand_id": null,
+  "category_id": "851F22BBV077",
+  "subcategory": "in-ear-headphones",
+  "tagline": "Wireless sound for everyday listening",
+  "description": "FUSION GADGETS Wireless TWS Earbuds feature Bluetooth 5.0 connectivity, touch-sensitive controls, stereo audio, and a built-in microphone for calls. The in-ear earbuds provide up to 5 hours of playback per charge, while the compact case supplies additional charging backup.",
+  "story": "These true wireless earbuds are designed for everyday listening, calls, and video without a cable connecting them to your phone. Pair them with compatible Android or iOS devices through Bluetooth, then use the touch controls to manage playback, tracks, and calls. The compact charging case stores and recharges the earbuds between listening sessions. Their lightweight in-ear form suits commuting, workdays, and general travel, while actual battery performance can vary with volume, usage, and connection conditions.",
+  "price": 1199,
+  "compare_at_price": 1999,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 1,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "Bluetooth 5.0 wireless connectivity",
+    "Touch controls for everyday playback",
+    "Up to five hours playback",
+    "Compact portable charging case"
+  ],
+  "includes": [
+    "Wireless earbuds",
+    "Charging case"
+  ],
+  "specs": {
+    "brand": "FUSION GADGETS",
+    "product_type": "Wireless earbuds",
+    "form_factor": "In-ear true wireless (TWS)",
+    "wearing_style": "In-ear",
+    "connectivity": "Bluetooth 5.0",
+    "audio_output": "Stereo sound",
+    "controls": "Touch-sensitive on-earbud controls",
+    "microphone": "Built-in microphone for calls",
+    "battery_life_earbuds": "Up to 5 hours per charge",
+    "additional_playback": "Extra backup playback with charging case",
+    "charging_case": "Compact portable charging case",
+    "charging_time": "Approx. 1.5 hours, depends on charger",
+    "compatible_devices": "Android and iOS smartphones with Bluetooth support",
+    "color_options": [
+      "Black",
+      "White",
+      "Silver"
+    ]
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": "2025-04-17T10:38:28.707+00:00",
+  "updated_at": "2026-02-17T10:05:37.648501+00:00"
+}

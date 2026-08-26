@@ -1,0 +1,49 @@
+{
+  "id": "XV1BB9C46W",
+  "sku": null,
+  "slug": "cordless-car-vacuum-cleaner",
+  "name": "Cordless Car Vacuum Cleaner",
+  "subtitle": "120W Rechargeable Handheld Cleaning Tool",
+  "brand_id": null,
+  "category_id": "M3CUAE0NBSYA",
+  "subcategory": "Car Accessories",
+  "tagline": "Quick cleaning for tight spaces",
+  "description": "This 3-in-1 cordless handheld vacuum cleaner is designed for quick cleaning of car interiors and small spaces. Its 120W motor delivers up to 6000Pa suction, while the rechargeable design, HEPA filtration and nozzle attachments help tackle dust, crumbs and dry debris.",
+  "story": "Made for everyday clean-ups, this compact vacuum helps reach the places larger cleaners can struggle with, including narrow gaps, corners, seats and floor areas. The cordless rechargeable design allows cleaning away from a wall socket, with runtime rated up to around 18 minutes. Multiple nozzle attachments support different cleaning tasks, while the built-in HEPA filter is designed to handle fine particles. Its handheld format also makes storage and carrying straightforward between uses.",
+  "price": 399,
+  "compare_at_price": 799,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": "orange",
+  "stock": 2,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "Up to 6000Pa rated suction",
+    "120W handheld cleaning power",
+    "Rechargeable cordless operation for flexibility",
+    "Multiple nozzles for tight spaces"
+  ],
+  "includes": [
+    "Multiple nozzle attachments"
+  ],
+  "specs": {
+    "color": "Black",
+    "product_type": "Cordless Car Vacuum Cleaner",
+    "form_factor": "Handheld",
+    "power_output": "120W",
+    "suction_strength": "Up to 6000Pa",
+    "battery_type": "Rechargeable lithium battery",
+    "runtime": "Up to 18 minutes",
+    "filter_type": "HEPA filtration",
+    "recommended_use": "Car interiors and small cleaning tasks",
+    "included_accessories": "Multiple nozzle attachments"
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": "2025-04-17T09:52:35.861+00:00",
+  "created_at": "2025-04-17T09:52:35.861+00:00",
+  "updated_at": "2026-02-17T10:05:37.648501+00:00"
+}

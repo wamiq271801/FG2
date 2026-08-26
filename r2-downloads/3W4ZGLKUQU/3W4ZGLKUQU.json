@@ -1,0 +1,47 @@
+{
+  "id": "3W4ZGLKUQU",
+  "sku": null,
+  "slug": "mini-usb-white-led-night-lamp",
+  "name": "Mini USB Night Lamp",
+  "subtitle": "White LED light with touch control",
+  "brand_id": null,
+  "category_id": "HWKR5JHZAAD5",
+  "subcategory": "night-lamps",
+  "tagline": "Compact white light, anywhere needed",
+  "description": "This compact USB LED lamp provides white light from a USB-A power source. Its touch control cycles through three brightness levels, making it suitable for bedside, reading, desk or portable use with compatible adapters, laptops and power banks.",
+  "story": "Designed for simple plug-in lighting, this compact lamp connects directly to a compatible USB-A power source without requiring a separate mains connection. The small form factor makes it easy to move between a bedside table, study desk, laptop or travel setup. Touch operation provides three selectable brightness levels, allowing the light output to be adjusted for different situations. It can also be powered from a compatible power bank, making it useful when portable USB power is available.",
+  "price": 25,
+  "compare_at_price": 99,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": "white",
+  "stock": 20,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "White LED light output",
+    "Touch controlled brightness adjustment",
+    "Three selectable brightness levels",
+    "USB-A powered compact design"
+  ],
+  "includes": [],
+  "specs": {
+    "light_color": "White",
+    "power_input": "5 V, 1 A via USB-A",
+    "control": "Touch control",
+    "brightness_levels": 3,
+    "power_consumption": {
+      "low": "1.2 W",
+      "medium": "2.4 W",
+      "high": "3.6 W"
+    },
+    "led_lifespan": "Up to 50,000 hours"
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided",
+  "added_at": null,
+  "created_at": "2025-04-19T08:33:08.905+00:00",
+  "updated_at": "2026-02-17T10:05:37.320569+00:00"
+}

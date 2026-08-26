@@ -1,0 +1,54 @@
+{
+  "id": "R2BAJOLBIG",
+  "sku": null,
+  "slug": "led-touch-speaker-lamp",
+  "name": "LED Touch Speaker Lamp",
+  "subtitle": "Portable Bluetooth lamp with speaker",
+  "brand_id": null,
+  "category_id": "FSV5RPTMZC4K",
+  "subcategory": "Bluetooth Speakers",
+  "tagline": "Light, sound, and touch control",
+  "description": "This multifunctional LED touch lamp combines adjustable lighting with a wireless Bluetooth speaker in one compact bedside unit. It also includes a built-in microphone, USB-rechargeable battery, and SD card music playback, supporting portable use and hands-free calling.",
+  "story": "The touch-sensitive top makes this lamp suitable for bedside tables, desks, and other spaces where simple lighting control is useful. Its adjustable brightness and multiple color options allow the light to be changed for different settings. Bluetooth connectivity supports wireless audio playback from compatible devices, while the SD card reader provides another music source. The built-in microphone supports hands-free calling, and the rechargeable design allows the unit to be used without a constant wired power connection.",
+  "price": 449,
+  "compare_at_price": 799,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 0,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "Touch-controlled adjustable LED lighting",
+    "Wireless Bluetooth audio playback",
+    "Built-in microphone for hands-free calls",
+    "USB rechargeable portable design"
+  ],
+  "includes": [],
+  "specs": {
+    "brand": "Generic",
+    "product_type": "LED Touch Lamp with Bluetooth Speaker",
+    "battery": "Rechargeable via USB",
+    "connectivity": [
+      "Bluetooth",
+      "USB",
+      "SD Card"
+    ],
+    "microphone": "Built-in with noise cancellation",
+    "lamp_control": "Touch-sensitive with adjustable brightness",
+    "color_options": "Multiple color-changing options",
+    "speaker_output": "High-fidelity sound",
+    "additional_features": [
+      "Night light",
+      "Hands-free calling"
+    ],
+    "design": "Compact and portable"
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": "2025-04-18T15:30:09.9+00:00",
+  "updated_at": "2026-02-17T10:05:37.648501+00:00"
+}

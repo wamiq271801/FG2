@@ -1,0 +1,56 @@
+{
+  "id": "JPQYNO1565",
+  "sku": null,
+  "slug": "wall-mount-soap-dispenser",
+  "name": "Wall Mount Soap Dispenser",
+  "subtitle": "350ml dispenser with sponge holder",
+  "brand_id": null,
+  "category_id": "TQMGONIS0EJR",
+  "subcategory": "Soap Dispensers",
+  "tagline": "Soap and sponge together",
+  "description": "A 350ml liquid soap dispenser with a built-in sponge holder, transparent reservoir, and easy-press pump. The removable adhesive bracket supports wall mounting, while the compact design can also be used freestanding on a kitchen or bathroom counter.",
+  "story": "Keeping soap and a sponge in one unit can reduce loose items around the sink. The top holder provides a dedicated place for a sponge or scrubber, while the transparent reservoir lets you check the remaining liquid before refilling. It can be mounted using the removable adhesive bracket or placed directly on a countertop. The listed silicone valve is intended to reduce dripping after dispensing. Its 350ml capacity offers a compact reservoir size without requiring a large dispenser body.",
+  "price": 179,
+  "compare_at_price": 349,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": null,
+  "stock": 1,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "350ml transparent soap reservoir",
+    "Built-in sponge holder on top",
+    "Removable adhesive wall bracket",
+    "Silicone valve reduces dripping"
+  ],
+  "includes": [],
+  "specs": {
+    "product_type": "Liquid soap dispenser",
+    "capacity": "350 ml (11.8 oz)",
+    "material": [
+      "Food-Grade PP Plastic",
+      "Silicone Valve"
+    ],
+    "mounting": "Removable Adhesive Wall Bracket",
+    "use_options": [
+      "Wall-mounted",
+      "Freestanding countertop use"
+    ],
+    "dimensions": "11 cm W × 8 cm D × 16 cm H",
+    "weight_empty": "Approximately 150 g",
+    "features": [
+      "Built-in sponge holder",
+      "Transparent reservoir",
+      "Easy-press pump",
+      "Drip-free silicone valve"
+    ]
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": null,
+  "updated_at": null
+}

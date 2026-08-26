@@ -1,0 +1,58 @@
+{
+  "id": "78S4VLELV9",
+  "sku": null,
+  "slug": "bw11-sim-camera-smartwatch",
+  "name": "BW11 SIM Smartwatch",
+  "subtitle": "Calling, Camera and Fitness Tracking",
+  "brand_id": null,
+  "category_id": "F4NN6JLVGB0Q",
+  "subcategory": "Smartwatch",
+  "tagline": "Stay connected from your wrist",
+  "description": "BW11 is a smartwatch with SIM support, a built-in camera, Bluetooth connectivity, and an HD touchscreen. It tracks daily steps, distance, and calories, while music controls add convenient phone-connected functionality. The adjustable silicone strap completes its everyday wearable design.",
+  "story": "The BW11 suits users who want essential smartwatch functions alongside the option of SIM-based calling. Its touchscreen provides access to watch features, while Bluetooth connectivity supports phone pairing and music control. Daily activity tracking covers steps, distance, and calories for routine movement monitoring. A built-in camera adds another on-wrist function for quick snapshots. The black watch body and adjustable silicone strap give it a straightforward design suitable for regular wear, whether used during everyday activities, travel, or casual outings.",
+  "price": 2399,
+  "compare_at_price": 4499,
+  "currency": "INR",
+  "visual_key": null,
+  "accent": "Black",
+  "stock": 1,
+  "is_active": true,
+  "is_preorder": false,
+  "highlights": [
+    "SIM support for direct calling",
+    "Built-in camera for quick snapshots",
+    "Tracks steps, distance and calories",
+    "Bluetooth connectivity with music control"
+  ],
+  "includes": [],
+  "specs": {
+    "model": "BW11 Global Version Smartwatch",
+    "color": "Black",
+    "display_type": "HD touchscreen display",
+    "connectivity": [
+      "SIM",
+      "Bluetooth"
+    ],
+    "sim_support": true,
+    "camera": "Built-in",
+    "compatibility": [
+      "Android",
+      "iOS"
+    ],
+    "health_monitoring": [
+      "Steps",
+      "Calories",
+      "Distance"
+    ],
+    "strap_material": "Silicone",
+    "strap": "Adjustable",
+    "power_efficiency": "Ultra low power"
+  },
+  "rating": null,
+  "review_count": null,
+  "shipping": "Estimated delivery in around 7 days. Delivery may arrive earlier or take longer depending on your destination and carrier.",
+  "warranty": "No warranty provided.",
+  "added_at": null,
+  "created_at": "2025-04-19T06:47:11.503+00:00",
+  "updated_at": "2026-02-17T10:05:37.320569+00:00"
+}
