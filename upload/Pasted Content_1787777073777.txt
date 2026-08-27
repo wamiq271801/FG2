@@ -1,0 +1,2044 @@
+You are implementing a PRODUCTION-GRADE Schema.org / JSON-LD system in the existing FUSION GADGETS Next.js application.
+
+This is a COMPLETE REPLACEMENT of the current fragmented schema implementation.
+
+You must follow the existing project architecture, preserve all functionality/UI/business logic, and use current official Next.js + Google Search Central + Schema.org guidance. Do not invent SEO techniques.
+
+==================================================
+0. NON-NEGOTIABLE RULES
+==================================================
+
+1. READ THE ENTIRE CURRENT CODEBASE FIRST.
+2. READ THE CURRENT SEO/schema implementation before changing anything.
+3. Use the current project structure. Do not randomly create directories/files.
+4. The centralized schema directory MUST be:
+
+`lib/schema/`
+
+5. `lib/schema/` is NOT a data-fetching layer.
+
+Schema code MUST NOT:
+- query Supabase
+- call the Worker
+- call fetch()
+- use hooks
+- use React effects
+- access browser storage
+- access client state
+- create application data caches
+- create a second repository/data-access layer
+
+Schema functions receive already-loaded data and transform it into Schema.org objects.
+
+6. DO NOT create database tables/functions/views for schema.
+7. DO NOT create a new data-fetching system for schema.
+8. DO NOT add a global SEO provider.
+9. DO NOT add a new state-management system.
+10. DO NOT add a schema-specific API endpoint.
+11. DO NOT add a schema-specific cache.
+12. DO NOT make static informational pages depend on Supabase.
+13. DO NOT change existing UI.
+14. DO NOT change business logic.
+15. DO NOT change auth/cart/wishlist/checkout/order/review logic.
+16. DO NOT introduce hacks to force JSON-LD into `<head>`.
+17. DO NOT use `next/head`.
+18. DO NOT use `next/script` for JSON-LD.
+19. DO NOT inject JSON-LD from client JavaScript.
+20. DO NOT use `useEffect` for schema.
+21. DO NOT manually manipulate the DOM.
+22. DO NOT use middleware to inject schema.
+23. DO NOT duplicate the full Organization entity on every page.
+24. DO NOT add schema to private/non-indexable application pages unless the audit proves a genuine semantic requirement.
+25. DO NOT add properties simply because they exist in Schema.org.
+26. Do not fabricate values.
+27. If a value does not exist authoritatively, OMIT the property.
+28. If a schema type does not accurately describe the page/entity, DO NOT emit it.
+29. Keep JSON-LD server-rendered in the initial HTML.
+30. JSON-LD must not create additional database/API requests.
+
+==================================================
+1. REQUIRED WEB RESEARCH
+==================================================
+
+Before implementation, research CURRENT official documentation.
+
+Use official sources first:
+
+- Next.js official documentation
+- Google Search Central
+- Schema.org
+
+Research specifically:
+
+Next.js:
+- App Router JSON-LD
+- Server Component JSON-LD rendering
+- safe JSON-LD serialization
+- Metadata API
+- current recommended structured-data integration
+
+Google:
+- Structured data general policies
+- Product structured data
+- Merchant listings
+- Organization structured data
+- LocalBusiness / Store structured data
+- Breadcrumb structured data
+- Review snippets
+- Product variants
+- return policy structured data
+- current guidance on JSON-LD placement
+- current supported rich-result types
+- current limitations for list/category/search markup
+
+Schema.org:
+- Organization
+- OnlineStore
+- Store
+- WebSite
+- WebPage
+- AboutPage
+- ContactPage
+- CollectionPage
+- Product
+- Brand
+- Offer
+- AggregateRating
+- Review
+- BreadcrumbList
+- ItemList
+- ProductGroup
+- MerchantReturnPolicy
+
+Use current documentation, not old tutorials or outdated SEO patterns.
+
+Do not implement deprecated/retired Google features.
+
+In particular:
+- do NOT implement the retired Sitelinks Search Box / SearchAction feature.
+- do NOT use deprecated return-policy types when MerchantReturnPolicy is the current model.
+
+==================================================
+2. CURRENT PROJECT FACTS — PRESERVE
+==================================================
+
+Current application:
+
+- Next.js 16.1.3
+- React 19
+- TypeScript
+- App Router
+- Tailwind CSS
+- Server Components by default
+- client islands for interactivity
+- ISR on public catalog pages
+- singleton server catalog client
+- singleton browser Supabase client
+- AuthProvider
+- TurnstileProvider
+- CartProvider
+- RouteGuard
+- Zustand cart/wishlist
+- Worker for sensitive operations
+- `lib/store-info.ts` as the static business identity source
+
+Do not change this architecture.
+
+Current catalog/product routes use:
+
+`https://fusiongadgets.shop`
+
+as the required canonical site origin.
+
+IMPORTANT:
+The environment must be the source of truth for the site origin.
+
+Use the existing project environment/configuration convention if one exists.
+If necessary, add/use the appropriate existing public site URL environment variable.
+
+The final schema system MUST NOT hard-code:
+
+`https://fusiongadgets.shop`
+
+inside individual schema builder files.
+
+The site origin must be resolved once through the project's existing environment/configuration mechanism and used to generate canonical URLs and stable schema IDs.
+
+Do not create a second site-config system if one already exists.
+
+==================================================
+3. CURRENT DATA OWNERSHIP — STRICT
+==================================================
+
+Follow this exactly.
+
+STATIC INFORMATIONAL PAGES:
+
+- /about
+- /contact
+- /shipping
+- /returns
+- /privacy
+- /terms
+- /faq if present
+
+Use their existing static/source-controlled content.
+
+DO NOT introduce Supabase queries for them.
+
+BUSINESS ENTITY:
+
+Use the existing:
+
+`lib/store-info.ts`
+
+as the source of truth for static business/contact/legal/store identity.
+
+PRODUCT:
+
+Use the existing Product server loader/data already required by Product Detail.
+
+CATEGORY:
+
+Use existing category server data already required by the category page.
+
+REVIEWS:
+
+Use existing server-loaded public review/aggregate data.
+
+OFFERS:
+
+Use existing server-loaded offer/promotion data.
+
+NO schema function may fetch its own data.
+
+==================================================
+4. DELETE THE CURRENT SCATTERED SCHEMA SYSTEM
+==================================================
+
+The current schema implementation is fragmented.
+
+Known current behavior includes:
+- Product JSON-LD local to Product page
+- Breadcrumb helper local to Product page
+- separate category breadcrumb implementation
+- no stable @id system
+- inline seller Organization
+- inline Brand
+- hard-coded `mpn = sku`
+- hard-coded `priceValidUntil`
+- Fusion Gadgets fallback as Product brand
+
+REMOVE the old schema implementation completely.
+
+Do not keep old and new schema systems together.
+
+After the refactor there must be ONE canonical schema system under:
+
+`lib/schema/`
+
+==================================================
+5. TARGET FILE STRUCTURE
+==================================================
+
+Use the existing `lib/` structure.
+
+Preferred target:
+
+`lib/schema/`
+
+with only the modules actually needed.
+
+Recommended:
+
+`lib/schema/index.ts`
+`lib/schema/json-ld.ts`
+`lib/schema/organization.ts`
+`lib/schema/website.ts`
+`lib/schema/store.ts`
+`lib/schema/webpage.ts`
+`lib/schema/breadcrumb.ts`
+`lib/schema/product.ts`
+`lib/schema/collection.ts`
+
+Only create additional files if the actual current application requires them.
+
+Do not create files merely for theoretical completeness.
+
+There must not be:
+- `seo/`
+- `structured-data/`
+- `schema-engine/`
+- `entity-system/`
+- `schema-service/`
+- `data/`
+- `repositories/`
+
+just for this task.
+
+==================================================
+6. SCHEMA MODULE RESPONSIBILITIES
+==================================================
+
+`organization.ts`
+→ canonical Fusion Gadgets organization/store-business entity
+
+`website.ts`
+→ canonical WebSite entity
+
+`store.ts`
+→ physical retail location entity
+
+`webpage.ts`
+→ page entity builders
+
+`breadcrumb.ts`
+→ BreadcrumbList builder
+
+`product.ts`
+→ Product + Brand + Offer + rating/review relationships
+
+`collection.ts`
+→ CollectionPage / ItemList builders
+
+`json-ld.ts`
+→ ONE safe serializer / renderer utility
+
+`index.ts`
+→ clean exports only
+
+These builders must be pure transformations.
+
+==================================================
+7. STABLE ENTITY IDENTITIES
+==================================================
+
+Establish stable `@id` values using the environment-derived origin.
+
+Use a consistent pattern such as:
+
+Business:
+`https://fusiongadgets.shop/#organization`
+
+Website:
+`https://fusiongadgets.shop/#website`
+
+Physical store:
+`https://fusiongadgets.shop/#store`
+
+Product:
+`https://fusiongadgets.shop/product/{slug}#product`
+
+Page:
+`https://fusiongadgets.shop/product/{slug}#webpage`
+
+Breadcrumb:
+`https://fusiongadgets.shop/product/{slug}#breadcrumb`
+
+Adjust naming only if the existing URL/entity architecture requires it.
+
+The important rule:
+
+STABLE
+CANONICAL
+CONSISTENT
+
+Do not generate random IDs.
+
+Do not use internal UUIDs as public schema URLs unless there is a concrete reason.
+
+==================================================
+8. CANONICAL BUSINESS ENTITY
+==================================================
+
+Fusion Gadgets is the actual business and operates both:
+
+- online
+- offline
+
+Do NOT treat Fusion Gadgets as the manufacturer/brand of every product.
+
+The business entity should represent the merchant/business.
+
+Use the most appropriate current Schema.org type based on the actual data and official guidance.
+
+Potentially:
+- Organization / OnlineStore
+- with physical Store relationship
+
+Do not arbitrarily use both if one is sufficient.
+Use additional typing only when semantically correct.
+
+The business entity should consume:
+
+`lib/store-info.ts`
+
+and include only verified fields actually available there.
+
+Possible fields when authoritative:
+
+- `@id`
+- `@type`
+- `name`
+- `legalName`
+- `url`
+- `logo`
+- `description`
+- `telephone`
+- `email`
+- `address`
+- `sameAs`
+- `hasPOS`
+- `hasMerchantReturnPolicy`
+
+Do not emit empty values.
+
+Do not invent:
+- registration number
+- trademark number
+- GST
+- business identifiers
+- social URLs
+- Google Business Profile URL
+
+If they are not present in the authoritative source, omit them.
+
+==================================================
+9. SOCIAL ENTITY PRESENCE
+==================================================
+
+Fusion Gadgets has official:
+- YouTube
+- Instagram
+- Facebook
+- X
+- Google Business Profile
+
+The project audit currently only contains some of these URLs.
+
+DO NOT invent missing URLs.
+
+Add the verified URLs to the existing business identity source/configuration only after confirming the exact URLs.
+
+Then expose them through:
+
+`sameAs`
+
+on the canonical Fusion Gadgets entity.
+
+Do not repeat those social URLs inside every Product entity.
+
+Do not create separate Organization entities per social account.
+
+==================================================
+10. PHYSICAL STORE
+==================================================
+
+Current source contains one physical Bahraich location.
+
+Use existing static business/location data.
+
+Potential fields:
+
+- `@id`
+- `@type: Store` or another exact appropriate LocalBusiness subtype
+- `name`
+- `address`
+- `telephone`
+- `geo`
+- `openingHoursSpecification`
+- `parentOrganization`
+
+Only use fields actually available.
+
+No store database table.
+
+No store API.
+
+No store-specific fetch.
+
+No fake branch code.
+
+No fake Google Business Profile URL.
+
+If there is no store page, do not invent a store route.
+
+==================================================
+11. WEB SITE ENTITY
+==================================================
+
+Create one canonical WebSite entity:
+
+`https://fusiongadgets.shop/#website`
+
+Fields only when appropriate:
+
+- `@id`
+- `@type`
+- `url`
+- `name`
+- `publisher → #organization`
+
+Do NOT implement SearchAction.
+
+Do NOT implement the old Sitelinks Search Box markup.
+
+==================================================
+12. WEB PAGE ENTITY
+==================================================
+
+Use page-level WebPage entities only on meaningful public/indexable pages where they improve semantic relationships.
+
+Possible fields:
+
+- `@id`
+- `@type`
+- `url`
+- `name`
+- `description`
+- `isPartOf → #website`
+- `about`
+- `mainEntity`
+- `breadcrumb`
+
+Use the correct subtype where it is genuinely appropriate:
+
+- `WebPage`
+- `AboutPage`
+- `ContactPage`
+- `CollectionPage`
+
+Do not force a subtype.
+
+==================================================
+13. HOMEPAGE
+==================================================
+
+Homepage is the primary business identity page.
+
+Emit ONE JSON-LD graph containing the relevant entities:
+
+1. `WebSite`
+2. `Organization` / `OnlineStore`
+3. `WebPage`
+
+The business entity is fully defined here.
+
+Relationships should connect:
+
+WebSite
+→ publisher
+→ #organization
+
+WebPage
+→ isPartOf
+→ #website
+
+WebPage
+→ about/mainEntity
+→ #organization
+
+Do not add every product/category/review to the homepage graph.
+
+==================================================
+14. ABOUT PAGE
+==================================================
+
+Use:
+
+1. `AboutPage`
+
+Reference the canonical business entity:
+
+`about → #organization`
+
+Also connect:
+
+`isPartOf → #website`
+
+Do NOT recreate the full Organization object.
+
+Use only existing About page content and existing static business data.
+
+ZERO Supabase dependency.
+
+==================================================
+15. CONTACT PAGE
+==================================================
+
+Use:
+
+1. `ContactPage`
+
+Reference:
+
+- `#organization`
+- `#store` where the page actually represents the physical location
+
+Use the static Contact/store data already rendered by the page.
+
+ZERO Supabase dependency unless the current Contact page already genuinely requires one for unrelated functionality.
+
+Do NOT add a schema-specific fetch.
+
+==================================================
+16. SHIPPING PAGE
+==================================================
+
+Use normal page semantics only unless the current page and policy support an exact structured-data use case.
+
+Do NOT invent shipping structured data.
+
+IMPORTANT:
+
+The current audit found inconsistent shipping rules:
+
+Checkout/order logic:
+- free at ₹4,990
+- ₹149 otherwise
+
+Shipping page:
+- free over ₹1,000
+- ₹99 otherwise
+- express ₹199
+- Bahraich local delivery ₹299
+
+DO NOT encode conflicting shipping rules into structured data.
+
+Before implementing shipping-related schema, identify the authoritative business rule from the actual current application.
+
+If the inconsistency is outside the requested schema scope, do not silently "fix" it.
+Report it and avoid encoding contradictory data.
+
+==================================================
+17. RETURNS PAGE
+==================================================
+
+Use:
+
+1. WebPage
+
+Potentially include a canonical:
+
+`MerchantReturnPolicy`
+
+only if the current return policy data is authoritative and sufficiently complete.
+
+The organization/business entity may reference that policy.
+
+Use current `MerchantReturnPolicy`, not deprecated `ProductReturnPolicy`.
+
+Do not invent fields.
+
+Do not duplicate the same complete return policy object on every Product page unless there is a genuine product-specific override.
+
+==================================================
+18. PRIVACY / TERMS / GENERIC INFORMATIONAL PAGES
+==================================================
+
+Use:
+
+`WebPage`
+
+only where useful.
+
+Do not add Product/Offer/Organization/Store schema to these pages.
+
+Do not create unnecessary markup.
+
+==================================================
+19. SHOP PAGE
+==================================================
+
+Use:
+
+1. `CollectionPage`
+2. `BreadcrumbList`
+3. `ItemList` only if it accurately represents the visible collection
+
+Do NOT emit a complete Product schema for every product simply because the page lists products.
+
+Use the existing server-loaded product/category data.
+
+No additional Supabase calls.
+
+==================================================
+20. CATEGORY INDEX
+==================================================
+
+Use:
+
+1. `CollectionPage`
+2. `BreadcrumbList`
+3. `ItemList` for the actual category collection if useful
+
+Do not emit a Product graph for every category item.
+
+Reuse existing category data.
+
+==================================================
+21. CATEGORY DETAIL
+==================================================
+
+Use:
+
+1. `CollectionPage`
+2. `BreadcrumbList`
+3. `ItemList` when appropriate for the visible product collection
+
+Reference:
+
+`#website`
+
+Use existing category/product page data.
+
+Do not fetch data again for schema.
+
+==================================================
+22. OFFERS PAGE
+==================================================
+
+Use page/collection semantics only where they accurately describe the page.
+
+Reuse the existing promotion/offer data already loaded by the Offers page.
+
+Do NOT create a second query for JSON-LD.
+
+Do not confuse:
+
+Promotion
+with
+Product Offer.
+
+Only emit a Product/Offer graph for a specific product when it is actually the page's entity focus and the data is accurate.
+
+==================================================
+23. SEARCH PAGE
+==================================================
+
+Current `/search` is noindex.
+
+Do not invest in SEO Product structured data here.
+
+No large Product graph for search results.
+
+No schema-specific client-side generation.
+
+Keep search behavior unchanged.
+
+==================================================
+24. PRODUCT PAGE — PRIMARY SEO ENTITY
+==================================================
+
+This is the most important structured-data page.
+
+Emit ONE graph containing:
+
+1. `WebPage`
+2. `BreadcrumbList`
+3. `Product`
+4. `Brand` only when a real product brand exists
+5. `Offer`
+6. `AggregateRating` only when valid/current
+7. visible `Review` objects only when actually represented on the page
+8. ProductGroup ONLY when the actual data model supports it
+
+The Product is the main entity.
+
+Conceptually:
+
+WebPage
+→ mainEntity
+→ Product
+
+Product
+→ brand
+→ actual product brand
+
+Product
+→ offers
+→ Offer
+
+Offer
+→ seller
+→ #organization
+
+WebPage
+→ breadcrumb
+→ #breadcrumb
+
+WebPage
+→ isPartOf
+→ #website
+
+==================================================
+25. PRODUCT FIELDS
+==================================================
+
+Use fields supported by the actual product data and current Google/Schema.org requirements.
+
+Core fields:
+
+- `@type: Product`
+- `@id`
+- `name`
+- `image`
+- `description`
+- `sku`
+- `url`
+
+Potential additional fields only when valid:
+
+- `category`
+- `brand`
+- `aggregateRating`
+- `review`
+
+Do NOT add:
+
+- fake MPN
+- fake GTIN
+- fake UPC
+- fake EAN
+- fake manufacturer
+- fake identifier
+- fake model number
+
+The current database has SKU but no distinct MPN/GTIN/barcode/manufacturer identifier.
+
+Therefore:
+
+`sku → YES`
+
+`mpn → OMIT`
+
+`gtin → OMIT`
+
+unless real data is later added.
+
+Do NOT set:
+
+`mpn = sku`
+
+==================================================
+26. PRODUCT IMAGES
+==================================================
+
+Product images ARE important.
+
+Use the existing server-loaded Product Detail image data.
+
+Do NOT query images again for schema.
+
+Use actual product image URLs only.
+
+Prefer:
+
+- primary/hero product image
+- additional product images when genuinely useful
+
+Do not add:
+
+- decorative UI images
+- screenshot images
+- tracking images
+- Open Graph placeholder as the product image
+- unrelated banners
+
+Ensure the URLs are absolute and derived from the existing image data/origin rules.
+
+Do not invent image URLs.
+
+For Organization/Store logo:
+use the existing real logo asset and environment-derived absolute URL.
+
+Do not require an image on schema types that do not need one.
+
+==================================================
+27. PRODUCT BRAND
+==================================================
+
+For branded products:
+
+Product
+→ brand
+→ actual Brand
+
+Use the real joined brand data.
+
+Fusion Gadgets is NOT the Product brand merely because Fusion Gadgets sells the product.
+
+For genuinely unbranded products:
+
+omit `brand`.
+
+Remove the current fallback that labels an unknown/unresolved product as:
+
+`Fusion Gadgets`
+
+Do not turn a missing brand into a fake brand.
+
+==================================================
+28. BRAND ENTITY IDs
+==================================================
+
+Current database has brand:
+- id
+- slug
+- name
+- country
+- blurb
+
+There are currently no public brand routes.
+
+Therefore DO NOT invent canonical brand URLs.
+
+For now, a product may use a real inline Brand entity containing:
+
+- `@type: Brand`
+- `name`
+
+Only add `@id`/`url` if the project has a real canonical public brand identity/page.
+
+Do not fabricate:
+`/brands/{slug}`
+
+==================================================
+29. PRODUCT OFFER
+==================================================
+
+Use the existing authoritative product pricing model.
+
+Offer should use appropriate current fields such as:
+
+- `@type: Offer`
+- `url`
+- `price`
+- `priceCurrency`
+- `availability`
+- `itemCondition`
+- `seller`
+
+Potentially:
+
+`hasMerchantReturnPolicy`
+
+only when the actual policy supports it.
+
+Use product price/currency/availability from the existing server product model.
+
+Do not use:
+
+- cart totals
+- checkout totals
+- client-derived pricing
+- stale client state
+- promotion labels as product price unless they actually represent the current purchasable offer
+
+==================================================
+30. PRODUCT AVAILABILITY
+==================================================
+
+Current application derives availability from:
+
+- inactive
+- preorder
+- stock
+
+Map the existing application state to valid Schema.org availability values in ONE centralized function.
+
+Do not invent a new availability enum.
+
+Do not repeat availability mapping throughout the codebase.
+
+Schema must reflect the current actual purchasability state.
+
+==================================================
+31. PRICE VALIDITY
+==================================================
+
+REMOVE the current hard-coded:
+
+`priceValidUntil: "2026-12-31"`
+
+unless the current application contains a real authoritative expiration date.
+
+Do NOT fabricate a price-validity date.
+
+==================================================
+32. SELLER
+==================================================
+
+The current schema uses:
+
+seller:
+`Organization { name: "Fusion Gadgets" }`
+
+Replace that with a reference to the canonical business entity:
+
+seller:
+`{ "@id": ".../#organization" }`
+
+Do not create another full Organization definition inside every Product.
+
+This is a key entity-graph relationship.
+
+==================================================
+33. PRODUCT REVIEWS / RATINGS
+==================================================
+
+Current Product pages have server-loaded public review summary/latest reviews.
+
+Use:
+
+`AggregateRating`
+
+only when there are real ratings and the page represents that aggregate publicly.
+
+Use:
+
+`Review`
+
+only for reviews actually represented in the page's visible content.
+
+Do NOT use:
+
+- can_review_product
+- private eligibility
+- current-user review state
+- private review metadata
+
+in JSON-LD.
+
+Current live review table may be empty.
+
+Therefore the implementation MUST gracefully omit rating/review schema when no qualifying review data exists.
+
+Do not emit zero-value fake review data.
+
+==================================================
+34. REVIEW FIELDS
+==================================================
+
+For visible review entities, only use actual fields such as available:
+
+- `@type: Review`
+- `author`
+- `datePublished`
+- `reviewBody`
+- `reviewRating`
+- `name`
+
+Use the actual author representation already visible to users.
+
+Do not invent:
+- verifiedBuyer
+- purchase state
+- reviewer identity
+- rating if absent
+
+The frontend's "Verified buyer" status is policy-derived, not a stored field.
+
+Do not claim more than the page actually displays.
+
+==================================================
+35. PRODUCT VARIANTS
+==================================================
+
+Current variation model connects independent Product rows.
+
+Current variation tables have no live rows and no explicit parent product/group URL.
+
+Therefore:
+
+DO NOT emit `ProductGroup` now.
+
+Do not invent:
+- productGroupID
+- parent product
+- variesBy
+- hasVariant
+- isVariantOf
+
+Build the schema system so variant support can be added later if the real data model qualifies.
+
+Do not output speculative variant schema.
+
+==================================================
+36. BREADCRUMBS
+==================================================
+
+Create ONE reusable BreadcrumbList builder.
+
+It must accept already-known breadcrumb items.
+
+It must NOT fetch.
+
+Use real page hierarchy, not blindly copied URL segments.
+
+Examples:
+
+Product:
+Home → Shop → Category → Product
+
+Category:
+Home → Shop → Category
+
+The breadcrumb entity can have its own stable page-local `@id`.
+
+Do not create duplicate breadcrumb implementations in individual pages.
+
+==================================================
+37. COLLECTION / ITEM LIST
+==================================================
+
+Use CollectionPage for:
+
+- Shop
+- Category
+- Categories index
+- other true collection pages
+
+Use ItemList only when the page actually presents a relevant ordered collection.
+
+The ItemList must represent actual page content.
+
+Do not assume ItemList creates a Google product-carousel rich result.
+
+Do not emit gigantic nested Product graphs for every catalog page.
+
+Reuse already-loaded page data.
+
+==================================================
+38. REVIEWS LIST PAGE
+==================================================
+
+Current review route:
+
+`/products/[slug]/reviews`
+
+is indexable.
+
+It is not the Product Detail page.
+
+Use appropriate page/breadcrumb semantics.
+
+If Product context is needed for the page's meaning, reference the Product entity rather than duplicating the entire Product merchant graph unnecessarily.
+
+Do not add private/user review state.
+
+Do not generate schema for write/edit pages because they are noindex/private workflows.
+
+==================================================
+39. PRIVATE / NON-INDEXABLE PAGES
+==================================================
+
+Do NOT emit SEO schema for:
+
+- /cart
+- /checkout
+- /checkout/success
+- /wishlist
+- /account
+- /account/onboarding
+- /addresses
+- /orders
+- /orders/[id]
+- /auth/signin
+- /auth/signup
+- /auth/forgot-password
+- review creation
+- review edit
+
+These are application/private/transactional flows.
+
+No artificial schema.
+
+==================================================
+40. PAGE → SCHEMA MATRIX
+==================================================
+
+Implement exactly this model unless the audit proves a page's actual semantics differ.
+
+HOME:
+1. Organization / OnlineStore
+2. WebSite
+3. WebPage
+
+ABOUT:
+1. AboutPage
+2. reference → Organization
+
+CONTACT:
+1. ContactPage
+2. reference → Organization
+3. reference → Store when appropriate
+
+SHIPPING:
+1. WebPage
+2. MerchantReturnPolicy/shipping semantics ONLY if actual authoritative policy supports it
+
+RETURNS:
+1. WebPage
+2. MerchantReturnPolicy when actual policy is sufficiently authoritative
+
+PRIVACY:
+1. WebPage
+
+TERMS:
+1. WebPage
+
+SHOP:
+1. CollectionPage
+2. BreadcrumbList
+3. ItemList where useful
+
+CATEGORIES:
+1. CollectionPage
+2. BreadcrumbList
+3. ItemList
+
+CATEGORY DETAIL:
+1. CollectionPage
+2. BreadcrumbList
+3. ItemList
+
+PRODUCT:
+1. WebPage
+2. BreadcrumbList
+3. Product
+4. Brand when real
+5. Offer
+6. AggregateRating when real
+7. visible Reviews when real
+8. ProductGroup ONLY when real variant data later supports it
+
+PRODUCT REVIEWS:
+1. WebPage
+2. BreadcrumbList
+3. Product reference/context where appropriate
+4. public review semantics only where genuinely useful
+
+OFFERS:
+1. Collection/page semantics appropriate to actual content
+
+SEARCH:
+none required for SEO purposes
+
+CART:
+none
+
+CHECKOUT:
+none
+
+ACCOUNT:
+none
+
+ORDERS:
+none
+
+AUTH:
+none
+
+ONBOARDING:
+none
+
+==================================================
+41. "DEFINE ONCE, REFERENCE ELSEWHERE"
+==================================================
+
+The following are canonical shared entities:
+
+`#organization`
+`#website`
+`#store`
+
+Define them centrally from authoritative source data.
+
+Then reference them from page-specific graphs.
+
+Examples:
+
+Product:
+Offer.seller → #organization
+
+About:
+about → #organization
+
+Contact:
+about → #organization
+mainEntity → #store
+
+WebPage:
+isPartOf → #website
+
+DO NOT copy the full Organization object onto every page.
+
+DO NOT copy the full Store object onto every page.
+
+The semantic identity must remain stable.
+
+==================================================
+42. IMPORTANT PRACTICAL RULE ABOUT GRAPHS
+==================================================
+
+"Defined once" means one canonical entity definition and stable identity.
+
+It does NOT mean:
+- one global JSON-LD blob containing the entire website
+- one giant graph dumped onto every page
+
+Use page-specific graphs.
+
+For example:
+
+Homepage graph:
+Organization + WebSite + WebPage
+
+Product graph:
+WebPage + Breadcrumb + Product + Brand/Offer/Rating/Review
+
+The Product's seller points to:
+#organization
+
+This is the correct graph architecture.
+
+==================================================
+43. SAFE JSON-LD SERIALIZATION
+==================================================
+
+Use one centralized serializer in:
+
+`lib/schema/json-ld.ts`
+
+It must safely serialize structured data for embedding in:
+
+`<script type="application/ld+json">`
+
+Follow current Next.js guidance.
+
+Escape dangerous `<` characters before embedding serialized JSON.
+
+Do not scatter raw `JSON.stringify()` calls across pages.
+
+Do not serialize unsanitized arbitrary HTML.
+
+==================================================
+44. SERVER RENDERING
+==================================================
+
+JSON-LD MUST be produced by Server Components.
+
+Use the supported Next.js App Router pattern.
+
+Do NOT use:
+
+- Client Components
+- useEffect
+- runtime DOM injection
+- next/head
+- next/script
+- middleware injection
+- HTML rewriting hacks
+
+Do not turn server pages into client pages solely to render schema.
+
+==================================================
+45. INITIAL HTML
+==================================================
+
+Verify schema is present in the server-rendered output/HTML response for relevant public pages.
+
+The JSON-LD must not depend on client hydration.
+
+The page must remain fully useful if JavaScript has not executed yet.
+
+==================================================
+46. NO EXTRA DATA FETCHING
+==================================================
+
+This is a HARD requirement.
+
+For every schema-bearing page:
+
+Schema generation must reuse existing page data.
+
+Examples:
+
+Product:
+existing Product loader
+→ UI
+→ metadata
+→ schema
+
+Category:
+existing Category loader
+→ UI
+→ metadata
+→ schema
+
+About:
+existing static content
+→ UI
+→ schema
+
+Contact:
+existing static business/store data
+→ UI
+→ schema
+
+There must be NO:
+
+schema → Supabase
+
+relationship.
+
+Schema generation must not increase Supabase/API request count.
+
+==================================================
+47. PRODUCT SCHEMA DATA REUSE
+==================================================
+
+The current Product Detail loader already provides:
+
+- id
+- sku
+- slug
+- name
+- description
+- brand
+- category
+- price
+- compare-at price
+- currency
+- stock
+- active state
+- preorder state
+- images
+- review-related values
+- shipping
+- warranty
+- specs/etc.
+
+Use that existing object.
+
+Do not make a schema-specific Product query.
+
+If review summary/latest reviews are already needed by the page, reuse those existing server results.
+
+Do not add another review query solely for schema.
+
+==================================================
+48. BUSINESS DATA REUSE
+==================================================
+
+Use:
+
+`lib/store-info.ts`
+
+as the business identity source.
+
+Do not duplicate business values manually in multiple schema files.
+
+The schema builder receives the existing business data.
+
+If social/Google Business URLs need to be added, add them to the authoritative business config/source, not independently inside schema code.
+
+==================================================
+49. SITE ORIGIN
+==================================================
+
+Resolve:
+
+`https://fusiongadgets.shop`
+
+through environment/configuration.
+
+Use one canonical origin helper if the project already has one.
+
+Do not hard-code the domain in:
+
+- organization.ts
+- website.ts
+- product.ts
+- breadcrumb.ts
+- store.ts
+- webpage.ts
+
+All stable `@id` and URL generation must derive from the environment-backed origin.
+
+Also inspect current metadataBase, canonical URLs, sitemap, robots, OG/Twitter URL generation.
+
+They must not contradict the environment-backed canonical origin.
+
+Do not silently create two canonical domains.
+
+==================================================
+50. CURRENT SEO INCONSISTENCIES
+==================================================
+
+The audit identified:
+
+- metadata currently references fusiongadgets.in
+- schema plan now requires fusiongadgets.shop
+- sitemap/robots/canonical currently use fusiongadgets.in
+- search is noindex but sitemap includes /search
+- product and review routes use singular/plural URL families
+- shipping rules conflict
+- no Facebook/GBP URL in source
+- trademark/registration data not present
+- no real MPN/GTIN/manufacturer fields
+
+DO NOT silently normalize unrelated issues.
+
+However, the canonical site-origin inconsistency MUST be handled because stable schema IDs and canonical URLs cannot use conflicting domains.
+
+Use the environment-backed `fusiongadgets.shop` value and update only the necessary SEO origin references so all canonical identity signals agree.
+
+Do not change route structure.
+
+Do not change product URL structure.
+
+==================================================
+51. TRADEMARK / BUSINESS ENTITY
+==================================================
+
+Fusion Gadgets is a registered trademark according to business requirements.
+
+However, the current application source does not contain verified trademark/registration details.
+
+Do not invent them.
+
+Do not put trademark claims into arbitrary schema properties.
+
+If exact verified data is already present in a suitable source, use it appropriately.
+
+Otherwise omit it.
+
+The business entity should still clearly represent Fusion Gadgets as the merchant/business.
+
+==================================================
+52. ONLINE + OFFLINE BUSINESS MODEL
+==================================================
+
+The final graph must distinguish:
+
+Fusion Gadgets
+→ business/merchant entity
+
+Fusion Gadgets online operation
+→ OnlineStore/site semantics where appropriate
+
+Fusion Gadgets physical location
+→ Store/local-business semantics where appropriate
+
+Products:
+Product.brand
+→ actual manufacturer/product brand
+
+Products:
+Offer.seller
+→ Fusion Gadgets
+
+Never collapse these identities.
+
+==================================================
+53. GOOGLE BUSINESS PROFILE
+==================================================
+
+Google Business Profile is part of the business identity according to the business requirements.
+
+Do not use internal Google management URLs.
+
+Only use the actual public business-profile URL once verified and provided in the business source.
+
+Use it as part of the canonical business identity where appropriate.
+
+==================================================
+54. SCHEMA PROPERTY DISCIPLINE
+==================================================
+
+For every property ask:
+
+1. Does the type support it?
+2. Does Google support/value it for the intended feature?
+3. Do we have an authoritative value?
+4. Does it accurately describe what the page/entity shows?
+5. Does adding it improve semantic completeness?
+
+If any answer is no:
+OMIT IT.
+
+Do not optimize for number of properties.
+
+==================================================
+55. NO SCHEMA STUFFING
+==================================================
+
+Do NOT:
+
+- put all products into Organization
+- put all reviews into Organization
+- put all categories into Organization
+- put all social content into Product
+- put private account data into schema
+- put hidden data into schema
+- put application state into schema
+- put unavailable fields into schema
+- repeat the same entity everywhere
+
+==================================================
+56. PAGE-SPECIFIC JSON-LD OUTPUT
+==================================================
+
+Each relevant page should emit ONE JSON-LD script.
+
+Use:
+
+`@context: "https://schema.org"`
+
+and:
+
+`@graph: [...]`
+
+for connected multi-entity pages.
+
+Do not emit multiple unrelated JSON-LD scripts for the same page unless there is a concrete reason.
+
+Do not duplicate entities within the same graph.
+
+==================================================
+57. IMPLEMENTATION COMPONENT
+==================================================
+
+If a tiny reusable server component is actually useful, it may live under the existing project component structure.
+
+However, do NOT create a generic "SchemaProvider" or "SEOProvider".
+
+Prefer keeping schema generation in:
+
+`lib/schema/`
+
+and having pages render the resulting graph through a minimal supported Server Component pattern.
+
+Do not create architecture merely to avoid a few lines of JSX.
+
+==================================================
+58. TESTING
+==================================================
+
+Test every schema-bearing page type.
+
+Minimum:
+
+Home
+About
+Contact
+Shipping
+Returns
+Shop
+Categories
+Category Detail
+Product
+Product Reviews
+Offers
+
+For each:
+
+1. render page
+2. inspect generated HTML
+3. confirm JSON-LD exists where expected
+4. confirm exactly one JSON-LD graph/script
+5. parse JSON
+6. validate JSON structure
+7. validate @id relationships
+8. verify canonical URL origin
+9. verify no client-only dependency
+10. verify no schema-only API request
+
+==================================================
+59. PRODUCT TESTS
+==================================================
+
+Test at least:
+
+- normal branded product
+- genuinely unbranded product if present
+- out-of-stock product
+- preorder product if present
+- product with no reviews
+- product with reviews
+- product with multiple images
+- product with compare_at_price
+- product with no active offer
+- product with active promotion
+
+Ensure:
+
+- no fake brand
+- no fake MPN
+- no hard-coded priceValidUntil
+- correct availability
+- correct price
+- correct currency
+- correct seller
+- correct images
+- correct @id
+
+==================================================
+60. EMPTY-DATA TESTS
+==================================================
+
+The schema system must tolerate:
+
+- no reviews
+- no offers
+- no variation members
+- no brand resolution
+- missing optional image
+- missing optional business field
+
+Do not output malformed empty objects.
+
+Do not throw because an optional schema property is absent.
+
+==================================================
+61. SECURITY TEST
+==================================================
+
+Verify the JSON-LD serializer safely handles strings containing:
+
+- `<`
+- `>`
+- quotes
+- ampersands
+- user-generated review text
+- product descriptions
+
+Do not allow review/product content to break out of the JSON-LD script context.
+
+Follow the current Next.js safe serialization guidance.
+
+==================================================
+62. PERFORMANCE TEST
+==================================================
+
+Verify schema creation adds:
+
+ZERO:
+- Supabase requests
+- Worker requests
+- client requests
+- client hydration requirements
+- schema-specific network calls
+
+Schema generation should be CPU-only object construction/serialization over data already available to the page.
+
+Do not create unnecessary large graphs.
+
+==================================================
+63. SEO VALIDATION
+==================================================
+
+Use current:
+
+- Google Rich Results Test
+- Schema.org Validator
+- browser/server HTML inspection
+- Search Console-compatible validation where possible
+
+Do not treat "validator passes" as equivalent to "SEO correct."
+
+Verify:
+- page/entity accuracy
+- canonical consistency
+- visible content consistency
+- property correctness
+- entity relationships
+
+==================================================
+64. FINAL CLEANUP SEARCH
+==================================================
+
+Search the whole project after implementation for:
+
+- `application/ld+json`
+- `schema.org`
+- `@type`
+- `@id`
+- `ConfirmationURL`
+- old schema helper names
+- old local Product schema code
+- old category breadcrumb schema
+- hard-coded seller Organization
+- `mpn`
+- hard-coded `priceValidUntil`
+- Fusion Gadgets used as Product brand fallback
+- duplicate Organization definitions
+- duplicate BreadcrumbList implementations
+- schema code outside the centralized system
+
+There must be no stale/competing schema implementation.
+
+==================================================
+65. DO NOT MODIFY UNRELATED SEO
+==================================================
+
+Do not use this task as an excuse to redesign:
+
+- titles
+- descriptions
+- robots
+- Open Graph
+- Twitter cards
+- sitemap architecture
+- URL routing
+- page content
+
+Only make changes directly required to:
+- align canonical origin to the environment-backed `fusiongadgets.shop`
+- support the new schema system
+- eliminate contradictions that would make the schema/entity graph incorrect
+
+If an unrelated SEO issue is discovered, report it separately.
+
+==================================================
+66. FINAL IMPLEMENTATION STANDARD
+==================================================
+
+The final system must follow this model:
+
+EXISTING DATA
+    ↓
+existing server loader / static source
+    ↓
+page
+    ↓
+lib/schema/*
+    ↓
+pure Schema.org object
+    ↓
+safe JSON-LD serialization
+    ↓
+server-rendered `<script type="application/ld+json">`
+    ↓
+initial HTML
+
+NEVER:
+
+schema
+    ↓
+Supabase
+
+NEVER:
+
+client
+    ↓
+fetch
+    ↓
+schema
+
+NEVER:
+
+schema
+    ↓
+new cache/data layer
+
+==================================================
+67. EXPECTED FINAL ENTITY MODEL
+==================================================
+
+Canonical business:
+
+`#organization`
+
+Canonical website:
+
+`#website`
+
+Canonical physical store:
+
+`#store`
+
+Product:
+
+`/product/{slug}#product`
+
+Page:
+
+`canonical-url#webpage`
+
+Breadcrumb:
+
+`canonical-url#breadcrumb`
+
+Relationships:
+
+WebSite
+→ publisher → #organization
+
+WebPage
+→ isPartOf → #website
+
+Product page
+→ mainEntity → #product
+
+Product
+→ brand → actual Brand
+
+Offer
+→ seller → #organization
+
+Contact
+→ mainEntity/about → #store
+
+Store
+→ parentOrganization → #organization
+
+This should produce a coherent semantic graph without duplicating full entities everywhere.
+
+==================================================
+68. FINAL ACCEPTANCE CRITERIA
+==================================================
+
+The implementation is COMPLETE only when:
+
+1. Existing JSON-LD implementation is removed.
+2. ONE centralized schema system exists under `lib/schema/`.
+3. Schema code performs zero data fetching.
+4. Static pages remain independent of Supabase.
+5. Dynamic pages reuse existing server data.
+6. Site origin comes from environment/configuration.
+7. Canonical identity uses `fusiongadgets.shop`.
+8. Organization/business entity is defined centrally.
+9. WebSite entity is defined centrally.
+10. Physical Store entity is defined from existing static store data.
+11. Social identity uses verified `sameAs` URLs.
+12. Product schema is server-rendered.
+13. Product schema reuses the existing Product object.
+14. Product images come from existing Product data.
+15. Actual product Brand is represented.
+16. Fusion Gadgets is seller/merchant, not universal product brand.
+17. Unbranded products do not get a fake Fusion Gadgets brand.
+18. SKU is used correctly.
+19. MPN is omitted unless real MPN data exists.
+20. GTIN/EAN/UPC are omitted unless real data exists.
+21. Hard-coded `priceValidUntil` is removed unless authoritative.
+22. Offer uses authoritative product price/currency/availability.
+23. AggregateRating is conditional on real review data.
+24. Review markup is conditional on visible public reviews.
+25. Private review/user state is never exposed in schema.
+26. ProductGroup is not emitted until actual variant data supports it.
+27. Breadcrumbs are centralized.
+28. CollectionPage/ItemList are used only where semantically justified.
+29. Private/transactional pages do not receive unnecessary schema.
+30. No SearchAction is added.
+31. No deprecated schema type is added.
+32. No schema-specific Supabase/API calls exist.
+33. No client-side JSON-LD generation exists.
+34. No `<head>` injection hack exists.
+35. No `next/head` or `next/script` is used for JSON-LD.
+36. JSON-LD is safely serialized.
+37. Each relevant page emits one coherent JSON-LD graph.
+38. Entity relationships use stable `@id` references.
+39. No duplicate Organization definitions remain.
+40. No duplicate Breadcrumb implementations remain.
+41. UI is unchanged.
+42. Business logic is unchanged.
+43. Existing performance optimizations remain intact.
+44. Existing ISR behavior remains intact.
+45. Existing security boundaries remain intact.
+46. `npm run build` passes.
+47. Relevant lint/type checks pass or pre-existing failures are explicitly identified.
+48. Generated HTML contains the expected server-rendered JSON-LD.
+49. No additional Supabase request is introduced by schema generation.
+50. Google Rich Results / Schema.org validation is performed where applicable.
+
+==================================================
+69. STRICT ANTI-DRIFT RULE
+==================================================
+
+Do not turn this into a generalized SEO rewrite.
+
+Do not redesign the website.
+
+Do not redesign the data layer.
+
+Do not redesign the database.
+
+Do not add architecture because it looks cleaner.
+
+Do not add schema because Schema.org offers a field.
+
+Do not remove schema because it is difficult.
+
+Use the smallest centralized system that correctly represents the existing business, products, pages, and relationships.
+
+If the existing pipeline is correct:
+KEEP IT.
+
+If the data is already available:
+REUSE IT.
+
+If the data does not exist:
+OMIT THE PROPERTY.
+
+If the schema type does not accurately represent the page:
+DO NOT EMIT IT.
+
+If a requirement conflicts with current data:
+STOP and report the exact conflict instead of inventing a value.
+
+==================================================
+70. FINAL REPORT
+==================================================
+
+Return:
+
+### Research
+Official documentation sources consulted and what was relevant.
+
+### Current schema removed
+Exact old files/functions/components removed.
+
+### New schema architecture
+Exact files created and their responsibilities.
+
+### Entity model
+Organization, Website, Store, Product, Brand, Offer, WebPage, Breadcrumb relationships.
+
+### Page matrix
+Every relevant page and exactly which schema types it emits.
+
+### Data sources
+For every schema:
+which existing source supplies the data.
+
+### Database/API impact
+Explicitly confirm schema generation adds zero new Supabase/Worker requests.
+
+### Canonical origin
+Confirm environment-backed `https://fusiongadgets.shop` is used consistently.
+
+### Product handling
+Images, brand, SKU, offer, availability, ratings/reviews, variant behavior.
+
+### Business identity
+Organization/store/social identity handling.
+
+### Validation
+HTML inspection, JSON parsing, Schema.org validation, Google validation where applicable.
+
+### Build/type/lint
+Actual results.
+
+### Remaining issues
+Only concrete issues discovered. Do not invent issues.
+
+Do not claim "production-ready" unless the actual implementation and generated HTML have been verified.
+
+Most importantly:
+
+DO NOT MODIFY ANYTHING UNTIL YOU HAVE AUDITED THE CURRENT IMPLEMENTATION AND VERIFIED THE CURRENT PROJECT STRUCTURE AND DATA SOURCES.
+
+Then implement the complete refactor exactly within the existing architecture.

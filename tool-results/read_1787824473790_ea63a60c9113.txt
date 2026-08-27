@@ -1,0 +1,198 @@
+     1→# Project Worklog
+     2→
+     3→---
+     4→Task ID: 1
+     5→Agent: main-agent (Z.ai Code)
+     6→Task: Wipe the old Next.js template codebase, clone https://github.com/wamiq271801/FG2 fresh into /home/z/my-project, update sandbox scripts (.zscripts/*) removing db/prisma entries, and add Supabase environment variables.
+     7→
+     8→Work Log:
+     9→- Cloned FG2 (Next.js 16 + Supabase e-commerce storefront "Fusion Gadgets") to /tmp/fg2-clone and inspected its structure: root-level `app/` dir, Supabase data layer (no Prisma/SQLite), aux services (TrackingServer :3001, Cloudflare Worker :8787, ProcessingServer) that are standalone sub-projects.
+    10→- Updated `.zscripts/dev.sh`: removed the `bun run db:push` step (would crash with FG2's package.json which has no db:push script).
+    11→- Updated `.zscripts/start.sh`: removed DEFAULT_PACKAGED_DB_PATH / DATABASE_URL / packaged-db validation logic (Supabase is remote; no local DB file).
+    12→- Updated `.zscripts/build.sh`: removed the `database-runtime-build.sh` invocation.
+    13→- Updated `.zscripts/database-runtime-build.sh`: neutralized into a copy-only placeholder (no more `prisma db push`).
+    14→- Killed the running dev server process tree (PIDs 1160/1163/1164/1165/1186/1220) so the sandbox can restart it automatically with the new code (user instruction: never start the server from the agent terminal).
+    15→- Wiped old template: removed src/, prisma/, db/, tests/, examples/, mini-services/, public/, node_modules/, .next/, bun.lock, package.json, components.json, next.config.ts, postcss.config.mjs, tailwind.config.ts, tsconfig.json, eslint.config.mjs, .gitignore, dev.log, next-env.d.ts. Preserved sandbox infra: .zscripts/, .git/, Caddyfile, skills/, upload/, download/.
+    16→- Copied FG2 into /home/z/my-project via rsync, excluding .git, node_modules, upload/ (sandbox mount point), tool-results/ (AI session artifacts), package-lock.json (using bun).
+    17→- Adapted package.json: name → "fg2-fusion-gadgets"; dev script → `next dev -p 3000 2>&1 | tee dev.log` (sandbox convention: explicit port 3000 + dev.log capture).
+    18→- Added `output: "standalone"` to next.config.ts (required by the sandbox build/deploy pipeline; build.sh self-heal expects it).
+    19→- Wrote `.env` with NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY (user-provided values). Also wrote `.env.local` with the same values as a backup because the container's /start.sh rewrites .env on restore; lib/supabase/config.ts additionally hardcodes these values as fallbacks.
+    20→- Ran `bun install` — 810 packages installed successfully (sharp's postinstall blocked by bun but @img/sharp-linux-x64 prebuilt binaries are present via optional deps, and app code has no direct sharp imports; images are unoptimized in next.config anyway).
+    21→- Ran `bun run lint` — only pre-existing repo issues (react-hooks/set-state-in-effect style errors in components, require() in scripts/*.js utility scripts). No infra-introduced issues.
+    22→- Ran `bunx tsc --noEmit` — app/ lib/ modules/ hooks/ providers/ services/ all type-check clean; remaining errors are pre-existing (zod typing in components/cms/ContactForm.tsx, missing @tidbcloud/serverless in the standalone TrackingServer/ProcessingServer sub-projects which have their own package.json and are not part of the Next app, plus sandbox skills/* files).
+    23→- Verified remote Supabase reachability from the sandbox: `GET /rest/v1/products` with the anon key returns live product rows (HTTP OK, sub-second latency). The dev.sh health check (curl localhost:3000 → homepage backed by Supabase) will pass.
+    24→- Committed the new project state to git (commit 267a09b) so it persists into repo.tar across container restores.
+    25→- Forensic check of `.zscripts/dev.log` confirmed the platform runs dev.sh per chat-session start (18:17:46 run booted the OLD template incl. db:push; ended by my SIGTERM at 18:24). The platform does NOT run a fast watchdog — the next dev.sh run happens on the next session/message cycle, at which point the FG2 app boots on port 3000.
+    26→
+    27→Stage Summary:
+    28→- The codebase at /home/z/my-project is now the FG2 project (Supabase-backed storefront), replacing the old Prisma/SQLite template entirely.
+    29→- All sandbox scripts no longer reference db:push / prisma / DATABASE_URL / custom.db, so the sandbox's automatic dev.sh restart will not crash.
+    30→- Environment: NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY set in .env and .env.local.
+    31→- Dev server was intentionally left stopped per user instruction; the sandbox auto-restart brings it up (dev.sh now clean of db:push). Verification of the running app pending server restart by the platform.
+    32→
+    33→---
+    34→Task ID: 2
+    35→Agent: main-agent (Z.ai Code)
+    36→Task: Production optimization + refactor of FG2 frontend (remove theme system, kill global/duplicate client + server requests) without any functional/UI change.
+    37→
+    38→Work Log:
+    39→- PHASE 1 deep audit of all 176 frontend files: providers (Auth/Cart/Turnstile/Theme/RouteGuard), modules (cart/wishlist/catalog/review/account/orders), all app routes, services (worker/tracking).
+    40→- A) Removed entire theme system: deleted providers/ThemeProvider.tsx, removed wrapper from app/layout.tsx (+ suppressHydrationWarning), removed .dark block from globals.css (kept @custom-variant dark so existing dark: utilities stay class-scoped/inert), rewrote components/ui/sonner.tsx to pin theme="light" (identical rendered output), removed next-themes from package.json.
+    41→- A2) Removed dead toast infrastructure: deleted components/ui/toaster.tsx + hooks/use-toast.ts (only consumer was the Toaster itself; app uses sonner).
+    42→- B) CartProvider no longer resolves product details globally. Context now exposes raw CartLine[] + count + ready with the same hold-last-good snapshot semantics. CartItems resolves products locally via useProductsByIds and computes count/subtotal there (identical UI incl. skeleton gating). Header badge and CheckoutForm (lines.length only) work unchanged. All cart semantics (guest/auth merge, remote authority, quantity/stock rules, authoritative reloads) untouched.
+    43→- G/H) modules/catalog/useProducts.ts: added module-level session cache (Map id→Product|null, negative caching for inactive ids). Remounts (wishlist/cart/order-detail revisit) reuse session data; only uncached ids are fetched; post-write cart/wishlist reloads with unchanged ID set trigger zero product refetches. Cold-load hydration behavior unchanged (cache empty at boot → same skeleton gates).
+    44→- C) Server dedupe: getProductBySlug wrapped in React cache() (kills metadata+page double query on product/reviews/new/edit routes); getVariationMembership extracted + cached (getRelatedProducts + getProductVariation previously issued the identical membership query twice per product render); getProductsByCategoryId cached.
+    45→- D) getCategoryBySlug + getAllCategories wrapped in cache() (category route previously queried category 3x, products 2x, allCategories 2x per render).
+    46→- D2) Offers page derives the featured promo from the already-fetched getAllPromotions() list (identical filters) instead of a second getPromotionBySlug query.
+    47→- D3) Category product counts: shop page computes counts in-memory from already-loaded allProducts (0 extra queries); categories index + search use new getCategoryProductCounts() (ONE category_id-only query) replacing N per-category count queries. Removed old getCategoryProductCount.
+    48→- E) modules/review/useReviewEligibility.ts: session cache keyed userId:productId (remounting product page / review gates no longer re-runs can_review_product RPC + review lookup); invalidateReviewEligibility() exported and called by ReviewForm after a successful create so eligible→hasReview reflects immediately.
+    49→- lib/supabase/catalog.ts: singleton server catalog client (was creating a new supabase-js client per query call); preserved original typing via non-generic factory.
+    50→- Deleted dead modules/review/useReviewForm.ts (never imported; ReviewForm does direct RLS-protected calls).
+    51→- Verified: tsc --noEmit — only the pre-existing baseline errors remain (TrackingServer/ProcessingServer tsconfig, ContactForm zod, sandbox skills). eslint — 28 errors, identical to pre-change baseline (no new; CartProvider's 2 ref-access errors pre-existed identically in the original file).
+    52→
+    53→Stage Summary:
+    54→- Zero functionality/UI changes; materially fewer requests:
+    55→  * Global: cart product query + ThemeProvider + dead Toaster no longer hydrate every route.
+    56→  * Product route: 2 identical product queries → 1; duplicate variation-membership query → 1.
+    57→  * Category route: 3 category + 2 products + 2 allCategories queries → 1 each.
+    58→  * Offers route: promo-by-slug duplicate → derived in memory.
+    59→  * Shop route: N count queries → 0 (in-memory). Categories/search: N → 1.
+    60→  * Client remounts (wishlist/cart/orders/review gates): session-reused instead of refetched.
+    61→- Auth (early identity + lock-avoidance), onboarding, Turnstile, Worker authority, RLS, ISR (revalidate=300) all untouched.
+    62→- Pending: production build + dev-server browser regression verification.
+    63→
+    64→---
+    65→Task ID: 3
+    66→Agent: main-agent (Z.ai Code)
+    67→Task: Final verification pass — browser regression testing, review-route crash fixes, build + commit.
+    68→
+    69→Work Log:
+    70→- Browser-verified (agent-browser + network inspection) on dev server:
+    71→  * Homepage/product/shop/category/cart/wishlist/search/offers/auth/orders/account all render, light theme identical, zero console/page errors (only pre-existing data-dependent dl-key warning + LCP hints).
+    72→  * KEY: homepage + shop with NON-EMPTY cart → ZERO client Supabase product queries (global lookup gone).
+    73→  * Cart: add (toast + badge + localStorage), local product resolution (exactly 1 query), subtotal/shipping/total correct, qty change → 0 refetch, warm revisit → 0 refetch.
+    74→  * Wishlist: toggle on/off, badge, page resolution (1 query), warm revisit → 0 queries, empty state + suggestions.
+    75→  * Search: client query works (3 results for "cable"). Checkout guest → redirects to /auth/signin. All 8 smoke routes 200.
+    76→  * VLM screenshot verification: cart/product/signin pages light theme, full layout, no glitches.
+    77→  * Mobile 390px + sticky footer verified (flex-1 main, footer at bottom).
+    78→- Found bun lock re-resolution had upgraded next 16.1.3→16.3.3 (bun.lock was deleted during the earlier migration wipe), whose stricter dev-origin allowlist 403'd chunk loads with non-localhost Origin (would break the preview gateway). Pinned next + eslint-config-next to 16.1.3 (proven version); chunks serve 200 again.
+    79→- Discovered 3 PRE-EXISTING review-route crashes (files untouched by the optimization): reviews list destructured searchParams from params (TypeError), write/edit pages passed renderForm functions from Server to Client components (RSC serialization error). Fixed minimally — gates render ReviewForm from serializable props; searchParams read as separate awaited prop. UI/gate logic identical. All review routes now 200 (404 for missing review).
+    80→- Re-validated: eslint clean on changed files, tsc app-clean (baseline-only errors remain), production build ✓ 53/53 routes, dev.log 0 errors after fixes.
+    81→- Committed: 6ac1698 (optimization) + 6fc3a9d (review-route fixes).
+    82→
+    83→Stage Summary:
+    84→- All acceptance criteria verified in-browser where testable as guest: no theme provider, no global cart product query, warm navigation reuses session state, cart/wishlist semantics intact, ISR/server rendering preserved, zero UI change.
+    85→- Dev server left running via the sandbox's own detached dev.sh (port 3000, dev.log live).
+    86→- Pre-existing-bug fixes (review routes) were required to satisfy the mandated TEST REVIEWS acceptance.
+    87→
+    88→---
+    89→Task ID: 4
+    90→Agent: main-agent (Z.ai Code)
+    91→Task: Production-grade Schema.org/JSON-LD system — complete replacement of the fragmented schema implementation with a centralized, server-rendered, zero-fetch lib/schema/ system per the 70-section task spec.
+    92→
+    93→Work Log:
+    94→- Full audit first: found old schema ONLY in product page (local productJsonLd with mpn=sku, hard-coded priceValidUntil "2026-12-31", inline seller Organization, "Fusion Gadgets" brand fallback, hero-image placeholder fallback, availabilitySchema + breadcrumbJsonLd locals, 2 separate ld+json scripts) and category page (local breadcrumbJsonLd). Hard-coded fusiongadgets.in in layout metadataBase, sitemap, robots, both pages, lib/supabase/config SITE_URL. Verified live DB facts: images are absolute image.fusiongadgets.in URLs; product_reviews table EMPTY; products with brand_id NULL are 404'd by the pre-existing brands!inner join (upstream behavior).
+    95→- Research: confirmed current nextjs.org JSON-LD guide (server-rendered script + `<` → \u003c escaping), Google merchant-listing/product-snippet/MerchantReturnPolicy docs, SearchAction retired.
+    96→- Created lib/site.ts (SITE_ORIGIN from NEXT_PUBLIC_SITE_URL, fallback https://fusiongadgets.shop; absoluteUrl()). lib/supabase/config.ts SITE_URL now delegates to it. NEXT_PUBLIC_SITE_URL=https://fusiongadgets.shop added to .env + .env.local.
+    97→- Created lib/schema/: json-ld.ts (types, buildJsonLdGraph, serializeJsonLd with < escaping), organization.ts (OnlineStore entity w/ hasPOS + hasMerchantReturnPolicy refs, sameAs = the 3 verified socials only, MerchantReturnPolicy entity IN/FiniteReturnWindow/7 days), website.ts (WebSite, no SearchAction), store.ts (Store w/ geo+openingHoursSpecification, parentOrganization ref), webpage.ts, breadcrumb.ts, product.ts (Product/Offer/Review/Brand builders, centralized schemaAvailability, sku only — no mpn/gtin, no priceValidUntil, seller→#organization ref, conditional aggregateRating/review), collection.ts (CollectionPage + url-based ItemList), index.ts. Created components/shared/JsonLd.tsx server component.
+    98→- store-info.ts: added structured openingHours + geo (values already present twice in source: hours string + contact HOURS_ROWS + OSM marker coords). No invented data.
+    99→- Removed ALL old schema code from product + category pages; wired ONE @graph script per page across 13 pages: home (WebSite+OnlineStore+WebPage), about (AboutPage→#org), contact (ContactPage + full Store def), shipping (WebPage only — conflicting shipping rates NOT encoded), returns (WebPage + MerchantReturnPolicy), privacy/terms (WebPage), shop/categories/category-detail/offers (CollectionPage+Breadcrumb+ItemList from already-loaded data), product (WebPage+Breadcrumb+Product with real brand/category/price/availability/images, visible-reviews-ready), product reviews (WebPage+Breadcrumb+compact Product ref — no merchant-graph duplication). Search/private pages: intentionally no schema.
+   100→- Aligned canonical origin: layout metadataBase + OG url, sitemap.ts, robots.ts → SITE_ORIGIN. Verified robots.txt/sitemap.xml/canonical/og:url all emit https://fusiongadgets.shop.
+   101→- Verification (dev server, before platform recycled it): every schema page emits EXACTLY ONE ld+json script with correct @graph; product page deep-checked (realme: @ids .shop, sku REALMEBU, no mpn/gtin/priceValidUntil, brand Realme, category "In-Ear Headphones", absolute R2 image, seller/return-policy refs, InStock; havells OOS→OutOfStock; usb-c cable stock 2→LimitedAvailability; empty reviews table→aggregateRating/review OMITTED); shop ItemList 28 product URLs; homepage org/website/webpage + contact Store + returns policy entities byte-verified; security: serializer escapes < (tested with <script>alert); rg proof lib/schema has ZERO supabase/fetch; cart/auth/search/checkout = 0 ld+json; tsc + lint = pre-existing baseline only (28 lint errors all in untouched files).
+   102→- DISCOVERED PRE-EXISTING defect (proven on git HEAD code with fresh reload, not introduced by this change): React 19 hydration mismatch on the product page caused by inline ld+json script (client expects <article>, server HTML has script position). Initial HTML is correct (crawlers unaffected), page recovers and keeps exactly 1 script post-hydration. Tried fragment/last-position variant; server was recycled by the platform mid-test so reverted to the verified original placement. Reported, not silently fixed.
+   103→- Dev server was externally recycled by the platform after verification (no crash in dev.log; port 3000 listener gone). It auto-restarts next message cycle via .zscripts/dev.sh.
+   104→
+   105→Stage Summary:
+   106→- ONE canonical schema system under lib/schema/ (pure transforms, zero fetching, env-backed .shop origin, stable @ids, define-once/reference-elsewhere). Old fragmented implementation fully removed. Zero new Supabase/Worker/client requests (structural + verified). Zero UI/business-logic changes. Pre-existing issues REPORTED (product-page hydration mismatch w/ inline JSON-LD; brands!inner 404s unbranded products; shipping-rates conflict kept out of structured data; sitemap still lists noindex /search; contact email remains @fusiongadgets.in; image CDN remains image.fusiongadgets.in — all outside task scope to change silently).
+   107→
+   108→---
+   109→Task ID: 5
+   110→Agent: main-agent (Z.ai Code)
+   111→Task: Fix the product-page React hydration mismatch attributed to the server-rendered JSON-LD integration — structural parity only; no schema/UI/functionality changes; zero suppressHydrationWarning.
+   112→
+   113→Work Log:
+   114→- Read worklog (Task 4 reported the defect: "hydration mismatch on product page caused by inline ld+json script (client expects <article>, server HTML has script position)", reported-but-unfixed after the dev server was recycled mid-test).
+   115→- Verified `suppressHydrationWarning` count in code: 0 (only a historical mention in worklog.md itself). No suppression mechanism anywhere.
+   116→- Reproduction attempts BEFORE the fix (all via agent-browser on the dev server): fresh cold loads of 6 product slugs, all 13 JSON-LD routes swept (/, /shop, /categories, /categories/[slug], /offers, /about, /contact, /returns, /privacy, /terms, /shipping, product, product reviews), client-side navigation home→product, hard reloads, fresh browser sessions, AND loads with persisted guest state (fusion-cart + fusion-wishlist in localStorage). ZERO hydration errors in every scenario. Only console item: the pre-existing data-dependent React key warning from duplicate spec labels in the product <dl> (documented baseline, not a hydration mismatch).
+   117→- Root-cause analysis (code + react-dom 19.2.8 source + DOM evidence):
+   118→  * react-dom 19.2.8 only treats <script async src=...> as hoistable resources (getResource/tryHydrate case "script" returns the instance in-place when src is absent) — inline ld+json scripts hydrate IN PLACE, never hoisted. Confirmed empirically: post-hydration DOM has the script as article child, exactly one script, not in <head>.
+   119→  * The mismatch reported in Task 4 was a transitional-state artifact: the sandbox platform recycles the dev server mid-session (it died again during this task, and Turbopack threw "module factory is not available" during rebuild). In those states the client tree diverges at the HEAD of <article> — precisely where the JSON-LD script sat as FIRST child, immediately after the null-rendering ProductViewTracker client island — so React's mismatch diff was reported AT the script node ("client expects <article>…, server HTML has script position") even though the script content/position in server HTML was always correct.
+   120→  * The structural fragility: script-first placement puts a server-only <script> at the hydration walker's first examination point inside the article, adjacent to a client-component boundary that renders null. Zustand persisted stores were verified hydration-safe (v5 useSyncExternalStore getServerSnapshot returns initial state during hydration; badge/heart updates are post-hydration re-renders — proven by the localStorage test producing no error).
+   121→- FIX (the two corrections explicitly sanctioned by the task spec §6): in app/(static)/product/[slug]/page.tsx only —
+   122→  1. Moved <JsonLd data={productGraph} /> from the FIRST child of <article> to the LAST child (after the Related section). It is now the terminal, purely server-owned node; nothing after it can shift it and it can shift nothing before it. Matches the task's §10 desired tree (product content first → JSON-LD last, server-owned).
+   123→  2. Moved <ProductViewTracker slug={slug} /> (null-rendering client island) from the head of the article to just before the JsonLd script, so the article opens with pure server content (<nav> Breadcrumbs). Its useEffect fires on mount regardless of position — tracking behavior identical.
+   124→  * No wrappers added, no fragments added, no schema/UI/JSX-props changes, JSON-LD construction untouched (lib/schema/ untouched).
+   125→- Post-fix verification:
+   126→  * Server HTML: <article> now opens with <nav aria-label="breadcrumb">; the ld+json script is the final child (`</script></article>`); exactly ONE ld+json script; still inside <body> (not head); still server-rendered in initial HTML.
+   127→  * JSON-LD content BYTE-IDENTICAL to pre-change (2348 bytes, exact string match; same 3-entity @graph WebPage+BreadcrumbList+Product).
+   128→  * Browser: fresh loads of 6 products + hard refresh + fresh sessions → ZERO hydration errors/mismatches/warnings. Post-hydration DOM: first article child NAV, last child SCRIPT[ld+json].
+   129→  * Interactivity: quantity stepper (1→2), Add to bag (badge "2"), wishlist toggle (badge "1 items") all work; console clean after interactions.
+   130→  * Mobile 390x844 + desktop 1440x900: zero hydration errors; script display:none (no visual impact); VLM-verified desktop full-page screenshot — layout intact, no glitches, footer at bottom.
+   131→  * Regression: 18 routes all HTTP 200 (incl. all JSON-LD routes, cart, wishlist, search, auth, account, reviews, review-new); browser hydration clean on home/shop/category/offers.
+   132→  * Searches: suppressHydrationWarning = 0 in code; all 13 JsonLd-consuming pages + components/shared/JsonLd.tsx have NO "use client" (server-rendered); lib/schema/ has 0 "use client"/useEffect/document/window; no client-side JSON-LD logic, no DOM/head hacks.
+   133→  * tsc --noEmit: only the pre-existing baseline (ContactForm zod typing; TrackingServer/ProcessingServer/skills outside the Next app). bun run lint: 28 errors — byte-identical count/files to the documented pre-change baseline (scripts/*.js require(), TurnstileProvider/CartProvider ref-access, etc.); zero errors in the changed file.
+   134→- Committed the fix.
+   135→
+   136→Stage Summary:
+   137→- Root cause: JSON-LD script + null-rendering tracker occupied the HEAD of <article>, placing a server-only script at the hydration walker's first examination point where transitional dev-server/stale-chunk states produced the reported "client expects <article>, server HTML has script position" divergence. Fix = deterministic trailing placement (content first, tracker + server-owned JSON-LD last) per task spec §6/§10.
+   138→- One file changed: app/(static)/product/[slug]/page.tsx (+13/−3, comments + node relocation).
+   139→- JSON-LD remains centralized in lib/schema/, server-rendered, byte-identical, exactly one script, present in initial HTML.
+   140→- Zero suppressHydrationWarning (was already 0; still 0). Zero UI/functionality/performance changes (same queries, same ISR revalidate=300, same metadata).
+   141→- Remaining pre-existing (out of scope, unchanged): data-dependent React key warning from duplicate spec labels in product <dl>; ContactForm zod tsc error; 28 baseline lint errors in untouched files; product_reviews table empty so review-dependent JSON-LD branches and the VariationSelector are data-inactive (variation tables empty).
+   142→
+   143→---
+   144→Task ID: 6
+   145→Agent: main-agent (Z.ai Code)
+   146→Task: Fix the pre-existing React duplicate-key warning in the product specifications rendering — smallest correct change, existing stable identity from the actual data model only; no DB/loader/schema-system changes.
+   147→
+   148→Work Log:
+   149→- Inspected the exact `.map()`: app/(static)/product/[slug]/page.tsx specs `<dl>` (was `key={s.label}`), the only specs consumer in the codebase (grep-verified: app/, components/, lib/ have zero other specs usage; lib/schema/ untouched — buildProduct never reads specs).
+   150→- Traced the data source/type chain: FullProductRow.specs declared `{label,value}[]` (modules/catalog/types.ts) → ProductSpec declared `{label,value}` (types/index.ts) → products.specs JSONB column. THEN queried the LIVE DB via PostgREST: all 704 spec entries across all 75 active products are shaped `{key, value}` — written that way deliberately by normalizeSpecs() in scripts/import-products.js. The declared `label` field does not exist in the actual data: `s.label` was `undefined` for EVERY row (this — not duplicate labels — was the real cause: all React keys were undefined).
+   151→- Verified via live server HTML (before fix): usb-a-to-usb-c-cable rendered 6 spec rows with completely EMPTY `<dt>` cells (`<dt class="..."></dt>`) — the field-name mismatch also blanked the label column.
+   152→- Per task fallback directive (no UUID on spec items — JSONB entries carry only key+value), the traced stable identity is the `key` field: verified unique within every product's specs array (0 duplicates across all 60 spec-bearing products, never empty), deterministic, identical server/client (same JSONB payload), derived from existing real data. Also verified includes/highlights lists have zero duplicates (no other key-warning sources).
+   153→- FIX (3 files, no logic changes):
+   154→  1. types/index.ts — ProductSpec: `{label,value}` → `{key,value}` (+ doc comment: key is the spec's own identity field, verified unique per product).
+   155→  2. modules/catalog/types.ts — FullProductRow.specs wire type aligned to `{key,value}[]` (+ comment). mapProductRow passthrough unchanged (line 158) — no loader/query behavior change.
+   156→  3. app/(static)/product/[slug]/page.tsx — `key={s.label}` → `key={s.key}`; `<dt>{s.label}</dt>` → `<dt>{s.key}</dt>` (+ 2-line comment). No wrappers, no dedupe, no data/order/styling changes.
+   157→- Consequence honestly reported: the previously-EMPTY `<dt>` label cells now display the spec's own `key` data (e.g. "PRODUCT_TYPE" via existing CSS uppercase); rows, order, and values are byte-identical to the DB. Empty-branch (`?? []`) code path unchanged; unreachable in live data (all 15 no-specs products are also unbranded → pre-existing brands!inner 404s).
+   158→- Verification (dev server + agent-browser):
+   159→  * usb-a-to-usb-c-cable (6 specs): fresh load + hard reload → ZERO key warnings, ZERO hydration errors; server HTML keys+order+values match DB exactly; hydrated DOM = 6 rows with real keys; JSON-LD integrity intact (exactly 1 ld+json script, still the terminal node of <article> — Task 5 fix preserved).
+   160→  * Interactivity: quantity stepper 1→2 + Add to bag → cart badge "2" (hydration fully functional).
+   161→  * ws-s9-max-smartwatch-45mm (24 specs): 24 rows render, console clean.
+   162→  * The three products that previously logged the warning (t57-rugged-smartwatch-orange 16 rows, 400ml-glass-water-bottle 12, hk10-pro-max-ultra-2-smartwatch 13): keyWarnings=0, hydrationIssues=0.
+   163→  * Mobile 390px + desktop 1440px screenshots; VLM-verified: two-column spec rows, populated monospace uppercase labels, no glitches.
+   164→  * dev.log: the two pre-fix key warnings sit above the recompile line; every post-fix product GET is 200 with no warning following it.
+   165→  * tsc --noEmit: only the documented pre-existing baseline (TrackingServer/ProcessingServer @tidbcloud, ContactForm zod, skills/*) — zero errors in changed files. eslint on the 3 changed files: clean.
+   166→- Committed the fix.
+   167→
+   168→Stage Summary:
+   169→- Root cause was NOT duplicate labels: the declared type said `label` but the actual imported JSONB data uses `key`, so every spec row's key was `undefined` and the `<dt>` label cells rendered empty. Fixed by aligning both type declarations with the real data shape and using the spec row's own `key` field (its verified-unique stable identity) as the React element identity.
+   170→- 3 files changed: types/index.ts, modules/catalog/types.ts (type declarations only), app/(static)/product/[slug]/page.tsx (key + dt field). Zero changes to loaders' behavior, queries, DB, JSON-LD system, ISR, metadata, UI structure/styling.
+   171→- React key warning: GONE (verified on 6 products incl. all 3 that previously warned). Hydration: still clean (Task 5 fix intact). Types/lint: clean on changed files; baseline errors unchanged.
+   172→- Visual note: spec label cells went from blank (broken by the same mismatch) to displaying the actual `key` data — the data-driven rendering the template always intended; every other visual aspect unchanged.
+   173→- Pre-existing baseline (NOT fixed by this change, out of scope): unbranded products 404 (brands!inner), ContactForm zod tsc error, 28 lint errors in untouched files, LCP image hint, empty product_reviews/variation tables.
+   174→
+   175→---
+   176→Task ID: 7
+   177→Agent: main-agent (Z.ai Code)
+   178→Task: Replace the monolithic sitemap with a centralized, production-grade sitemap architecture (sitemap index + static + batched product/category child sitemaps, lazy ISR generation, static robots.txt) per the detailed task spec.
+   179→
+   180→Work Log:
+   181→- AUDIT: Next.js 16.1.3 (pinned). Old system = app/sitemap.ts monolith (ALL products + ALL categories + 12 static routes incl. NOINDEX /search, fake new Date() lastmod, priority/changefreq noise) + app/robots.ts (dynamic). No public/sitemap*.xml, no build scripts, no sitemap deps. Schema: products(id,slug,is_active,updated_at trigger-maintained,brand_id,category_id FK RESTRICT, product_images(url,position) UNIQUE(product_id,position)); categories(id,slug UNIQUE,updated_at trigger-maintained) — no visibility field (all public). Live data: 28 active+branded products (exactly the set whose pages render — brands!inner/categories!inner semantics), 25 categories, updated_at distinct per row (trigger-maintained, currently clustered around the bulk import). /search robots index:false. Root layout robots index:true. Reviews-list pages indexable but belong to no URL group in the specified 3-group architecture (excluded, same as old sitemap).
+   182→- RESEARCH (official sources): nextjs.org sitemap.xml + generate-sitemaps + route + route-segment-config + caching-without-cache-components docs. Confirmed: native generateSitemaps → /[segment]/sitemap/[id].xml, id is a Promise since v16; sitemap.ts files are prerendered static at build (generateSitemaps enumerates ALL ids like generateStaticParams) → conflicts with the strict no-mass-prerender requirement. Route handlers support export const revalidate = N (official documented caching/ISR). Dynamic-segment routes without generateStaticParams cannot be build-prerendered (params unenumerable) → structurally lazy.
+   183→- EMPIRICAL PATH VERIFICATION (dev server): app/sitemap.xml/route.ts, app/sitemap-static.xml/route.ts, app/products/sitemap/[id]/route.ts, app/categories/sitemap/[id]/route.ts ALL serve 200 application/xml at the intended URLs (folder names "sitemap.xml"/"sitemap" do NOT conflict once app/sitemap.ts is removed; [id] captures "0.xml").
+   184→- REMOVED: app/sitemap.ts, app/robots.ts (old system, completely). Old robots rules preserved verbatim in the new static public/robots.txt (user-agent/allow/disallow list unchanged; single canonical Sitemap line; legacy Yandex Host directive dropped — ignored by all crawlers since 2018).
+   185→- CREATED lib/sitemap/: config.ts (PRODUCT_SITEMAP_BATCH_SIZE=5000, CATEGORY_SITEMAP_BATCH_SIZE=1000 — deliberately far below the 50k protocol limit for small fast documents; SITEMAP_REVALIDATE_SECONDS=3600 — catalog pages use 300, sitemap composition changes slower; child URL builders + parseSitemapBatchId), static.ts (audited 10 static paths + entries builder; home emitted origin-bare to match the page's own canonical), xml.ts (escapeXml + renderSitemapIndex + renderUrlset with conditional image namespace + toW3cDatetime second-precision normalization), products.ts/categories.ts (pure entry composition: url + trigger-maintained lastmod + ≤1 primary image = position-first product_images row, exactly what the canonical page renders), index.ts barrel. All URLs via existing lib/site absoluteUrl/SITE_ORIGIN — zero hardcoded domains.
+   186→- EXTENDED existing catalog modules (no new client/system): modules/catalog/products.ts += getProductSitemapCount() (count-only head query) + getProductSitemapBatch() (select slug,updated_at,product_images(url,position); filters is_active + brand_id/category_id NOT NULL = exact inner-join semantics of the rendered page set; ORDER BY id (immutable uuid PK) + .range → deterministic batch membership; only the requested window fetched); modules/catalog/categories.ts += getCategorySitemapCount()/getCategorySitemapBatch() (slug,updated_at only).
+   187→- CREATED route handlers: app/sitemap.xml/route.ts (sitemapindex: static + product batches + category batches from two count queries — discovery never generates children), app/sitemap-static.xml/route.ts (10 static URLs, no lastmod), app/products/sitemap/[id]/route.ts + app/categories/sitemap/[id]/route.ts (single-batch generation; malformed id → 404; out-of-range → valid empty urlset). All export revalidate = SITEMAP_REVALIDATE_SECONDS (ISR, per-URL independent cache entries; no force-dynamic/no-store).
+   188→- VALIDATION (live dev server): all 4 endpoints 200 application/xml; python ElementTree well-formedness + full assertion suite passed (root: 3 children, no dupes, no fabricated lastmod; static: 10 canonical URLs, home origin-bare matching the page canonical https://fusiongadgets.shop, no /search, no lastmod/priority/changefreq; products: 28 unique /product/ URLs = exactly the rendered-page set, 28 image entries all position-first CDN images, ≤1 image per URL, real trigger-maintained lastmods at second precision, no priority/changefreq; categories: 25 unique /categories/ URLs, no images). Edge cases: abc.xml/-1.xml → 404; /products/sitemap/99.xml → 200 empty urlset (proves ranged fetch, not fetch-all-slice); bare "0" accepted. robots.txt static 200 with rules preserved + exactly one Sitemap reference. 21-route regression sweep all 200 (incl. /products/[slug]/reviews — no route shadowing). tsc: only the 5-file pre-existing baseline (ProcessingServer/TrackingServer/ContactForm/2×skills); eslint on all changed files: clean. Domain audit: zero stale fusiongadgets.in in sitemap/robots/site code (image.fusiongadgets.in in next.config + image entries is the real image CDN the canonical pages use). Build NOT run — sandbox forbids `bun run build`; caching config verified via documented segment-config behavior (dev mode does not exercise the Full Route Cache; stated honestly).
+   189→- Note: the sandbox platform recycled the dev server mid-validation (no crash in dev.log); final validation re-run in a single detached session — all checks green.
+   190→- Committed the implementation.
+   191→
+   192→Stage Summary:
+   193→- ONE coherent sitemap architecture: /sitemap.xml (sitemapindex) → /sitemap-static.xml + /products/sitemap/[id].xml + /categories/sitemap/[id].xml (native Next 16 URL conventions, served by route handlers for guaranteed lazy on-demand ISR generation; native generateSitemaps rejected because it materializes every batch at build).
+   194→- Smallest data-access footprint: count-only + ranged minimal-column queries through the EXISTING catalog module and singleton client; deterministic uuid-PK ordering; only the requested batch is ever fetched.
+   195→- Old monolith + dynamic robots removed cleanly; static public/robots.txt with preserved rules and the single canonical Sitemap reference; noindex /search no longer in any sitemap; zero fabricated lastmod/priority/changefreq; zero stale domains.
+   196→- Product/category page rendering, loaders (except additive sitemap projections), JSON-LD, metadata, ISR of pages, auth/cart/wishlist/reviews untouched; regression-verified.
+   197→- Pre-existing baseline unchanged (ContactForm zod, TrackingServer/ProcessingServer/skills tsc, 28 lint errors in untouched files, unbranded-product 404s).
+   198→

@@ -1,0 +1,774 @@
+products fetched: 75
+
+Distinct key-sets across ALL spec entries (live DB):
+  ('key', 'value'): 704 entries
+
+total spec entries: 704
+
+products with DUPLICATE LABELS: 60
+  manual-lint-remover: {None: 9}
+      {'key': 'brand', 'value': 'Generic'}
+      {'key': 'type', 'value': 'Manual lint remover'}
+      {'key': 'color', 'value': 'Blue'}
+      {'key': 'material', 'value': '{"handle":"Plastic","blade":"Metal"}'}
+      {'key': 'dimensions', 'value': '{"length":17,"width":13,"unit":"cm","approximate":true}'}
+      {'key': 'power_source', 'value': 'Manual'}
+      {'key': 'battery_required', 'value': 'false'}
+      {'key': 'reusable', 'value': 'true'}
+      {'key': 'usage', 'value': '["Clothes","Furniture","Curtains","Other fabrics"]'}
+  extendable-microfiber-car-duster: {None: 10}
+      {'key': 'brand', 'value': 'Generic'}
+      {'key': 'type', 'value': 'Microfiber car duster'}
+      {'key': 'color', 'value': 'Available in various colors (subject to availability)'}
+      {'key': 'material', 'value': '{"head":"Microfiber","handle":"Stainless steel"}'}
+      {'key': 'weight', 'value': 'Approximately 1.21 pounds'}
+      {'key': 'handle_length', 'value': '{"minimum":"Approximately 28.5 inches","maximum":"34 inches"}'}
+      {'key': 'head_dimensions', 'value': '{"length":"Approximately 23 inches","width":"7 inches"}'}
+      {'key': 'usage', 'value': '["Cars","Trucks","RVs","Motorcycles","Home cleaning"]'}
+      {'key': 'care_instructions', 'value': '["Hand wash or machine wash","Air dry recommended"]'}
+      {'key': 'reusable', 'value': 'true'}
+  amoled-bluetooth-calling-smartwatch: {None: 11}
+      {'key': 'product_type', 'value': 'Smartwatch'}
+      {'key': 'display', 'value': '{"type":"AMOLED","size":"1.39 inches","resolution":"464 × 464","touchscreen":true,"shape":"Round"}'}
+      {'key': 'connectivity', 'value': 'Bluetooth'}
+      {'key': 'calling_feature', 'value': 'Bluetooth calling'}
+      {'key': 'voice_assistant', 'value': 'Supported'}
+      {'key': 'health_tracking', 'value': '["Heart rate tracking","Sleep tracking"]'}
+      {'key': 'activity_modes', 'value': 'Multiple sports and activity modes'}
+      {'key': 'smart_notifications', 'value': '["Calls","Messages","Apps"]'}
+      {'key': 'compatible_os', 'value': '["Android","iOS"]'}
+      {'key': 'strap', 'value': '{"color":"Brown","material":"Leather-style strap"}'}
+      {'key': 'battery_life', 'value': 'Up to 7 days (typical usage)'}
+  400ml-glass-water-bottle: {None: 12}
+      {'key': 'brand', 'value': 'Nice'}
+      {'key': 'product_type', 'value': 'Glass water bottle'}
+      {'key': 'capacity', 'value': '400 ml'}
+      {'key': 'inner_material', 'value': 'BPA-free borosilicate glass'}
+      {'key': 'outer_material', 'value': 'Plastic shell'}
+      {'key': 'cap_type', 'value': 'Secure screw cap'}
+      {'key': 'leak_proof', 'value': 'true'}
+      {'key': 'reusable', 'value': 'true'}
+      {'key': 'design', 'value': '["Handheld","Compact","Travel-friendly"]'}
+      {'key': 'ideal_for', 'value': '["School","Gym","Office","Home","Travel"]'}
+      {'key': 'color', 'value': 'Varies based on availability'}
+      {'key': 'pack_content', 'value': '1 bottle'}
+  usb-a-to-usb-c-cable: {None: 6}
+      {'key': 'product_type', 'value': 'USB charging and data cable'}
+      {'key': 'cable_type', 'value': 'USB-A to USB-C'}
+      {'key': 'length', 'value': '120 cm'}
+      {'key': 'charging_current', 'value': 'Up to 3.0 A'}
+      {'key': 'data_transfer_speed', 'value': 'Up to 480 Mbps'}
+      {'key': 'compatibility', 'value': '["USB-C enabled smartphones","USB-C enabled tablets","USB-C accessories"]'}
+  diamond-strap-bluetooth-calling-smartwatch: {None: 13}
+      {'key': 'colour', 'value': 'Rose Gold'}
+      {'key': 'display', 'value': '1.99-inch HD LTPS'}
+      {'key': 'bluetooth', 'value': 'v4.2 and v3.0'}
+      {'key': 'calling', 'value': 'Dual Bluetooth calling'}
+      {'key': 'dimensions', 'value': '46 x 46 x 12 mm'}
+      {'key': 'weight', 'value': '55 g'}
+      {'key': 'sports_modes', 'value': '50+'}
+      {'key': 'compatibility', 'value': 'Android 5.0+ and iOS 10.0+'}
+      {'key': 'health_tracking', 'value': '["Heart rate","Blood pressure","Sleep monitoring"]'}
+      {'key': 'water_resistance', 'value': 'IP67'}
+      {'key': 'charging', 'value': 'Wireless charging'}
+      {'key': 'battery_life', 'value': 'Up to 2 days'}
+      {'key': 'straps', 'value': '["Diamond-style metal strap","Silicone sport strap"]'}
+  mini-usb-white-led-night-lamp: {None: 6}
+      {'key': 'light_color', 'value': 'White'}
+      {'key': 'power_input', 'value': '5 V, 1 A via USB-A'}
+      {'key': 'control', 'value': 'Touch control'}
+      {'key': 'brightness_levels', 'value': '3'}
+      {'key': 'power_consumption', 'value': '{"low":"1.2 W","medium":"2.4 W","high":"3.6 W"}'}
+      {'key': 'led_lifespan', 'value': 'Up to 50,000 hours'}
+  rechargeable-double-ended-mist-fan: {None: 14}
+      {'key': 'color', 'value': 'White'}
+      {'key': 'model', 'value': 'Double-Ended Spray Fan'}
+      {'key': 'weight', 'value': '550 g'}
+      {'key': 'dimensions', 'value': '90 × 70 × 240 mm'}
+      {'key': 'materials', 'value': 'ABS plastic; PC blades'}
+      {'key': 'battery_capacity', 'value': '5000 mAh Li-ion'}
+      {'key': 'fan_speeds', 'value': '3 levels'}
+      {'key': 'runtime', 'value': '{"low":"Up to 8 hours","medium":"Up to 5 hours","high":"Up to 3 hours"}'}
+      {'key': 'charging', 'value': '{"connector":"USB Type-C","input":"5 V ⎓ 2 A","charging_time":"About 4 hours"}'}
+      {'key': 'water_tank_capacity', 'value': '100 ml'}
+      {'key': 'noise_level', 'value': '≤45 dB'}
+      {'key': 'remote_range', 'value': 'Up to 5 m'}
+      {'key': 'adjustment', 'value': '360° vertical tilt/rotation'}
+      {'key': 'safety_features', 'value': '["Overheat protection","Short-circuit protection"]'}
+  hk10-pro-max-ultra-2-smartwatch: {None: 13}
+      {'key': 'model', 'value': 'Wearfit HK10 Pro Max Ultra 2'}
+      {'key': 'display', 'value': '2.04-inch AMOLED, 420×486 pixels'}
+      {'key': 'charging', 'value': 'Magnetic USB charging cable'}
+      {'key': 'material', 'value': 'Alloy body with soft silicone straps'}
+      {'key': 'bluetooth', 'value': 'Bluetooth 5.0'}
+      {'key': 'strap_type', 'value': 'Interchangeable 49mm straps'}
+      {'key': 'app_support', 'value': 'Wearfit Pro'}
+      {'key': 'battery_life', 'value': '2–3 days typical use; 4+ days standby'}
+      {'key': 'compatibility', 'value': 'Android 5.0+; iOS 10.0+'}
+      {'key': 'health_sensors', 'value': '["Heart rate","SpO2","Sleep monitor","Pedometer"]'}
+      {'key': 'water_resistance', 'value': 'IP67 splash and sweat-resistant'}
+      {'key': 'connectivity_features', 'value': '["Bluetooth calling","Voice assistant","Notifications"]'}
+      {'key': 'other_features', 'value': '["Sports modes","Custom watch faces"]'}
+  f4-car-bluetooth-speaker: {None: 11}
+      {'key': 'color', 'value': 'Multicolor'}
+      {'key': 'model_number', 'value': 'F4 Bluetooth Portable Speaker'}
+      {'key': 'power_source', 'value': 'Battery'}
+      {'key': 'configuration', 'value': 'Stereo'}
+      {'key': 'outdoor_usage', 'value': 'Yes'}
+      {'key': 'connectivity', 'value': 'Wireless'}
+      {'key': 'bluetooth_version', 'value': '5.0'}
+      {'key': 'wireless_range', 'value': 'Up to 10 metres'}
+      {'key': 'power_output_rms', 'value': '5 W'}
+      {'key': 'memory_card_slot', 'value': 'Yes'}
+      {'key': 'built_in_fm_radio', 'value': 'Yes'}
+  havells-aquilla-1000w-dry-iron-orange: {None: 16}
+      {'key': 'brand', 'value': 'Havells'}
+      {'key': 'model', 'value': 'Aquilla'}
+      {'key': 'model_number', 'value': 'GHGDICEO100'}
+      {'key': 'type', 'value': 'Dry Iron'}
+      {'key': 'color', 'value': 'Amber'}
+      {'key': 'power', 'value': '1000 W'}
+      {'key': 'voltage', 'value': '230 V'}
+      {'key': 'frequency', 'value': '50 Hz'}
+      {'key': 'soleplate', 'value': 'American Heritage non-stick coated'}
+      {'key': 'body', 'value': 'Plastic'}
+      {'key': 'heating_element', 'value': 'Flat-type'}
+      {'key': 'temperature_control', 'value': 'Easy-grip control dial'}
+      {'key': 'cord', 'value': '360° swivel cord'}
+      {'key': 'design', 'value': 'Aerodynamic'}
+      {'key': 'features', 'value': '["Button grooves","Power indicator"]'}
+      {'key': 'warranty', 'value': '2 years'}
+  smart-temperature-display-bottle-500ml: {None: 10}
+      {'key': 'capacity', 'value': '500 ml'}
+      {'key': 'material', 'value': '304 stainless steel'}
+      {'key': 'insulation_type', 'value': 'Double-walled vacuum'}
+      {'key': 'temperature_display', 'value': 'LED touch display'}
+      {'key': 'usage', 'value': 'Hot and cold beverages'}
+      {'key': 'leak_proof', 'value': 'true'}
+      {'key': 'cleaning', 'value': 'Hand wash recommended'}
+      {'key': 'dimensions', 'value': 'Approx. 23 cm x 6.5 cm'}
+      {'key': 'weight', 'value': 'Approx. 300 g'}
+      {'key': 'custom_branding', 'value': 'Multi-brand custom branding supported; logo registration not verified'}
+  ldnio-36w-car-charger: {None: 11}
+      {'key': 'brand', 'value': 'LDNIO'}
+      {'key': 'product_type', 'value': 'Car Charging Adapter'}
+      {'key': 'color', 'value': 'Black'}
+      {'key': 'input_voltage', 'value': 'DC 12–24V'}
+      {'key': 'output_ports', 'value': '["USB-C","USB-A"]'}
+      {'key': 'total_power_output', 'value': 'Up to 36W'}
+      {'key': 'fast_charging_technology', 'value': 'Quick Charge 3.0'}
+      {'key': 'dual_device_charging', 'value': 'true'}
+      {'key': 'led_display', 'value': 'Vehicle voltage display'}
+      {'key': 'housing_material', 'value': 'Fire-resistant PC'}
+      {'key': 'compatible_devices', 'value': 'USB-powered smartphones, tablets, and accessories'}
+  mini-rechargeable-led-flashlight: {None: 11}
+      {'key': 'color', 'value': 'Black'}
+      {'key': 'weight', 'value': 'Approximately 200 g'}
+      {'key': 'material', 'value': 'Aluminum Alloy'}
+      {'key': 'dimensions', 'value': 'Approximately 9 cm x 2.5 cm x 2.5 cm'}
+      {'key': 'power_source', 'value': 'Built-in Rechargeable Battery'}
+      {'key': 'lighting_modes', 'value': '["High Beam","Strobe","Side COB Light"]'}
+      {'key': 'light_types', 'value': '["XPE front light","COB side light"]'}
+      {'key': 'charging_method', 'value': 'USB Charging'}
+      {'key': 'water_resistance', 'value': 'Splash-Resistant'}
+      {'key': 'carry_features', 'value': '["Pen clip","Hanging rope"]'}
+      {'key': 'additional_features', 'value': '["SOS"]'}
+  hello-plum-amoled-smartwatch: {None: 11}
+      {'key': 'model', 'value': 'Hello Plum'}
+      {'key': 'brand', 'value': 'Generic'}
+      {'key': 'display_type', 'value': 'AMOLED Full-Touch HD'}
+      {'key': 'screen_size', 'value': '2.1 inches'}
+      {'key': 'connectivity', 'value': 'Bluetooth 5.1'}
+      {'key': 'sensors', 'value': '["Heart Rate Sensor","Accelerometer","SpO2"]'}
+      {'key': 'tracking', 'value': '["Heart rate","SpO2","Sleep","Steps","Calories"]'}
+      {'key': 'battery_life', 'value': 'Up to 2 days'}
+      {'key': 'compatibility', 'value': 'iOS 10.0 and Android 5.0 or later'}
+      {'key': 'water_resistance', 'value': 'IP68'}
+      {'key': 'additional_features', 'value': '["Custom watch faces"]'}
+  bw11-sim-camera-smartwatch: {None: 11}
+      {'key': 'model', 'value': 'BW11 Global Version Smartwatch'}
+      {'key': 'color', 'value': 'Black'}
+      {'key': 'display_type', 'value': 'HD touchscreen display'}
+      {'key': 'connectivity', 'value': '["SIM","Bluetooth"]'}
+      {'key': 'sim_support', 'value': 'true'}
+      {'key': 'camera', 'value': 'Built-in'}
+      {'key': 'compatibility', 'value': '["Android","iOS"]'}
+      {'key': 'health_monitoring', 'value': '["Steps","Calories","Distance"]'}
+      {'key': 'strap_material', 'value': 'Silicone'}
+      {'key': 'strap', 'value': 'Adjustable'}
+      {'key': 'power_efficiency', 'value': 'Ultra low power'}
+  t57-rugged-smartwatch-orange: {None: 16}
+      {'key': 'model', 'value': 'T57'}
+      {'key': 'product_type', 'value': 'Smartwatch'}
+      {'key': 'body_size', 'value': '47 mm'}
+      {'key': 'strap_color', 'value': 'Orange'}
+      {'key': 'display_size', 'value': '1.91 inches'}
+      {'key': 'display_type', 'value': 'TFT LCD'}
+      {'key': 'touch_screen', 'value': 'Yes, full touch'}
+      {'key': 'navigation', 'value': 'Touch screen'}
+      {'key': 'charging_type', 'value': 'Wireless charging'}
+      {'key': 'battery_life', 'value': 'Up to 5-7 days typical usage'}
+      {'key': 'connectivity', 'value': 'Bluetooth'}
+      {'key': 'compatible_os', 'value': '["Android","iOS"]'}
+      {'key': 'notifications', 'value': '["Calls","SMS","App alerts"]'}
+      {'key': 'health_tracking', 'value': '["Heart rate","Sleep tracking"]'}
+      {'key': 'sports_modes', 'value': 'Multiple activity modes'}
+      {'key': 'build_material', 'value': 'ABS with metal accents'}
+  usb-rechargeable-electric-arc-lighter: {None: 12}
+      {'key': 'product_type', 'value': 'Electric arc lighter'}
+      {'key': 'weight', 'value': '100 g'}
+      {'key': 'material', 'value': '["Stainless steel","Zinc alloy","Ceramic components"]'}
+      {'key': 'dimensions', 'value': '28 cm x 2 cm x 3 cm'}
+      {'key': 'neck_type', 'value': '360° flexible metal neck'}
+      {'key': 'power_source', 'value': 'USB rechargeable internal battery'}
+      {'key': 'battery_capacity', 'value': '200 mAh'}
+      {'key': 'charging_time', 'value': 'Up to 1 hour'}
+      {'key': 'ignition_technology', 'value': 'Flameless plasma arc'}
+      {'key': 'usage_per_charge', 'value': 'Up to 400 ignitions'}
+      {'key': 'features', 'value': '["Safety lock","LED battery indicator"]'}
+      {'key': 'recommended_use', 'value': '["Gas stoves","Candles","BBQ grills","Similar household applications"]'}
+  t10-bluetooth-calling-smartwatch: {None: 13}
+      {'key': 'display_size', 'value': '2.09 inches'}
+      {'key': 'display_type', 'value': 'HD touch display'}
+      {'key': 'resolution', 'value': '320 × 385'}
+      {'key': 'connectivity', 'value': 'Bluetooth'}
+      {'key': 'calling_feature', 'value': 'Bluetooth calling'}
+      {'key': 'navigation', 'value': 'Touch screen and action button'}
+      {'key': 'battery_capacity', 'value': 'Approximately 300 mAh'}
+      {'key': 'battery_life', 'value': 'Up to 5 days typical usage'}
+      {'key': 'charging_type', 'value': 'Magnetic charging'}
+      {'key': 'compatibility', 'value': 'Android and iOS'}
+      {'key': 'strap_type', 'value': 'Fabric-style strap'}
+      {'key': 'strap_color', 'value': 'Orange'}
+      {'key': 'tracking', 'value': 'Daily activity and movement tracking'}
+  airpods-pro-2-clone-black: {None: 11}
+      {'key': 'color', 'value': 'Black'}
+      {'key': 'product_type', 'value': 'Wireless Earbuds (TWS)'}
+      {'key': 'wearing_style', 'value': 'In-ear'}
+      {'key': 'connectivity', 'value': 'Bluetooth'}
+      {'key': 'bluetooth_version', 'value': 'Bluetooth 5.0'}
+      {'key': 'audio_codec', 'value': 'SBC'}
+      {'key': 'controls', 'value': 'Touch controls'}
+      {'key': 'microphone', 'value': 'Built-in'}
+      {'key': 'voice_assistant', 'value': 'Supported'}
+      {'key': 'charging_options', 'value': 'Wired charging and wireless charging'}
+      {'key': 'compatible_devices', 'value': 'Android and iOS smartphones'}
+  series-10-smartwatch-45mm-black: {None: 19}
+      {'key': 'product_type', 'value': 'Smartwatch'}
+      {'key': 'model', 'value': 'Series 10'}
+      {'key': 'color', 'value': 'Black'}
+      {'key': 'case_size', 'value': '45 mm'}
+      {'key': 'display_size', 'value': '2.09 inches'}
+      {'key': 'display_type', 'value': 'LCD TFT'}
+      {'key': 'touch_screen', 'value': 'true'}
+      {'key': 'connectivity', 'value': 'Bluetooth'}
+      {'key': 'bluetooth_version', 'value': 'Bluetooth 5.0'}
+      {'key': 'bluetooth_range', 'value': 'Up to 10 meters'}
+      {'key': 'calling_feature', 'value': 'Bluetooth calling'}
+      {'key': 'charging_type', 'value': 'Wireless charging'}
+      {'key': 'battery_backup', 'value': 'Up to 3–5 days'}
+      {'key': 'strap_material', 'value': 'Silicone'}
+      {'key': 'health_features', 'value': '["Heart rate monitoring","Sleep tracking"]'}
+      {'key': 'sports_modes', 'value': 'Multiple activity modes'}
+      {'key': 'water_resistance', 'value': 'Splash resistant'}
+      {'key': 'compatible_devices', 'value': 'Android and iOS smartphones'}
+      {'key': 'notification_support', 'value': '["Calls","SMS","App alerts"]'}
+  ws-s9-max-smartwatch-45mm: {None: 24}
+      {'key': 'model', 'value': 'WS S9 MAX'}
+      {'key': 'manufacturer', 'value': 'KEQIWEAR'}
+      {'key': 'product_type', 'value': 'Smartwatch'}
+      {'key': 'case_size', 'value': '45 mm'}
+      {'key': 'display_size', 'value': '2.1 inches'}
+      {'key': 'display', 'value': 'AMOLED-level TFT HD display'}
+      {'key': 'resolution', 'value': '320 × 390'}
+      {'key': 'touch_screen', 'value': 'true'}
+      {'key': 'connectivity', 'value': 'Bluetooth'}
+      {'key': 'calling_feature', 'value': 'Make and receive calls'}
+      {'key': 'pairing_app', 'value': 'Fere Fit'}
+      {'key': 'cpu', 'value': 'JL7012'}
+      {'key': 'memory', 'value': '128M'}
+      {'key': 'battery_capacity', 'value': '260 mAh'}
+      {'key': 'battery_life', 'value': 'Up to 4 days typical usage'}
+      {'key': 'charging_type', 'value': 'Induction / wireless charging'}
+      {'key': 'notifications', 'value': 'Calls, messages and supported app alerts'}
+      {'key': 'compatible_os', 'value': 'Android and iOS'}
+      {'key': 'controls', 'value': 'Touchscreen and side crown-style control'}
+      {'key': 'sports_features', 'value': 'Sports registration and sports training'}
+      {'key': 'activity_features', 'value': 'Activity data and daily movement tracking'}
+      {'key': 'health_features', 'value': '["Body temperature","Blood pressure","Sleep monitoring","Blood sugar","Blood oxygen","Heart rate","Women\'s health"]'}
+      {'key': 'additional_functions', 'value': '["Voice assistant","Camera control","Music control","Breathe function","Stopwatch","Alarm clock","World time","Calculator","Game"]'}
+      {'key': 'available_colors', 'value': '["Black","Silver","Gold"]'}
+  dual-output-charging-cable: {None: 9}
+      {'key': 'cable_type', 'value': 'Multi-output charging cable'}
+      {'key': 'input_connectors', 'value': '["USB-A"]'}
+      {'key': 'output_connectors', 'value': '["USB-C","Lightning"]'}
+      {'key': 'maximum_power_output', 'value': '65W'}
+      {'key': 'fast_charging_standards', 'value': '["PD 3.0","QC 3.0"]'}
+      {'key': 'e_mark_chip', 'value': 'true'}
+      {'key': 'data_transfer_speed', 'value': 'Up to 480Mbps'}
+      {'key': 'length', 'value': 'Approximately 1.2 meters (4 feet)'}
+      {'key': 'compatible_devices', 'value': '["iPhone 16/15/14/13/12/11","iPad","MacBook","Android devices","Laptops"]'}
+  stainless-steel-vacuum-flask-1000ml: {None: 13}
+      {'key': 'product_type', 'value': 'Vacuum insulated flask'}
+      {'key': 'capacity', 'value': '1000 ml (1 litre)'}
+      {'key': 'material', 'value': 'Food-grade 18/8 stainless steel'}
+      {'key': 'insulation', 'value': 'Double-wall vacuum with copper lining'}
+      {'key': 'temperature_retention_hot', 'value': 'Up to 12 hours'}
+      {'key': 'temperature_retention_cold', 'value': 'Up to 24 hours'}
+      {'key': 'lid', 'value': 'Leak-proof'}
+      {'key': 'finish', 'value': 'Matte powder-coated'}
+      {'key': 'grip', 'value': 'Slip-resistant'}
+      {'key': 'carry_feature', 'value': 'Portable carry strap'}
+      {'key': 'bpa_free', 'value': 'true'}
+      {'key': 'dimensions', 'value': '24 cm height x 6.5 cm diameter'}
+      {'key': 'weight', 'value': 'Approximately 500 grams'}
+  portable-usb-rechargeable-blender-380ml: {None: 8}
+      {'key': 'color', 'value': 'Blue'}
+      {'key': 'capacity', 'value': '380 ml'}
+      {'key': 'product_type', 'value': 'Portable personal blender'}
+      {'key': 'power_source', 'value': 'USB rechargeable power system'}
+      {'key': 'blade_configuration', 'value': '6-blade stainless steel assembly'}
+      {'key': 'material', 'value': 'Food-grade plastic bottle with stainless steel blades'}
+      {'key': 'use_case', 'value': 'Personal smoothies, juices and light shakes'}
+      {'key': 'bottle_type', 'value': 'Single-serve portable cup'}
+  almighty-139-amoled-smartwatch: {None: 16}
+      {'key': 'model', 'value': 'BSW013'}
+      {'key': 'product_type', 'value': 'Smartwatch'}
+      {'key': 'display', 'value': '{"size":"1.39 inches","type":"AMOLED","resolution":"454x454"}'}
+      {'key': 'dial_shape', 'value': 'Round'}
+      {'key': 'dimensions', 'value': '46.6 x 50.6 x 10.4 mm'}
+      {'key': 'weight', 'value': 'Approximately 80 grams'}
+      {'key': 'dial_material', 'value': 'Zinc Alloy'}
+      {'key': 'strap_material', 'value': 'Leather'}
+      {'key': 'strap_color', 'value': 'Black'}
+      {'key': 'connectivity', 'value': '{"bluetooth_version":"5.0","operating_range":"Up to 10 meters","calling":"Bluetooth calling"}'}
+      {'key': 'touchscreen', 'value': 'true'}
+      {'key': 'battery', 'value': '{"normal_usage":"Up to 10 days","standby":"Up to 20 days","charging_time":"Approximately 2 hours"}'}
+      {'key': 'water_resistance', 'value': 'IP67'}
+      {'key': 'compatible_os', 'value': '["Android 4.4 or above","iOS 8.0 or above"]'}
+      {'key': 'sensors', 'value': '["SpO2","Heart Rate","Blood Pressure","Accelerometer","Barometer","Gyro Sensor","Light Sensor"]'}
+      {'key': 'features', 'value': '["Voice assistant support","Sleep tracking","Multiple sports modes","Music control","Remote camera control","Smart notifications"]'}
+  mini-car-vent-cleaning-brush: {None: 6}
+      {'key': 'color', 'value': 'Black'}
+      {'key': 'material', 'value': 'Plastic handle with high-density bristles'}
+      {'key': 'dimensions', 'value': 'Approximately 17.5 cm x 3 cm x 2.5 cm'}
+      {'key': 'weight', 'value': 'Lightweight and portable'}
+      {'key': 'usage', 'value': '["Car interiors","Electronics","Home appliances"]'}
+      {'key': 'suitable_areas', 'value': '["AC vent fins","Dashboard crevices","Center console edges","Buttons","Cup holders"]'}
+  microfiber-mini-car-duster: {None: 6}
+      {'key': 'color', 'value': 'Assorted (subject to availability)'}
+      {'key': 'usage', 'value': '["Car interiors","Car exteriors","Home","Kitchen"]'}
+      {'key': 'weight', 'value': 'Approximately 200 g'}
+      {'key': 'materials', 'value': '["Microfiber bristles","Plastic handle"]'}
+      {'key': 'dimensions', 'value': 'Approximately 12 x 8 x 6 cm'}
+      {'key': 'care_instructions', 'value': 'Hand wash recommended; air dry'}
+  airpods-4-pro-clone: {None: 19}
+      {'key': 'type', 'value': 'True Wireless Bluetooth Earbuds'}
+      {'key': 'model', 'value': '4th Gen Style Wireless Earbuds'}
+      {'key': 'color', 'value': 'White'}
+      {'key': 'bluetooth_version', 'value': '5.3'}
+      {'key': 'charging_port', 'value': 'USB Type-C'}
+      {'key': 'controls', 'value': 'Touch controls'}
+      {'key': 'microphone', 'value': 'ANC-enabled microphone'}
+      {'key': 'call_noise_reduction', 'value': 'ENC'}
+      {'key': 'latency', 'value': 'Low-latency optimized for videos & gaming'}
+      {'key': 'driver_size', 'value': '~10mm Dynamic Driver'}
+      {'key': 'audio_codecs', 'value': 'SBC (standard Bluetooth codec)'}
+      {'key': 'auto_pairing', 'value': 'Yes (opens case → connects automatically)'}
+      {'key': 'playback_time', 'value': 'Up to 4–5 hours (single charge)'}
+      {'key': 'total_battery_backup', 'value': 'Up to 20 hours with case'}
+      {'key': 'sound_quality', 'value': 'HD Stereo with enhanced bass'}
+      {'key': 'wireless_range', 'value': 'Up to 10–15 meters'}
+      {'key': 'frequency_response', 'value': '~20Hz – 20kHz'}
+      {'key': 'supported_devices', 'value': '["Android","iOS","Tablets","Laptops"]'}
+      {'key': 'single_earbud_use', 'value': 'Supported'}
+  mi-micro-usb-cable-120cm: {None: 7}
+      {'key': 'brand', 'value': 'MI'}
+      {'key': 'cable_type', 'value': 'USB-A to Micro USB'}
+      {'key': 'length', 'value': '120cm'}
+      {'key': 'material', 'value': 'PVC'}
+      {'key': 'compatibility', 'value': 'Devices with Micro USB input'}
+      {'key': 'charging_current', 'value': 'Up to 3.0A'}
+      {'key': 'data_transfer_speed', 'value': 'Up to 480Mbps'}
+  ultrapods-pro-tws-earbuds: {None: 11}
+      {'key': 'color', 'value': 'Multicolor'}
+      {'key': 'design', 'value': 'Transparent'}
+      {'key': 'connectivity', 'value': 'Bluetooth 5.3'}
+      {'key': 'drivers', 'value': '13mm HD Bass Drivers'}
+      {'key': 'noise_control', 'value': 'Environmental Noise Cancellation (ENC)'}
+      {'key': 'playtime', 'value': 'Up to 30 hours with charging case'}
+      {'key': 'charging', 'value': 'Fast charging supported'}
+      {'key': 'display', 'value': 'LED battery level indicator on case'}
+      {'key': 'controls', 'value': 'Touch controls for playback and calls'}
+      {'key': 'microphone', 'value': 'Built-in mic for calls and voice assistant'}
+      {'key': 'water_resistance', 'value': 'IPX4 (sweat and water-resistant)'}
+  lyne-lancer-16-smartwatch: {None: 16}
+      {'key': 'brand', 'value': 'Lyne'}
+      {'key': 'model', 'value': 'Lancer 16'}
+      {'key': 'display', 'value': '2.1-inch TFT, 240 x 240 pixels'}
+      {'key': 'navigation', 'value': 'Rotating Crown'}
+      {'key': 'watch_faces', 'value': 'Over 100 customizable options'}
+      {'key': 'battery_life', 'value': 'Up to 7 Days (Typical Usage)'}
+      {'key': 'connectivity', 'value': '["Bluetooth"]'}
+      {'key': 'bluetooth_features', 'value': '["Calling","Music Control"]'}
+      {'key': 'sports_modes', 'value': '["Running","Cycling"]'}
+      {'key': 'sports_modes_type', 'value': 'Multiple'}
+      {'key': 'body_material', 'value': 'Metal Frame'}
+      {'key': 'strap_color', 'value': 'Black'}
+      {'key': 'compatibility', 'value': '["Android","iOS"]'}
+      {'key': 'health_features', 'value': '["Heart Rate Monitor","Sleep Tracking","Step Counter","Calorie Tracker"]'}
+      {'key': 'water_resistance', 'value': 'IP65'}
+      {'key': 'additional_features', 'value': '["Smart Notifications","Music Control","Find My Device"]'}
+  wall-mount-soap-dispenser: {None: 8}
+      {'key': 'product_type', 'value': 'Liquid soap dispenser'}
+      {'key': 'capacity', 'value': '350 ml (11.8 oz)'}
+      {'key': 'material', 'value': '["Food-Grade PP Plastic","Silicone Valve"]'}
+      {'key': 'mounting', 'value': 'Removable Adhesive Wall Bracket'}
+      {'key': 'use_options', 'value': '["Wall-mounted","Freestanding countertop use"]'}
+      {'key': 'dimensions', 'value': '11 cm W × 8 cm D × 16 cm H'}
+      {'key': 'weight_empty', 'value': 'Approximately 150 g'}
+      {'key': 'features', 'value': '["Built-in sponge holder","Transparent reservoir","Easy-press pump","Drip-free silicone valve"]'}
+  led-touch-speaker-lamp: {None: 10}
+      {'key': 'brand', 'value': 'Generic'}
+      {'key': 'product_type', 'value': 'LED Touch Lamp with Bluetooth Speaker'}
+      {'key': 'battery', 'value': 'Rechargeable via USB'}
+      {'key': 'connectivity', 'value': '["Bluetooth","USB","SD Card"]'}
+      {'key': 'microphone', 'value': 'Built-in with noise cancellation'}
+      {'key': 'lamp_control', 'value': 'Touch-sensitive with adjustable brightness'}
+      {'key': 'color_options', 'value': 'Multiple color-changing options'}
+      {'key': 'speaker_output', 'value': 'High-fidelity sound'}
+      {'key': 'additional_features', 'value': '["Night light","Hands-free calling"]'}
+      {'key': 'design', 'value': 'Compact and portable'}
+  wireless-earbuds-transparent-charging-case: {None: 10}
+      {'key': 'product_type', 'value': 'True Wireless Earbuds'}
+      {'key': 'brand', 'value': 'FUSION GADGETS'}
+      {'key': 'fit_type', 'value': 'In-ear'}
+      {'key': 'connectivity', 'value': 'Bluetooth'}
+      {'key': 'controls', 'value': 'Touch-sensitive'}
+      {'key': 'microphone', 'value': 'Built-in'}
+      {'key': 'charging_case', 'value': 'Transparent design'}
+      {'key': 'battery_backup', 'value': 'Up to 4–6 hours (earbuds), additional backup via case'}
+      {'key': 'charging_method', 'value': 'Wired charging (port varies by batch)'}
+      {'key': 'compatible_devices', 'value': 'Android phones, iPhones, tablets, laptops'}
+  rechargeable-cob-keychain-work-light: {None: 10}
+      {'key': 'product_type', 'value': 'COB keychain work light'}
+      {'key': 'color', 'value': 'Black'}
+      {'key': 'usage', 'value': '["Workshop","Repairing","Emergency","Outdoor"]'}
+      {'key': 'weight', 'value': 'Approximately 50 g'}
+      {'key': 'material', 'value': '["ABS Plastic","Aluminum Alloy"]'}
+      {'key': 'dimensions', 'value': 'Approximately 6 cm x 4 cm x 2 cm'}
+      {'key': 'charging_port', 'value': 'USB-C'}
+      {'key': 'lighting_modes', 'value': '["High","Low","Strobe"]'}
+      {'key': 'battery_capacity', 'value': '500mAh'}
+      {'key': 'mounting_options', 'value': '["Magnetic Base","Foldable Stand","Keyring"]'}
+  airpods-pro-2-clone-white: {None: 12}
+      {'key': 'product_type', 'value': 'True Wireless Earbuds'}
+      {'key': 'color', 'value': 'White'}
+      {'key': 'design', 'value': 'Stem-style in-ear'}
+      {'key': 'fit_type', 'value': 'In-ear'}
+      {'key': 'connectivity', 'value': 'Bluetooth'}
+      {'key': 'controls', 'value': 'Touch-sensitive'}
+      {'key': 'microphone', 'value': 'Integrated mic for calls'}
+      {'key': 'playback_time', 'value': 'Up to 4 hours per charge'}
+      {'key': 'total_backup', 'value': 'Up to 12–15 hours with case'}
+      {'key': 'charging_case', 'value': 'Compact portable case'}
+      {'key': 'charging_method', 'value': 'Wired charging via case'}
+      {'key': 'supported_devices', 'value': '["Android phones","iPhones","Tablets","Laptops"]'}
+  3-in-1-60w-fast-charging-cable-kit: {None: 9}
+      {'key': 'color', 'value': 'Black'}
+      {'key': 'compatibility', 'value': 'iPhone, Samsung, OnePlus, Mi, Oppo, Vivo, iQOO, etc.'}
+      {'key': 'stand_material', 'value': 'ABS plastic'}
+      {'key': 'jacket_material', 'value': 'PVC'}
+      {'key': 'operating_temperature', 'value': '−20°C to 60°C'}
+      {'key': 'cable_length', 'value': '0.1 m (10 cm)'}
+      {'key': 'connector_outputs', 'value': '["USB-C","Lightning","Micro-USB"]'}
+      {'key': 'data_transfer_rate', 'value': 'Up to 480 Mbps'}
+      {'key': 'max_power_delivery', 'value': '60 W (20 V/3 A)'}
+  tyre-shape-bluetooth-speaker: {None: 11}
+      {'key': 'product_type', 'value': 'Portable Bluetooth Speaker'}
+      {'key': 'color', 'value': 'Black'}
+      {'key': 'design', 'value': 'Tyre-shaped'}
+      {'key': 'bluetooth_version', 'value': '4.2'}
+      {'key': 'power_output', 'value': '5W RMS'}
+      {'key': 'charging', 'value': 'USB rechargeable'}
+      {'key': 'charging_time', 'value': 'Approximately 2 hours'}
+      {'key': 'playback_time', 'value': 'Up to 6 hours depending on usage'}
+      {'key': 'connectivity_options', 'value': '["Bluetooth","USB","Micro SD"]'}
+      {'key': 'weight', 'value': 'Lightweight for easy portability'}
+      {'key': 'dimensions', 'value': 'Compact and portable design'}
+  airpods-pro-2-with-display-clone: {None: 11}
+      {'key': 'product_type', 'value': 'True Wireless Earbuds'}
+      {'key': 'color', 'value': 'White'}
+      {'key': 'controls', 'value': 'Touchscreen on case, touch sensors on earbuds'}
+      {'key': 'connectivity', 'value': 'Bluetooth 5.3'}
+      {'key': 'charging_port', 'value': 'USB-C'}
+      {'key': 'charging_case', 'value': 'Supports wireless charging'}
+      {'key': 'earbud_battery_life', 'value': 'Up to 6 hours'}
+      {'key': 'total_battery_life', 'value': 'Over 30 hours with charging case'}
+      {'key': 'water_resistance', 'value': 'IPX4'}
+      {'key': 'features', 'value': '["ANC","ENC","Spatial Audio","Media Controls","Camera Controls","Wallpaper Customization"]'}
+      {'key': 'compatibility', 'value': '["iOS","Android"]'}
+  intelligence-learning-book: {None: 10}
+      {'key': 'product_type', 'value': 'Interactive Educational Learning Book'}
+      {'key': 'language', 'value': 'English'}
+      {'key': 'age_recommendation', 'value': '3 years and above'}
+      {'key': 'material', 'value': 'Durable, child-safe plastic with a colorful finish'}
+      {'key': 'dimensions', 'value': 'Approximately 26 cm x 22 cm x 2.5 cm'}
+      {'key': 'weight', 'value': 'Approximately 500 grams'}
+      {'key': 'power_source', 'value': 'Requires 3 AA batteries'}
+      {'key': 'batteries_included', 'value': 'false'}
+      {'key': 'interaction', 'value': 'Touch-sensitive areas play sounds, words, or songs'}
+      {'key': 'included_content', 'value': '["Alphabets","Numbers","Animal names","Common words","Songs"]'}
+  3-in-1-handheld-vacuum: {None: 8}
+      {'key': 'color', 'value': 'Black'}
+      {'key': 'product_type', 'value': 'Handheld Car Vacuum Cleaner'}
+      {'key': 'power_source', 'value': 'Built-in rechargeable battery'}
+      {'key': 'charging', 'value': 'USB charging'}
+      {'key': 'attachments', 'value': '["Brush tool","Flat nozzle","Extension tube"]'}
+      {'key': 'filter_type', 'value': 'Reusable, washable filter'}
+      {'key': 'ideal_for', 'value': '["Car","Home","Office","Travel","Camping"]'}
+      {'key': 'noise_level', 'value': 'Low-noise operation'}
+  hello-watch-3-plus-gen-2: {None: 22}
+      {'key': 'brand', 'value': 'Hello'}
+      {'key': 'model', 'value': 'Hello Watch 3 Plus Gen 2'}
+      {'key': 'edition', 'value': '2024 edition'}
+      {'key': 'display', 'value': '2.04-inch AMOLED'}
+      {'key': 'resolution', 'value': '450 × 450 pixels'}
+      {'key': 'refresh_rate', 'value': '60Hz'}
+      {'key': 'memory', 'value': '1GB ROM'}
+      {'key': 'user_interface', 'value': 'OS10-style UI'}
+      {'key': 'connectivity', 'value': 'Bluetooth 5.0 with BLE'}
+      {'key': 'calling', 'value': 'Bluetooth calling'}
+      {'key': 'compatibility', 'value': 'Android 6.0+ and iOS 11.0+'}
+      {'key': 'health_tracking', 'value': '["Heart rate","SpO₂","Sleep monitoring"]'}
+      {'key': 'sensors', 'value': '["Heart rate sensor","SpO₂ sensor","Accelerometer","Gyroscope"]'}
+      {'key': 'sports_modes', 'value': 'Multiple'}
+      {'key': 'battery_capacity', 'value': '300mAh'}
+      {'key': 'battery_life', 'value': 'Up to around 3 days of typical use'}
+      {'key': 'charging', 'value': 'Magnetic charging cable, pogo-pin style'}
+      {'key': 'water_resistance', 'value': 'IP68'}
+      {'key': 'dimensions', 'value': 'Approx. 45 × 45 × 11 mm'}
+      {'key': 'weight', 'value': 'Approx. 52g without strap'}
+      {'key': 'straps', 'value': '["Metal-style strap","Silicone strap"]'}
+      {'key': 'app_support', 'value': 'Companion app for health data and settings'}
+  atom-151-tws-earbuds-blue: {None: 12}
+      {'key': 'brand', 'value': 'Generic'}
+      {'key': 'product_type', 'value': 'True Wireless In-Ear Earbuds'}
+      {'key': 'model', 'value': 'Atom 151'}
+      {'key': 'color', 'value': 'Blue'}
+      {'key': 'connectivity', 'value': 'Bluetooth 5.0'}
+      {'key': 'controls', 'value': 'Touch controls for playback and calls'}
+      {'key': 'charging_port', 'value': 'USB-C'}
+      {'key': 'playback_time', 'value': 'Up to 30 hours with charging case'}
+      {'key': 'low_latency', 'value': 'Supported'}
+      {'key': 'voice_assistant', 'value': 'Compatible with Siri and Google Assistant'}
+      {'key': 'water_resistance', 'value': 'IPX4 splash and sweat resistant'}
+      {'key': 'audio_feature', 'value': 'Powerful bass'}
+  20w-usb-c-power-adapter: {None: 6}
+      {'key': 'product_type', 'value': 'USB-C Power Adapter'}
+      {'key': 'color', 'value': 'White'}
+      {'key': 'power_output', 'value': '20W'}
+      {'key': 'connector_type', 'value': 'USB-C'}
+      {'key': 'compatible_devices', 'value': '["USB-C enabled devices","iPhone 8 and later","Selected iPad Pro models","Selected iPad Air models"]'}
+      {'key': 'charging_cable', 'value': 'Sold separately'}
+  silicone-oil-brush-cooking: {None: 9}
+      {'key': 'product_type', 'value': 'Silicone oil brush'}
+      {'key': 'material', 'value': 'Food-Grade Silicone'}
+      {'key': 'handle_material', 'value': 'BPA-Free Plastic'}
+      {'key': 'heat_resistance', 'value': 'Up to 446°F (230°C)'}
+      {'key': 'dimensions', 'value': 'Approximately 8.5 x 1.5 inches'}
+      {'key': 'weight', 'value': 'Approximately 2 ounces'}
+      {'key': 'cleaning_method', 'value': 'Dishwasher Safe'}
+      {'key': 'suitable_for', 'value': 'Grilling, Baking, Pastry, BBQ'}
+      {'key': 'color_options', 'value': 'Available in multiple colors'}
+  cordless-pressure-washer-kit: {None: 13}
+      {'key': 'model', 'value': 'Cordless Portable Pressure Washer Gun Kit'}
+      {'key': 'power_source', 'value': 'DC 21V battery'}
+      {'key': 'battery', 'value': '2 x 21V 4Ah lithium-ion'}
+      {'key': 'max_pressure', 'value': '40 bar (580 PSI)'}
+      {'key': 'flow_rate', 'value': '1.5 L/min'}
+      {'key': 'pump_type', 'value': 'Ceramic-piston'}
+      {'key': 'hose_length', 'value': '8 m'}
+      {'key': 'nozzle_types', 'value': '["0° spray tip","15° spray tip","25° spray tip","Foam lance"]'}
+      {'key': 'water_source', 'value': 'Fresh water from tap or bucket'}
+      {'key': 'materials', 'value': 'ABS housing; stainless-steel lance'}
+      {'key': 'charging_time', 'value': '3–4 hours'}
+      {'key': 'weight', 'value': '3.1 kg with battery installed'}
+      {'key': 'carry_case', 'value': 'Hard-shell with custom foam inserts'}
+  surya-heritage-1000w-dry-iron: {None: 12}
+      {'key': 'type', 'value': 'Dry Iron'}
+      {'key': 'model_name', 'value': 'HERITAGE'}
+      {'key': 'brand', 'value': 'SURYA'}
+      {'key': 'color', 'value': 'Grey'}
+      {'key': 'power_consumption', 'value': '1000W'}
+      {'key': 'soleplate_type', 'value': 'Non-stick Coated'}
+      {'key': 'temperature_control', 'value': 'Yes (Rotary Knob)'}
+      {'key': 'indicator_light', 'value': 'Yes'}
+      {'key': 'body_material', 'value': 'Shockproof Plastic'}
+      {'key': 'usage', 'value': 'Suitable for cotton, silk, wool, etc.'}
+      {'key': 'cord_length', 'value': 'Approx. 1.5–2 meters'}
+      {'key': 'weight', 'value': 'Approx. 500–700g'}
+  wireless-earbuds-4th-gen-design: {None: 12}
+      {'key': 'color', 'value': 'White'}
+      {'key': 'controls', 'value': 'Touch controls'}
+      {'key': 'microphone', 'value': 'Built-in'}
+      {'key': 'audio_codec', 'value': 'SBC'}
+      {'key': 'connectivity', 'value': 'Bluetooth'}
+      {'key': 'design_style', 'value': '4th generation inspired'}
+      {'key': 'product_type', 'value': 'Wireless Earbuds (TWS)'}
+      {'key': 'charging_port', 'value': 'USB Type-C'}
+      {'key': 'voice_assistant', 'value': 'Supported'}
+      {'key': 'water_resistance', 'value': 'Suitable for sweat and light splashes'}
+      {'key': 'bluetooth_version', 'value': 'Bluetooth 5.0'}
+      {'key': 'total_playback_time', 'value': 'Up to 30 hours (with charging case)'}
+  t10-ultra-smartwatch: {None: 12}
+      {'key': 'brand', 'value': 'HIWATCH'}
+      {'key': 'model', 'value': 'T10 Ultra'}
+      {'key': 'display', 'value': '2.09-inch Infinite Full Touch Display'}
+      {'key': 'bluetooth', 'value': 'Yes, Bluetooth Calling Enabled'}
+      {'key': 'battery_life', 'value': 'Up to 5-7 days, typical usage'}
+      {'key': 'compatibility', 'value': 'Android & iOS'}
+      {'key': 'fitness_modes', 'value': 'Multiple sports & activity modes'}
+      {'key': 'notifications', 'value': 'Call, message, app alerts'}
+      {'key': 'strap_material', 'value': 'Silicone'}
+      {'key': 'strap_color', 'value': 'Black'}
+      {'key': 'health_features', 'value': 'Heart rate monitor, sleep tracker'}
+      {'key': 'water_resistance', 'value': 'Splash & sweat resistant; IP rating may vary'}
+  realme-buds-2-wired-earphones: {None: 15}
+      {'key': 'product_type', 'value': 'Wired in-ear earphones'}
+      {'key': 'brand', 'value': 'Realme'}
+      {'key': 'model', 'value': 'Buds 2'}
+      {'key': 'color', 'value': 'Black'}
+      {'key': 'driver_size', 'value': '11.2 mm'}
+      {'key': 'connector', 'value': '3.5 mm audio jack'}
+      {'key': 'microphone', 'value': 'Built-in'}
+      {'key': 'controls', 'value': '3-button inline remote'}
+      {'key': 'cable_length', 'value': '1.25 metres'}
+      {'key': 'cable_type', 'value': 'Braided'}
+      {'key': 'earbud_feature', 'value': 'Magnetic earbuds'}
+      {'key': 'weight', 'value': '13.5 grams'}
+      {'key': 'impedance', 'value': '32Ω'}
+      {'key': 'frequency_response', 'value': '20 Hz–20,000 Hz'}
+      {'key': 'sound_pressure_level', 'value': '106 dB'}
+  t900-pro-max-smartwatch: {None: 12}
+      {'key': 'model_name', 'value': 'T900 Pro Max'}
+      {'key': 'display', 'value': '1.69-inch Full Touch HD Screen'}
+      {'key': 'connectivity', 'value': 'Bluetooth'}
+      {'key': 'call_function', 'value': 'Supports dial and receive calls via Bluetooth'}
+      {'key': 'compatibility', 'value': 'Android and iOS'}
+      {'key': 'watch_faces', 'value': '100+ customizable dials'}
+      {'key': 'menu_styles', 'value': 'Multiple menu layout options'}
+      {'key': 'health_tracking', 'value': '["Real-time heart rate","Sleep monitor","Breathing exercises"]'}
+      {'key': 'water_resistance', 'value': 'IP68'}
+      {'key': 'additional_functions', 'value': '["Stopwatch","Brightness adjustment","Message notifications","Custom dial"]'}
+      {'key': 'battery_life', 'value': 'Long-lasting with reduced power consumption system'}
+      {'key': 'app_support', 'value': 'Connects via dedicated app for full functionality'}
+  25w-usb-c-fast-charger: {None: 10}
+      {'key': 'color', 'value': 'White'}
+      {'key': 'product_type', 'value': 'USB-C fast charging wall power adapter'}
+      {'key': 'maximum_power_output', 'value': '25W'}
+      {'key': 'input_voltage', 'value': 'AC 100–240V'}
+      {'key': 'connector_type', 'value': 'USB Type-C'}
+      {'key': 'port_configuration', 'value': 'Single USB Type-C output port'}
+      {'key': 'output_profiles', 'value': '5V / 9V adaptive within rated power'}
+      {'key': 'charging_protocol', 'value': 'USB-C fast charging within supported 25W power profile'}
+      {'key': 'compatible_devices', 'value': '["USB-C smartphones","Tablets","Earbuds cases","Power banks","USB-C accessories"]'}
+      {'key': 'safety_features', 'value': '["Over-current protection","Over-voltage protection","Temperature protection"]'}
+  havells-bt5112c-beard-trimmer: {None: 15}
+      {'key': 'brand', 'value': 'Havells'}
+      {'key': 'model', 'value': 'BT5112C'}
+      {'key': 'color', 'value': 'Blue'}
+      {'key': 'usage', 'value': 'Beard & Mustache'}
+      {'key': 'weight', 'value': '~150 g'}
+      {'key': 'dimensions', 'value': 'Approx. 18.5 × 4.5 × 3.8 cm'}
+      {'key': 'blade_material', 'value': 'Stainless Steel'}
+      {'key': 'battery_type', 'value': 'Lithium-Ion'}
+      {'key': 'corded_use', 'value': 'true'}
+      {'key': 'cordless_use', 'value': 'true'}
+      {'key': 'runtime', 'value': 'Up to 60 minutes'}
+      {'key': 'charging_time', 'value': 'Approx. 90 minutes'}
+      {'key': 'length_settings', 'value': 'Adjustable, 0.5 mm to 10 mm'}
+      {'key': 'waterproof_rating', 'value': 'IPX7'}
+      {'key': 'indicator', 'value': 'LED Battery Indicator'}
+  cordless-car-vacuum-cleaner: {None: 10}
+      {'key': 'color', 'value': 'Black'}
+      {'key': 'product_type', 'value': 'Cordless Car Vacuum Cleaner'}
+      {'key': 'form_factor', 'value': 'Handheld'}
+      {'key': 'power_output', 'value': '120W'}
+      {'key': 'suction_strength', 'value': 'Up to 6000Pa'}
+      {'key': 'battery_type', 'value': 'Rechargeable lithium battery'}
+      {'key': 'runtime', 'value': 'Up to 18 minutes'}
+      {'key': 'filter_type', 'value': 'HEPA filtration'}
+      {'key': 'recommended_use', 'value': 'Car interiors and small cleaning tasks'}
+      {'key': 'included_accessories', 'value': 'Multiple nozzle attachments'}
+  smartwatch-9th-generation-209-inch-black: {None: 13}
+      {'key': 'color', 'value': 'Black'}
+      {'key': 'case_size', 'value': '45 mm'}
+      {'key': 'display_size', 'value': '2.09 inches'}
+      {'key': 'display_type', 'value': 'LCD TFT'}
+      {'key': 'connectivity', 'value': 'Bluetooth'}
+      {'key': 'compatibility', 'value': 'Android and iOS'}
+      {'key': 'bluetooth_range', 'value': 'Up to 10 meters'}
+      {'key': 'health_sensors', 'value': '["Heart Rate","Blood Pressure"]'}
+      {'key': 'sleep_tracking', 'value': 'true'}
+      {'key': 'sports_modes', 'value': 'Multiple'}
+      {'key': 'charging_method', 'value': 'Wireless'}
+      {'key': 'water_resistance', 'value': 'Splash Resistant'}
+      {'key': 'battery_life', 'value': 'Up to 3-5 days, usage dependent'}
+  mini-space-ceramic-room-heater: {None: 14}
+      {'key': 'color', 'value': 'Black'}
+      {'key': 'product_type', 'value': 'Mini Space Electric Room Heater'}
+      {'key': 'power_source', 'value': 'Electric'}
+      {'key': 'heating_technology', 'value': 'Ceramic Element'}
+      {'key': 'material', 'value': 'ABS Plastic and Ceramic Heating Element'}
+      {'key': 'thermostat', 'value': 'Adjustable'}
+      {'key': 'safety_features', 'value': '["Overheat Protection"]'}
+      {'key': 'plug_type', 'value': 'Standard 2-pin plug'}
+      {'key': 'usage_area', 'value': '["Desktop","Office","Small Rooms"]'}
+      {'key': 'portability', 'value': 'Lightweight and easy to carry'}
+      {'key': 'weight', 'value': 'Approximately 400-600 g'}
+      {'key': 'power_consumption', 'value': 'Approximately 400W-1000W, varies by model'}
+      {'key': 'dimensions', 'value': 'Approximately 14 × 10 × 8 cm'}
+      {'key': 'visible_product_claims', 'value': '["Odorless","No oxygen consumption","No light","Low noise"]'}
+  samsung-35w-power-adapter-duo-ep-ta220: {None: 10}
+      {'key': 'brand', 'value': 'Samsung'}
+      {'key': 'model_number', 'value': 'EP-TA220'}
+      {'key': 'color', 'value': 'Black'}
+      {'key': 'ports', 'value': '{"USB-C":"1","USB-A":"1"}'}
+      {'key': 'USB-C_output', 'value': 'Up to 35W when used alone under supported Super Fast Charging 2.0 / PD 3.0 conditions'}
+      {'key': 'USB-A_output', 'value': 'Up to 15W Adaptive Fast Charging'}
+      {'key': 'simultaneous_output', 'value': 'USB-C up to 20W + USB-A up to 15W, depending on connected devices'}
+      {'key': 'input_voltage', 'value': '100–240V, 50/60Hz'}
+      {'key': 'dimensions', 'value': '49 × 28 × 79.65 mm'}
+      {'key': 'weight', 'value': '92.3 g'}
+  vega-insta-glam-vhdh-20-hair-dryer: {None: 13}
+      {'key': 'brand', 'value': 'Vega'}
+      {'key': 'model', 'value': 'Insta Glam VHDH-20'}
+      {'key': 'color', 'value': 'Pink & White'}
+      {'key': 'power', 'value': '1000 Watts'}
+      {'key': 'power_source', 'value': 'Corded Electric'}
+      {'key': 'heat_speed_settings', 'value': '2 (Low & High)'}
+      {'key': 'nozzle', 'value': 'Detachable Concentrator'}
+      {'key': 'handle_type', 'value': 'Foldable'}
+      {'key': 'cord_length', 'value': 'Approximately 1.6 meters'}
+      {'key': 'overheat_protection', 'value': 'Yes'}
+      {'key': 'portability', 'value': 'Compact and Travel-Friendly'}
+      {'key': 'weight', 'value': 'Approximately 350 g'}
+      {'key': 'country_of_origin', 'value': 'India'}
+  fusion-gadgets-wireless-tws-earbuds: {None: 14}
+      {'key': 'brand', 'value': 'FUSION GADGETS'}
+      {'key': 'product_type', 'value': 'Wireless earbuds'}
+      {'key': 'form_factor', 'value': 'In-ear true wireless (TWS)'}
+      {'key': 'wearing_style', 'value': 'In-ear'}
+      {'key': 'connectivity', 'value': 'Bluetooth 5.0'}
+      {'key': 'audio_output', 'value': 'Stereo sound'}
+      {'key': 'controls', 'value': 'Touch-sensitive on-earbud controls'}
+      {'key': 'microphone', 'value': 'Built-in microphone for calls'}
+      {'key': 'battery_life_earbuds', 'value': 'Up to 5 hours per charge'}
+      {'key': 'additional_playback', 'value': 'Extra backup playback with charging case'}
+      {'key': 'charging_case', 'value': 'Compact portable charging case'}
+      {'key': 'charging_time', 'value': 'Approx. 1.5 hours, depends on charger'}
+      {'key': 'compatible_devices', 'value': 'Android and iOS smartphones with Bluetooth support'}
+      {'key': 'color_options', 'value': '["Black","White","Silver"]'}
+
+products with duplicate (label,value) PAIRS: ['400ml-glass-water-bottle', 'f4-car-bluetooth-speaker', 'havells-bt5112c-beard-trimmer']
