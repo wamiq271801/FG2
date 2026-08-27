@@ -300,6 +300,57 @@ export async function getRelatedProducts(
   return [...sameSubcat, ...others].slice(0, limit).map(mapProductRow);
 }
 
+// ── Sitemap ──────────────────────────────────────────────────────────
+
+export type ProductSitemapRow = {
+  slug: string;
+  updated_at: string;
+  product_images: { url: string; position: number }[] | null;
+};
+
+/**
+ * Deterministic batch of products for the child sitemap system.
+ *
+ * Orders by id (immutable UUID PK → stable membership across batches) and
+ * selects only the sitemap projection: slug, updated_at, primary image.
+ * Filters to active products with non-null brand and category (matching
+ * the rendered page set — inner-join semantics of PRODUCT_CARD_SELECT).
+ */
+/**
+ * Count-only query for the sitemap index — determines how many product
+ * child-sitemap batches are needed.
+ */
+export async function getProductSitemapCount(): Promise<number> {
+  const supabase = createCatalogClient();
+  const { count, error } = await supabase
+    .from("products")
+    .select("id", { count: "exact", head: true })
+    .eq("is_active", true)
+    .not("brand_id", "is", null)
+    .not("category_id", "is", null);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export async function getProductSitemapBatch(
+  batch: number,
+  batchSize: number
+): Promise<ProductSitemapRow[]> {
+  const supabase = createCatalogClient();
+  const start = batch * batchSize;
+  const end = start + batchSize - 1;
+  const { data, error } = await supabase
+    .from("products")
+    .select("slug, updated_at, product_images(url, position)")
+    .eq("is_active", true)
+    .not("brand_id", "is", null)
+    .not("category_id", "is", null)
+    .order("id", { ascending: true })
+    .range(start, end);
+  if (error) throw error;
+  return asRows<ProductSitemapRow>(data);
+}
+
 // ── Variation membership (product-detail only) ────────────────────────
 
 function mapVariationItemRow(row: VariationItemRow): VariationItem {

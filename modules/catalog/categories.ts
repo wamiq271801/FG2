@@ -77,6 +77,48 @@ export const getCategoryBySlug = cache(
   }
 );
 
+// ── Sitemap ──────────────────────────────────────────────────────────
+
+export type CategorySitemapRow = {
+  slug: string;
+  updated_at: string;
+};
+
+/**
+ * Count-only query for the sitemap index — determines how many category
+ * child-sitemap batches are needed.
+ */
+export async function getCategorySitemapCount(): Promise<number> {
+  const supabase = createCatalogClient();
+  const { count, error } = await supabase
+    .from("categories")
+    .select("id", { count: "exact", head: true });
+  if (error) throw error;
+  return count ?? 0;
+}
+
+/**
+ * Deterministic batch of categories for the child sitemap system.
+ *
+ * Orders by id (immutable UUID PK → stable membership across batches) and
+ * selects only the sitemap projection: slug, updated_at.
+ */
+export async function getCategorySitemapBatch(
+  batch: number,
+  batchSize: number
+): Promise<CategorySitemapRow[]> {
+  const supabase = createCatalogClient();
+  const start = batch * batchSize;
+  const end = start + batchSize - 1;
+  const { data, error } = await supabase
+    .from("categories")
+    .select("slug, updated_at")
+    .order("id", { ascending: true })
+    .range(start, end);
+  if (error) throw error;
+  return asRows<CategorySitemapRow>(data);
+}
+
 /**
  * Active-product counts for every category in ONE lightweight query
  * (id + category_id only, grouped in memory) — replaces one count query per
