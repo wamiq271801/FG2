@@ -1,0 +1,1522 @@
+     1→     1→You are GLM 5.2 acting as the primary implementation engineer.
+     2→     2→
+     3→     3→You are implementing PHASE 1 of an existing production website.
+     4→     4→
+     5→     5→READ THIS ENTIRE PROMPT BEFORE TOUCHING ANYTHING.
+     6→     6→
+     7→     7→This is NOT a greenfield project.
+     8→     8→
+     9→     9→The existing storefront, review eligibility system, product system, category system, order system, Supabase integration, RLS, Worker/backend, UI, SEO, caching, navigation, and other functionality already exist and work.
+    10→    10→
+    11→    11→Your job is to make the narrowly defined Phase 1 changes below WITHOUT unnecessarily rewriting, refactoring, replacing, or "improving" working code.
+    12→    12→
+    13→    13→============================================================
+    14→    14→ABSOLUTE OPERATING RULES
+    15→    15→============================================================
+    16→    16→
+    17→    17→1. DO NOT DRIFT FROM THIS SPECIFICATION.
+    18→    18→
+    19→    19→2. DO NOT invent requirements.
+    20→    20→
+    21→    21→3. DO NOT redesign working systems merely because you prefer another architecture.
+    22→    22→
+    23→    23→4. DO NOT treat existing correct code as buggy just because you would have implemented it differently.
+    24→    24→
+    25→    25→5. DO NOT rewrite working code without a concrete requirement in this prompt.
+    26→    26→
+    27→    27→6. DO NOT replace existing architecture simply because a newer pattern exists if the current implementation is correct and compatible with this task.
+    28→    28→
+    29→    29→7. DO NOT remove existing features.
+    30→    30→
+    31→    31→8. DO NOT change existing UI/UX except where explicitly required by this prompt.
+    32→    32→
+    33→    33→9. DO NOT modify existing review eligibility logic.
+    34→    34→
+    35→    35→10. DO NOT modify authentication.
+    36→    36→
+    37→    37→11. DO NOT modify purchase verification.
+    38→    38→
+    39→    39→12. DO NOT modify delivered-order verification.
+    40→    40→
+    41→    41→13. DO NOT modify the existing one-review-per-user/product rule.
+    42→    42→
+    43→    43→14. DO NOT modify the existing order system.
+    44→    44→
+    45→    45→15. DO NOT modify the existing stock system.
+    46→    46→
+    47→    47→16. DO NOT redesign Next.js caching/revalidation.
+    48→    48→
+    49→    49→17. DO NOT implement Phase 2.
+    50→    50→
+    51→    51→18. DO NOT introduce periodic revalidation.
+    52→    52→
+    53→    53→19. DO NOT introduce a new caching architecture.
+    54→    54→
+    55→    55→20. DO NOT change the existing navigation loader.
+    56→    56→
+    57→    57→21. DO NOT change SEO architecture.
+    58→    58→
+    59→    59→22. DO NOT change the existing R2 image architecture.
+    60→    60→
+    61→    61→23. DO NOT create a second physical review table.
+    62→    62→
+    63→    63→24. DO NOT expose Supabase secret/service-role credentials to the browser.
+    64→    64→
+    65→    65→25. DO NOT put privileged Supabase credentials into NEXT_PUBLIC_* variables.
+    66→    66→
+    67→    67→26. DO NOT create unnecessary abstractions.
+    68→    68→
+    69→    69→27. DO NOT create a shared monorepo package merely to share code between storefront and admin.
+    70→    70→
+    71→    71→28. DO NOT turn /admin into a route inside the storefront application.
+    72→    72→
+    73→    73→29. /admin MUST be a separate Next.js application.
+    74→    74→
+    75→    75→30. DO NOT create subagents merely to read files or obtain file contents.
+    76→    76→
+    77→    77→31. YOU must directly inspect and read the relevant files yourself.
+    78→    78→
+    79→    79→32. If web research is needed, use official documentation first.
+    80→    80→
+    81→    81→33. If current framework/library behavior is uncertain, verify it against current official documentation rather than guessing.
+    82→    82→
+    83→    83→34. Do not blindly follow older tutorials or legacy patterns.
+    84→    84→
+    85→    85→35. Do not upgrade dependencies unless there is a concrete requirement and the upgrade is verified as safe for this project.
+    86→    86→
+    87→    87→36. Do not "fix" unrelated problems discovered during implementation.
+    88→    88→
+    89→    89→37. If you discover an unrelated issue, document it separately and leave it untouched unless it directly blocks Phase 1.
+    90→    90→
+    91→    91→38. Never claim something works without actually testing it.
+    92→    92→
+    93→    93→39. Prefer the simplest tested implementation that satisfies the requirement.
+    94→    94→
+    95→    95→40. Correct existing code is NOT a reason to refactor it.
+    96→    96→
+    97→    97→============================================================
+    98→    98→PHASE 1 OBJECTIVE
+    99→    99→============================================================
+   100→   100→
+   101→   101→Phase 1 has TWO primary goals:
+   102→   102→
+   103→   103→A. Make the existing review system moderation-ready with the smallest possible change.
+   104→   104→
+   105→   105→B. Build a completely separate private admin application under /admin for:
+   106→   106→
+   107→   107→   - Product management
+   108→   108→   - Category management
+   109→   109→   - Review management
+   110→   110→
+   111→   111→That is the scope.
+   112→   112→
+   113→   113→Nothing else.
+   114→   114→
+   115→   115→============================================================
+   116→   116→CURRENT REVIEW SYSTEM — PRESERVE IT
+   117→   117→============================================================
+   118→   118→
+   119→   119→The existing review system already contains the following functionality:
+   120→   120→
+   121→   121→- user authentication
+   122→   122→- review eligibility checking
+   123→   123→- purchase verification
+   124→   124→- delivered-order verification
+   125→   125→- existing review form
+   126→   126→- existing review submission
+   127→   127→- existing ownership checks
+   128→   128→- existing one-review-per-user/product constraint
+   129→   129→- existing review editing
+   130→   130→- existing RLS
+   131→   131→- existing database trigger/function enforcement
+   132→   132→
+   133→   133→These are ALREADY IMPLEMENTED.
+   134→   134→
+   135→   135→DO NOT redesign them.
+   136→   136→
+   137→   137→DO NOT replace them.
+   138→   138→
+   139→   139→DO NOT simplify them.
+   140→   140→
+   141→   141→DO NOT move them to a different architecture.
+   142→   142→
+   143→   143→DO NOT "improve" them.
+   144→   144→
+   145→   145→DO NOT change their behavior.
+   146→   146→
+   147→   147→Treat them as established working functionality.
+   148→   148→
+   149→   149→The Phase 1 review change is intentionally small.
+   150→   150→
+   151→   151→============================================================
+   152→   152→REVIEW CHANGE #1 — ADD STATUS
+   153→   153→============================================================
+   154→   154→
+   155→   155→Add a moderation/publication status to the EXISTING review table.
+   156→   156→
+   157→   157→The existing physical review table is:
+   158→   158→
+   159→   159→product_reviews
+   160→   160→
+   161→   161→DO NOT create another physical review table.
+   162→   162→
+   163→   163→Add the required status field to product_reviews.
+   164→   164→
+   165→   165→The status model must support:
+   166→   166→
+   167→   167→- pending
+   168→   168→- approved
+   169→   169→- rejected
+   170→   170→
+   171→   171→Use an appropriately constrained database representation.
+   172→   172→
+   173→   173→Do NOT use arbitrary unrestricted strings if the existing database conventions allow a proper constraint/enum.
+   174→   174→
+   175→   175→Before choosing the exact database representation:
+   176→   176→
+   177→   177→- inspect the existing schema conventions
+   178→   178→- inspect existing migrations
+   179→   179→- inspect current PostgreSQL/Supabase capabilities
+   180→   180→- use the simplest robust implementation
+   181→   181→
+   182→   182→Do not introduce unnecessary complexity.
+   183→   183→
+   184→   184→============================================================
+   185→   185→NEW REVIEW DEFAULT STATUS
+   186→   186→============================================================
+   187→   187→
+   188→   188→A newly submitted review must become:
+   189→   189→
+   190→   190→status = pending
+   191→   191→
+   192→   192→The customer MUST NOT be able to submit:
+   193→   193→
+   194→   194→status = approved
+   195→   195→
+   196→   196→The customer MUST NOT control the moderation state.
+   197→   197→
+   198→   198→The existing review submission flow remains the same except for assigning the initial status.
+   199→   199→
+   200→   200→Do NOT rewrite the eligibility logic.
+   201→   201→
+   202→   202→Do NOT rewrite authentication.
+   203→   203→
+   204→   204→Do NOT rewrite purchase verification.
+   205→   205→
+   206→   206→Do NOT rewrite delivery verification.
+   207→   207→
+   208→   208→Do NOT rewrite the review form unnecessarily.
+   209→   209→
+   210→   210→============================================================
+   211→   211→PUBLIC REVIEW VISIBILITY
+   212→   212→============================================================
+   213→   213→
+   214→   214→The website must display ONLY approved reviews.
+   215→   215→
+   216→   216→The rule is:
+   217→   217→
+   218→   218→status = approved
+   219→   219→    → publicly visible
+   220→   220→
+   221→   221→status = pending
+   222→   222→    → NOT publicly visible
+   223→   223→
+   224→   224→status = rejected
+   225→   225→    → NOT publicly visible
+   226→   226→
+   227→   227→This rule must be enforced at the public review data boundary.
+   228→   228→
+   229→   229→Do not rely only on hiding reviews in React/UI.
+   230→   230→
+   231→   231→The public data query itself must only expose approved reviews.
+   232→   232→
+   233→   233→============================================================
+   234→   234→PUBLIC REVIEW VIEW
+   235→   235→============================================================
+   236→   236→
+   237→   237→Use ONE physical review table:
+   238→   238→
+   239→   239→product_reviews
+   240→   240→
+   241→   241→and, if appropriate after verifying Supabase/PostgreSQL security behavior, create a PostgreSQL VIEW representing publicly publishable reviews.
+   242→   242→
+   243→   243→Conceptually:
+   244→   244→
+   245→   245→product_reviews
+   246→   246→      |
+   247→   247→      | status = 'approved'
+   248→   248→      v
+   249→   249→published_reviews
+   250→   250→
+   251→   251→IMPORTANT:
+   252→   252→
+   253→   253→published_reviews MUST be a VIEW, NOT another physical table.
+   254→   254→
+   255→   255→DO NOT duplicate review data.
+   256→   256→
+   257→   257→DO NOT create:
+   258→   258→
+   259→   259→product_reviews
+   260→   260→published_reviews TABLE
+   261→   261→
+   262→   262→That is forbidden.
+   263→   263→
+   264→   264→The desired architecture is:
+   265→   265→
+   266→   266→product_reviews TABLE
+   267→   267→+
+   268→   268→published_reviews VIEW
+   269→   269→
+   270→   270→The view must expose ONLY fields required for public review rendering.
+   271→   271→
+   272→   272→It must NOT expose internal fields unnecessarily.
+   273→   273→
+   274→   274→At minimum, public review data may need:
+   275→   275→
+   276→   276→- review id
+   277→   277→- product id
+   278→   278→- customer name
+   279→   279→- rating
+   280→   280→- title
+   281→   281→- body
+   282→   282→- created_at
+   283→   283→- any other field the CURRENT public UI genuinely requires
+   284→   284→
+   285→   285→Do NOT blindly copy every column.
+   286→   286→
+   287→   287→Inspect the current public review UI and query requirements first.
+   288→   288→
+   289→   289→============================================================
+   290→   290→IMPORTANT: VIEW SECURITY
+   291→   291→============================================================
+   292→   292→
+   293→   293→Do not assume a PostgreSQL view automatically solves security.
+   294→   294→
+   295→   295→Before implementing the public view:
+   296→   296→
+   297→   297→1. Research current official Supabase/PostgreSQL documentation if needed.
+   298→   298→2. Verify how RLS interacts with views in the project's current Supabase/PostgreSQL environment.
+   299→   299→3. Choose the safest supported implementation.
+   300→   300→4. Ensure public access cannot expose:
+   301→   301→   - user_id
+   302→   302→   - moderation fields
+   303→   303→   - private profile information
+   304→   304→   - rejected reviews
+   305→   305→   - pending reviews
+   306→   306→
+   307→   307→Do NOT weaken profile RLS just to make reviewer names available.
+   308→   308→
+   309→   309→Do NOT make the profiles table publicly readable.
+   310→   310→
+   311→   311→============================================================
+   312→   312→REVIEW CHANGE #2 — CUSTOMER NAME SNAPSHOT
+   313→   313→============================================================
+   314→   314→
+   315→   315→The current review stores user_id but does not store the reviewer's name.
+   316→   316→
+   317→   317→The website currently needs to use the protected profile/user relationship to obtain the reviewer's name.
+   318→   318→
+   319→   319→That is unnecessary and is causing the current public review name problem.
+   320→   320→
+   321→   321→Add:
+   322→   322→
+   323→   323→customer_name
+   324→   324→
+   325→   325→to product_reviews.
+   326→   326→
+   327→   327→This field is the reviewer's public-name snapshot at the time the review is submitted.
+   328→   328→
+   329→   329→The existing user_id MUST remain.
+   330→   330→
+   331→   331→Do NOT remove user_id.
+   332→   332→
+   333→   333→user_id remains necessary for existing ownership/relationship logic.
+   334→   334→
+   335→   335→============================================================
+   336→   336→DO NOT ADD A NAME INPUT FIELD
+   337→   337→============================================================
+   338→   338→
+   339→   339→Do NOT redesign the review form to ask the customer to manually type their name.
+   340→   340→
+   341→   341→That is NOT the requirement.
+   342→   342→
+   343→   343→The existing authenticated user's current profile/display name should be captured during the existing review submission flow and stored in:
+   344→   344→
+   345→   345→product_reviews.customer_name
+   346→   346→
+   347→   347→The client must not be trusted to impersonate another person by submitting an arbitrary customer_name.
+   348→   348→
+   349→   349→Use the existing authenticated identity/profile information already available to the current submission flow.
+   350→   350→
+   351→   351→FIRST inspect the current implementation to determine where the user's name is already available.
+   352→   352→
+   353→   353→Do not add an unnecessary extra profile query if the existing submission path already has the information.
+   354→   354→
+   355→   355→Do not create a second identity system.
+   356→   356→
+   357→   357→============================================================
+   358→   358→EXISTING REVIEW OWNERSHIP / EDITING
+   359→   359→============================================================
+   360→   360→
+   361→   361→IMPORTANT:
+   362→   362→
+   363→   363→The current review system uses user_id for ownership/editing.
+   364→   364→
+   365→   365→DO NOT break this.
+   366→   366→
+   367→   367→Do not remove user_id from the underlying product_reviews table.
+   368→   368→
+   369→   369→Do not remove user_id from queries that genuinely require it for authenticated ownership/editing.
+   370→   370→
+   371→   371→Separate:
+   372→   372→
+   373→   373→PUBLIC REVIEW DATA
+   374→   374→
+   375→   375→from:
+   376→   376→
+   377→   377→AUTHENTICATED OWNER/EDIT DATA
+   378→   378→
+   379→   379→Do NOT blindly replace every review query with the public view.
+   380→   380→
+   381→   381→Inspect the current ReviewItem / ReviewOwnerActions / edit flow and preserve it.
+   382→   382→
+   383→   383→The existing edit functionality must continue to work.
+   384→   384→
+   385→   385→Do not invent new edit behavior unless absolutely required by the status implementation.
+   386→   386→
+   387→   387→============================================================
+   388→   388→STATUS + EXISTING EDITING
+   389→   389→============================================================
+   390→   390→
+   391→   391→Do NOT invent complicated moderation behavior around editing.
+   392→   392→
+   393→   393→The prompt only requires:
+   394→   394→
+   395→   395→new review
+   396→   396→→ pending
+   397→   397→
+   398→   398→admin:
+   399→   399→pending → approved
+   400→   400→pending → rejected
+   401→   401→
+   402→   402→Do not automatically introduce:
+   403→   403→
+   404→   404→approved → pending after edit
+   405→   405→
+   406→   406→unless the existing product requirements explicitly require it and the current codebase makes it necessary.
+   407→   407→
+   408→   408→If the current editing behavior creates an interaction with the new status field, inspect it carefully and preserve existing behavior unless a change is strictly required for correctness.
+   409→   409→
+   410→   410→If a decision is genuinely required and cannot be determined from the current codebase, document it instead of inventing behavior.
+   411→   411→
+   412→   412→============================================================
+   413→   413→ADMIN APPLICATION
+   414→   414→============================================================
+   415→   415→
+   416→   416→Build a completely separate admin application.
+   417→   417→
+   418→   418→Location:
+   419→   419→
+   420→   420→/admin
+   421→   421→
+   422→   422→This MUST NOT be a route inside the existing storefront Next.js app.
+   423→   423→
+   424→   424→The repository should conceptually become:
+   425→   425→
+   426→   426→project/
+   427→   427→    existing storefront
+   428→   428→    ...
+   429→   429→    admin/
+   430→   430→        package.json
+   431→   431→        next.config.*
+   432→   432→        tsconfig.*
+   433→   433→        app/
+   434→   434→        components/
+   435→   435→        lib/
+   436→   436→        ...
+   437→   437→
+   438→   438→The exact existing project structure must be inspected before modifying it.
+   439→   439→
+   440→   440→============================================================
+   441→   441→ADMIN MUST HAVE ITS OWN DEPENDENCIES
+   442→   442→============================================================
+   443→   443→
+   444→   444→The admin application MUST have its own:
+   445→   445→
+   446→   446→- package.json
+   447→   447→- dependency tree
+   448→   448→- Next.js installation
+   449→   449→- TypeScript configuration
+   450→   450→- Next.js configuration
+   451→   451→- source tree
+   452→   452→- environment configuration
+   453→   453→
+   454→   454→Do NOT convert the repository into a monorepo.
+   455→   455→
+   456→   456→Do NOT create shared workspace dependencies.
+   457→   457→
+   458→   458→Do NOT add Turborepo.
+   459→   459→
+   460→   460→Do NOT add pnpm workspaces.
+   461→   461→
+   462→   462→Do NOT add npm workspaces.
+   463→   463→
+   464→   464→Do NOT create packages/shared.
+   465→   465→
+   466→   466→Do NOT create a shared component package.
+   467→   467→
+   468→   468→Do NOT create unnecessary cross-application infrastructure.
+   469→   469→
+   470→   470→The storefront and admin are two separate applications that happen to live in the same repository.
+   471→   471→
+   472→   472→============================================================
+   473→   473→ADMIN FRAMEWORK
+   474→   474→============================================================
+   475→   475→
+   476→   476→Use Next.js App Router for the admin application unless the existing sandbox imposes a concrete technical limitation that makes it impossible.
+   477→   477→
+   478→   478→Reason:
+   479→   479→
+   480→   480→The admin requires privileged server-side Supabase access.
+   481→   481→
+   482→   482→The admin should therefore have:
+   483→   483→
+   484→   484→- Server Components where appropriate
+   485→   485→- Server Actions and/or Route Handlers for mutations
+   486→   486→- server-only Supabase client
+   487→   487→- Client Components only where interactivity requires them
+   488→   488→
+   489→   489→Do not build a pure browser-only React SPA that exposes privileged credentials.
+   490→   490→
+   491→   491→The admin may behave like a modern SPA from the user's perspective, but privileged database operations must remain server-side.
+   492→   492→
+   493→   493→============================================================
+   494→   494→ADMIN SUPABASE ACCESS
+   495→   495→============================================================
+   496→   496→
+   497→   497→The admin is a private local tool.
+   498→   498→
+   499→   499→The admin will use a Supabase privileged server credential.
+   500→   500→
+   501→   501→The user will provide a TEST Supabase project's secret key.
+   502→   502→
+   503→   503→The test project contains temporary/test data.
+   504→   504→
+   505→   505→It is acceptable to configure that test secret in the admin application's environment for this implementation.
+   506→   506→
+   507→   507→However:
+   508→   508→
+   509→   509→THE SECRET MUST NEVER REACH THE BROWSER.
+   510→   510→
+   511→   511→THE SECRET MUST NEVER BE:
+   512→   512→
+   513→   513→- NEXT_PUBLIC_*
+   514→   514→- hardcoded in source
+   515→   515→- embedded in client JavaScript
+   516→   516→- sent to client components
+   517→   517→- included in HTML
+   518→   518→- included in URLs
+   519→   519→- logged
+   520→   520→- committed to git
+   521→   521→- copied into the storefront environment
+   522→   522→
+   523→   523→Use a server-only environment variable.
+   524→   524→
+   525→   525→Current Supabase terminology:
+   526→   526→
+   527→   527→- sb_secret_* = current secret key
+   528→   528→- service_role = legacy privileged key
+   529→   529→
+   530→   530→If the provided test credential is a current sb_secret_* key, use it.
+   531→   531→
+   532→   532→If the provided credential is a legacy service_role key, it may be used server-side for this test project, but do not migrate unrelated existing credentials.
+   533→   533→
+   534→   534→Research the current official Supabase documentation if the exact SDK/key handling is uncertain.
+   535→   535→
+   536→   536→Current official guidance explicitly says secret/service-role keys are backend-only and bypass RLS.
+   537→   537→
+   538→   538→Use the current recommended server-side initialization pattern for the installed Supabase SDK.
+   539→   539→
+   540→   540→For a server-only privileged client, do not enable unnecessary auth session persistence/refresh behavior.
+   541→   541→
+   542→   542→============================================================
+   543→   543→ADMIN SECURITY BOUNDARY
+   544→   544→============================================================
+   545→   545→
+   546→   546→Even though the admin runs locally, do not create privileged endpoints that blindly trust arbitrary browser requests.
+   547→   547→
+   548→   548→The architecture must be:
+   549→   549→
+   550→   550→Admin browser UI
+   551→   551→    ↓
+   552→   552→Admin server
+   553→   553→    ↓
+   554→   554→Privileged Supabase client
+   555→   555→    ↓
+   556→   556→Supabase
+   557→   557→
+   558→   558→NOT:
+   559→   559→
+   560→   560→Admin browser
+   561→   561→    ↓
+   562→   562→secret key
+   563→   563→    ↓
+   564→   564→Supabase
+   565→   565→
+   566→   566→The secret is a server credential.
+   567→   567→
+   568→   568→============================================================
+   569→   569→ADMIN AUTHENTICATION / ACCESS
+   570→   570→============================================================
+   571→   571→
+   572→   572→The admin is intended to be private and local.
+   573→   573→
+   574→   574→Do NOT build a giant multi-tenant admin authentication system.
+   575→   575→
+   576→   576→Do NOT build unnecessary RBAC.
+   577→   577→
+   578→   578→Do NOT build teams/roles/permissions unless the current project explicitly requires them.
+   579→   579→
+   580→   580→However, do not expose privileged operations without an access boundary.
+   581→   581→
+   582→   582→Inspect the current development environment and determine the simplest secure local-only approach consistent with how this admin will actually run.
+   583→   583→
+   584→   584→The admin must not become publicly accessible merely because it is reachable through the development URL.
+   585→   585→
+   586→   586→Keep this simple.
+   587→   587→
+   588→   588→Do not overengineer it.
+   589→   589→
+   590→   590→============================================================
+   591→   591→ADMIN DEVELOPMENT URL / SANDBOX INTEGRATION
+   592→   592→============================================================
+   593→   593→
+   594→   594→THIS IS A CRITICAL REQUIREMENT.
+   595→   595→
+   596→   596→The coding-agent sandbox currently has its own development server/orchestration mechanism.
+   597→   597→
+   598→   598→The admin application must be accessible through the SAME development environment URL.
+   599→   599→
+   600→   600→Simply running:
+   601→   601→
+   602→   602→storefront → localhost:3000
+   603→   603→admin → localhost:3001
+   604→   604→
+   605→   605→is NOT sufficient if the sandbox only exposes the storefront URL.
+   606→   606→
+   607→   607→You MUST inspect the existing sandbox/dev-server scripts and understand how the development URL is created/exposed.
+   608→   608→
+   609→   609→Then modify the ACTUAL development orchestration so that:
+   610→   610→
+   611→   611→- storefront continues to work
+   612→   612→- admin starts automatically
+   613→   613→- admin is reachable through /admin
+   614→   614→- both processes are managed by the existing sandbox lifecycle
+   615→   615→- the development environment remains usable
+   616→   616→- stopping/restarting the environment correctly manages both applications
+   617→   617→
+   618→   618→The desired public development structure is conceptually:
+   619→   619→
+   620→   620→development URL
+   621→   621→    /
+   622→   622→    → storefront
+   623→   623→
+   624→   624→development URL
+   625→   625→    /admin
+   626→   626→    → admin application
+   627→   627→
+   628→   628→Do NOT assume a solution.
+   629→   629→
+   630→   630→Inspect the existing sandbox first.
+   631→   631→
+   632→   632→Determine whether the current environment uses:
+   633→   633→
+   634→   634→- dev.sh
+   635→   635→- proxy
+   636→   636→- reverse proxy
+   637→   637→- nginx
+   638→   638→- Caddy
+   639→   639→- Node proxy
+   640→   640→- Next.js rewrites
+   641→   641→- another orchestration layer
+   642→   642→
+   643→   643→Then integrate the admin using the mechanism that actually controls the sandbox.
+   644→   644→
+   645→   645→DO NOT create a parallel server that the sandbox cannot expose.
+   646→   646→
+   647→   647→DO NOT leave the admin running on an inaccessible localhost port.
+   648→   648→
+   649→   649→DO NOT break the existing development URL.
+   650→   650→
+   651→   651→============================================================
+   652→   652→ADMIN BASE PATH / SUBPATH
+   653→   653→============================================================
+   654→   654→
+   655→   655→The admin is a separate Next.js application but must be accessible under:
+   656→   656→
+   657→   657→/admin
+   658→   658→
+   659→   659→Configure the admin application and the development routing/proxy correctly.
+   660→   660→
+   661→   661→Do not hack around the problem with client-side redirects.
+   662→   662→
+   663→   663→Do not make the storefront own the admin route.
+   664→   664→
+   665→   665→Do not rewrite all storefront routes.
+   666→   666→
+   667→   667→The routing should cleanly map:
+   668→   668→
+   669→   669→/admin
+   670→   670→/admin/...
+   671→   671→    → admin application
+   672→   672→
+   673→   673→and:
+   674→   674→
+   675→   675→/
+   676→   676→...
+   677→   677→    → storefront application
+   678→   678→
+   679→   679→If Next.js basePath is appropriate for the admin application, use it.
+   680→   680→
+   681→   681→If the sandbox reverse proxy handles the prefix, configure it there.
+   682→   682→
+   683→   683→Choose the simplest tested architecture after inspecting the current environment.
+   684→   684→
+   685→   685→============================================================
+   686→   686→ADMIN ENVIRONMENT SETUP
+   687→   687→============================================================
+   688→   688→
+   689→   689→The user will provide the TEST Supabase project's:
+   690→   690→
+   691→   691→- Supabase URL
+   692→   692→- secret/service-role credential
+   693→   693→
+   694→   694→Configure the admin environment accordingly.
+   695→   695→
+   696→   696→The environment must be:
+   697→   697→
+   698→   698→- local
+   699→   699→- ignored by git
+   700→   700→- server-only
+   701→   701→- used only by admin server code
+   702→   702→
+   703→   703→Do not put the secret in the root storefront environment unless the storefront genuinely needs it.
+   704→   704→
+   705→   705→The storefront must continue using its existing public/anon access model.
+   706→   706→
+   707→   707→============================================================
+   708→   708→ADMIN DOMAIN #1 — PRODUCTS
+   709→   709→============================================================
+   710→   710→
+   711→   711→Build product management using the EXISTING product schema.
+   712→   712→
+   713→   713→Do NOT create an admin-specific product table.
+   714→   714→
+   715→   715→Admin must be able to:
+   716→   716→
+   717→   717→- list products
+   718→   718→- search products
+   719→   719→- view product details
+   720→   720→- create products
+   721→   721→- edit products
+   722→   722→- manage the existing product fields
+   723→   723→- manage existing product/category relationships
+   724→   724→- manage product images where the existing product model requires it
+   725→   725→- perform the appropriate existing deletion/archive operation if one is already supported
+   726→   726→
+   727→   727→Do not invent fields that do not exist.
+   728→   728→
+   729→   729→Before building the editor:
+   730→   730→
+   731→   731→READ the actual product schema.
+   732→   732→
+   733→   733→READ the existing product types.
+   734→   734→
+   735→   735→READ the existing product data functions.
+   736→   736→
+   737→   737→READ relevant Supabase migrations/schema.
+   738→   738→
+   739→   739→READ existing storefront product forms/components if available.
+   740→   740→
+   741→   741→Reuse the existing domain model.
+   742→   742→
+   743→   743→Do not duplicate product logic unnecessarily.
+   744→   744→
+   745→   745→============================================================
+   746→   746→ADMIN DOMAIN #2 — CATEGORIES
+   747→   747→============================================================
+   748→   748→
+   749→   749→Build category management using the EXISTING category schema.
+   750→   750→
+   751→   751→Admin must be able to:
+   752→   752→
+   753→   753→- list categories
+   754→   754→- view category details
+   755→   755→- create categories
+   756→   756→- edit categories
+   757→   757→- perform safe deletion/archive where the existing schema permits it
+   758→   758→- manage existing category fields
+   759→   759→- manage existing product/category relationships where required
+   760→   760→
+   761→   761→Do not invent category behavior.
+   762→   762→
+   763→   763→Do not allow destructive operations that violate existing foreign-key relationships.
+   764→   764→
+   765→   765→Inspect the real database constraints first.
+   766→   766→
+   767→   767→============================================================
+   768→   768→ADMIN DOMAIN #3 — REVIEWS
+   769→   769→============================================================
+   770→   770→
+   771→   771→Build review moderation.
+   772→   772→
+   773→   773→Admin must be able to see:
+   774→   774→
+   775→   775→- pending reviews
+   776→   776→- approved reviews
+   777→   777→- rejected reviews
+   778→   778→
+   779→   779→Each review should provide the context necessary to moderate it:
+   780→   780→
+   781→   781→- customer name
+   782→   782→- product
+   783→   783→- rating
+   784→   784→- title
+   785→   785→- body
+   786→   786→- submitted date
+   787→   787→- status
+   788→   788→
+   789→   789→The admin may access internal fields server-side where necessary.
+   790→   790→
+   791→   791→The admin must NOT expose internal fields through the public storefront.
+   792→   792→
+   793→   793→Actions:
+   794→   794→
+   795→   795→- Approve
+   796→   796→- Reject
+   797→   797→
+   798→   798→Approval:
+   799→   799→
+   800→   800→pending
+   801→   801→    ↓
+   802→   802→approved
+   803→   803→
+   804→   804→Rejection:
+   805→   805→
+   806→   806→pending
+   807→   807→    ↓
+   808→   808→rejected
+   809→   809→
+   810→   810→Do not add unnecessary moderation workflows.
+   811→   811→
+   812→   812→Do not invent complex moderation states.
+   813→   813→
+   814→   814→============================================================
+   815→   815→ADMIN UI
+   816→   816→============================================================
+   817→   817→
+   818→   818→Build a clean, practical admin interface.
+   819→   819→
+   820→   820→It must be functional before it is decorative.
+   821→   821→
+   822→   822→Do NOT redesign the storefront.
+   823→   823→
+   824→   824→Do NOT modify storefront UI.
+   825→   825→
+   826→   826→Admin UI should have:
+   827→   827→
+   828→   828→- navigation
+   829→   829→- Products
+   830→   830→- Categories
+   831→   831→- Reviews
+   832→   832→- clear loading states where necessary
+   833→   833→- clear error states
+   834→   834→- confirmation for destructive operations
+   835→   835→- success/error feedback for mutations
+   836→   836→
+   837→   837→Do not build a huge dashboard with fake analytics.
+   838→   838→
+   839→   839→Do not create meaningless KPI cards.
+   840→   840→
+   841→   841→Do not create features that were not requested.
+   842→   842→
+   843→   843→The admin is a management tool.
+   844→   844→
+   845→   845→============================================================
+   846→   846→PRODUCT / CATEGORY / REVIEW MUTATIONS
+   847→   847→============================================================
+   848→   848→
+   849→   849→All privileged mutations must execute server-side.
+   850→   850→
+   851→   851→Use the simplest appropriate mechanism:
+   852→   852→
+   853→   853→- Server Actions
+   854→   854→OR
+   855→   855→- Route Handlers
+   856→   856→
+   857→   857→Do not create an API layer solely because "admin apps should have APIs."
+   858→   858→
+   859→   859→If Server Actions are appropriate, use them.
+   860→   860→
+   861→   861→If Route Handlers are clearly more appropriate for the existing architecture, use them.
+   862→   862→
+   863→   863→Do not create duplicate mutation paths.
+   864→   864→
+   865→   865→============================================================
+   866→   866→DO NOT TOUCH PHASE 2
+   867→   867→============================================================
+   868→   868→
+   869→   869→Phase 2 is the future cache/revalidation redesign.
+   870→   870→
+   871→   871→DO NOT implement:
+   872→   872→
+   873→   873→- revalidatePath architecture
+   874→   874→- revalidateTag architecture
+   875→   875→- updateTag architecture
+   876→   876→- cache invalidation endpoints
+   877→   877→- event-driven invalidation
+   878→   878→- cache dependency graphs
+   879→   879→- catalog invalidation
+   880→   880→- product invalidation
+   881→   881→- stock invalidation
+   882→   882→- review cache invalidation
+   883→   883→- category cache invalidation
+   884→   884→- lazy cache regeneration redesign
+   885→   885→- periodic cache removal
+   886→   886→
+   887→   887→Those are Phase 2.
+   888→   888→
+   889→   889→For Phase 1:
+   890→   890→
+   891→   891→Admin mutation
+   892→   892→    ↓
+   893→   893→Supabase mutation
+   894→   894→    ↓
+   895→   895→done
+   896→   896→
+   897→   897→Do not add cache behavior.
+   898→   898→
+   899→   899→============================================================
+   900→   900→DO NOT MODIFY WORKER
+   901→   901→============================================================
+   902→   902→
+   903→   903→The Worker/backend currently does not need review functionality for Phase 1.
+   904→   904→
+   905→   905→Do not add review functionality to the Worker.
+   906→   906→
+   907→   907→Do not modify stock mutation behavior.
+   908→   908→
+   909→   909→Do not modify order processing.
+   910→   910→
+   911→   911→Do not modify inventory.
+   912→   912→
+   913→   913→============================================================
+   914→   914→DO NOT MODIFY STOREFRONT CACHING
+   915→   915→============================================================
+   916→   916→
+   917→   917→The existing storefront cache architecture is out of scope.
+   918→   918→
+   919→   919→Do not modify:
+   920→   920→
+   921→   921→- cacheComponents
+   922→   922→- cacheLife
+   923→   923→- cacheTag
+   924→   924→- use cache
+   925→   925→- route caching
+   926→   926→- PPR
+   927→   927→- ISR
+   928→   928→- revalidation
+   929→   929→- dynamic rendering
+   930→   930→
+   931→   931→unless a tiny review-query change is strictly necessary to make approved-review filtering work.
+   932→   932→
+   933→   933→If such a change is necessary, make the smallest possible change.
+   934→   934→
+   935→   935→============================================================
+   936→   936→DO NOT MODIFY STOREFRONT UI
+   937→   937→============================================================
+   938→   938→
+   939→   939→The public review UI must remain visually unchanged.
+   940→   940→
+   941→   941→Do not redesign:
+   942→   942→
+   943→   943→- review cards
+   944→   944→- rating stars
+   945→   945→- review form
+   946→   946→- product page
+   947→   947→- review page
+   948→   948→- buttons
+   949→   949→- typography
+   950→   950→- spacing
+   951→   951→- colors
+   952→   952→- layouts
+   953→   953→
+   954→   954→The only functional public change is:
+   955→   955→
+   956→   956→unapproved reviews no longer appear.
+   957→   957→
+   958→   958→The reviewer name should now come from:
+   959→   959→
+   960→   960→customer_name
+   961→   961→
+   962→   962→instead of querying the protected profile table.
+   963→   963→
+   964→   964→============================================================
+   965→   965→DATABASE MIGRATION DISCIPLINE
+   966→   966→============================================================
+   967→   967→
+   968→   968→Create proper database migration(s) for Phase 1.
+   969→   969→
+   970→   970→Do not manually mutate production-like schema without migration history.
+   971→   971→
+   972→   972→The migration must be deterministic and reviewable.
+   973→   973→
+   974→   974→Before writing it:
+   975→   975→
+   976→   976→- inspect existing migrations
+   977→   977→- inspect current live/test schema through Supabase MCP if available
+   978→   978→- determine exact current state
+   979→   979→- avoid duplicate columns/constraints
+   980→   980→- follow existing migration conventions
+   981→   981→
+   982→   982→The migration should:
+   983→   983→
+   984→   984→1. add status
+   985→   985→2. establish a safe default for existing/new rows
+   986→   986→3. add customer_name
+   987→   987→4. establish any required constraints
+   988→   988→5. create the public view if that is the selected implementation
+   989→   989→6. update required policies only where necessary
+   990→   990→7. preserve existing policies and behavior unless explicitly required
+   991→   991→
+   992→   992→============================================================
+   993→   993→EXISTING REVIEWS — IMPORTANT MIGRATION DECISION
+   994→   994→============================================================
+   995→   995→
+   996→   996→There will already be existing review rows.
+   997→   997→
+   998→   998→Do NOT arbitrarily mark them rejected.
+   999→   999→
+  1000→  1000→Do NOT delete them.
+  1001→  1001→
+  1002→  1002→Do NOT silently change their public meaning.
+  1003→  1003→
+  1004→  1004→Determine the safest migration behavior for existing rows based on the intended publication model and actual current data.
+  1005→  1005→
+  1006→  1006→The desired production state is:
+  1007→  1007→
+  1008→  1008→only approved reviews are public.
+  1009→  1009→
+  1010→  1010→If existing reviews are currently public and there is no historical moderation information, do not invent a fake moderation history.
+  1011→  1011→
+  1012→  1012→Research/inspect the current test data and project requirements and choose a deterministic migration strategy.
+  1013→  1013→
+  1014→  1014→If this decision cannot be safely inferred, STOP before making destructive assumptions and report the exact ambiguity.
+  1015→  1015→
+  1016→  1016→Do not silently invent moderation decisions for real reviews.
+  1017→  1017→
+  1018→  1018→============================================================
+  1019→  1019→RLS / DATABASE SECURITY
+  1020→  1020→============================================================
+  1021→  1021→
+  1022→  1022→Preserve the existing review eligibility and ownership RLS.
+  1023→  1023→
+  1024→  1024→Only change policies required to implement:
+  1025→  1025→
+  1026→  1026→- status-based public visibility
+  1027→  1027→- safe public review representation
+  1028→  1028→- admin privileged access
+  1029→  1029→
+  1030→  1030→Do not weaken existing security.
+  1031→  1031→
+  1032→  1032→Do not make profiles public.
+  1033→  1033→
+  1034→  1034→Do not make user_id public merely to solve the reviewer-name issue.
+  1035→  1035→
+  1036→  1036→Do not replace RLS with application-only checks.
+  1037→  1037→
+  1038→  1038→The admin uses a privileged server credential and therefore can perform management operations without weakening public RLS.
+  1039→  1039→
+  1040→  1040→============================================================
+  1041→  1041→SUPABASE MCP
+  1042→  1042→============================================================
+  1043→  1043→
+  1044→  1044→The Supabase MCP is connected.
+  1045→  1045→
+  1046→  1046→USE IT.
+  1047→  1047→
+  1048→  1048→Before making database changes:
+  1049→  1049→
+  1050→  1050→- inspect the current schema
+  1051→  1051→- inspect current tables
+  1052→  1052→- inspect columns
+  1053→  1053→- inspect constraints
+  1054→  1054→- inspect RLS
+  1055→  1055→- inspect policies
+  1056→  1056→- inspect triggers
+  1057→  1057→- inspect functions/RPCs
+  1058→  1058→- inspect views
+  1059→  1059→- inspect relationships
+  1060→  1060→
+  1061→  1061→Use the MCP as a source of truth for the current test project.
+  1062→  1062→
+  1063→  1063→Do not guess database state from local files.
+  1064→  1064→
+  1065→  1065→Do not make destructive changes.
+  1066→  1066→
+  1067→  1067→Do not modify unrelated database objects.
+  1068→  1068→
+  1069→  1069→============================================================
+  1070→  1070→CURRENT CODEBASE ANALYSIS
+  1071→  1071→============================================================
+  1072→  1072→
+  1073→  1073→Before implementation, directly inspect:
+  1074→  1074→
+  1075→  1075→- repository structure
+  1076→  1076→- package files
+  1077→  1077→- existing dev scripts
+  1078→  1078→- sandbox/server orchestration
+  1079→  1079→- review modules
+  1080→  1080→- product modules
+  1081→  1081→- category modules
+  1082→  1082→- Supabase clients
+  1083→  1083→- environment files
+  1084→  1084→- migrations
+  1085→  1085→- RLS policies
+  1086→  1086→- database functions
+  1087→  1087→- Worker/backend
+  1088→  1088→- existing tests
+  1089→  1089→
+  1090→  1090→Follow imports.
+  1091→  1091→
+  1092→  1092→Read the actual files.
+  1093→  1093→
+  1094→  1094→Do NOT use subagents to fetch file contents.
+  1095→  1095→
+  1096→  1096→Do not start implementing after reading only a summary.
+  1097→  1097→
+  1098→  1098→The existing code is the source of truth.
+  1099→  1099→
+  1100→  1100→============================================================
+  1101→  1101→WEB RESEARCH
+  1102→  1102→============================================================
+  1103→  1103→
+  1104→  1104→You MAY research the web when necessary.
+  1105→  1105→
+  1106→  1106→When researching:
+  1107→  1107→
+  1108→  1108→PRIORITY ORDER:
+  1109→  1109→
+  1110→  1110→1. Official Next.js documentation
+  1111→  1111→2. Official Supabase documentation
+  1112→  1112→3. Official PostgreSQL documentation
+  1113→  1113→4. Official documentation for installed libraries
+  1114→  1114→5. High-quality technical sources only if official docs do not answer the question
+  1115→  1115→
+  1116→  1116→Do not copy outdated patterns.
+  1117→  1117→
+  1118→  1118→Do not use random tutorials as architectural authority.
+  1119→  1119→
+  1120→  1120→Pay particular attention to current documentation for:
+  1121→  1121→
+  1122→  1122→- Next.js separate app/basePath/proxy behavior
+  1123→  1123→- current Supabase secret keys
+  1124→  1124→- server-only Supabase clients
+  1125→  1125→- RLS
+  1126→  1126→- PostgreSQL views
+  1127→  1127→- Supabase/PostgreSQL view security
+  1128→  1128→- current Next.js Server Actions/Route Handlers
+  1129→  1129→
+  1130→  1130→Do not upgrade dependencies simply because documentation is newer.
+  1131→  1131→
+  1132→  1132→The installed project's versions remain authoritative unless a concrete incompatibility requires an upgrade.
+  1133→  1133→
+  1134→  1134→============================================================
+  1135→  1135→TEST PROJECT CREDENTIALS
+  1136→  1136→============================================================
+  1137→  1137→
+  1138→  1138→The user may provide a TEST Supabase project's secret key.
+  1139→  1139→
+  1140→  1140→This is allowed for this implementation because the project is explicitly temporary/test data.
+  1141→  1141→
+  1142→  1142→Still:
+  1143→  1143→
+  1144→  1144→- never commit it
+  1145→  1145→- never print it
+  1146→  1146→- never log it
+  1147→  1147→- never expose it to browser code
+  1148→  1148→- never place it in source code
+  1149→  1149→- never place it in NEXT_PUBLIC_*
+  1150→  1150→- never place it in client-side configuration
+  1151→  1151→- never return it in your final report
+  1152→  1152→- never include it in screenshots
+  1153→  1153→- never include it in test output
+  1154→  1154→
+  1155→  1155→If you need to verify that it works, test the configuration without printing the credential.
+  1156→  1156→
+  1157→  1157→============================================================
+  1158→  1158→NO UNNECESSARY REFACTORING
+  1159→  1159→============================================================
+  1160→  1160→
+  1161→  1161→This rule is extremely important.
+  1162→  1162→
+  1163→  1163→If you encounter code like:
+  1164→  1164→
+  1165→  1165→const x = existingCorrectImplementation()
+  1166→  1166→
+  1167→  1167→DO NOT rewrite it simply because you prefer:
+  1168→  1168→
+  1169→  1169→const x = anotherImplementation()
+  1170→  1170→
+  1171→  1171→If the current code is:
+  1172→  1172→
+  1173→  1173→- correct
+  1174→  1174→- tested
+  1175→  1175→- compatible
+  1176→  1176→- understandable
+  1177→  1177→- not blocking Phase 1
+  1178→  1178→
+  1179→  1179→LEAVE IT ALONE.
+  1180→  1180→
+  1181→  1181→Do not turn a small feature change into a codebase rewrite.
+  1182→  1182→
+  1183→  1183→Do not introduce:
+  1184→  1184→
+  1185→  1185→- repositories
+  1186→  1186→- service layers
+  1187→  1187→- domain abstractions
+  1188→  1188→- generic CRUD frameworks
+  1189→  1189→- generic admin engines
+  1190→  1190→- event buses
+  1191→  1191→- state-management libraries
+  1192→  1192→- API clients
+  1193→  1193→- shared packages
+  1194→  1194→
+  1195→  1195→unless the existing project already uses them or the requirement genuinely requires them.
+  1196→  1196→
+  1197→  1197→============================================================
+  1198→  1198→IMPLEMENTATION ORDER
+  1199→  1199→============================================================
+  1200→  1200→
+  1201→  1201→Follow this order.
+  1202→  1202→
+  1203→  1203→PHASE 0 — READ AND UNDERSTAND
+  1204→  1204→
+  1205→  1205→1. Inspect repository.
+  1206→  1206→2. Inspect current storefront architecture.
+  1207→  1207→3. Inspect review flow.
+  1208→  1208→4. Inspect review schema through Supabase MCP.
+  1209→  1209→5. Inspect review RLS.
+  1210→  1210→6. Inspect profile relationship.
+  1211→  1211→7. Inspect product/category schema.
+  1212→  1212→8. Inspect existing development/sandbox scripts.
+  1213→  1213→9. Inspect installed versions.
+  1214→  1214→10. Inspect existing tests.
+  1215→  1215→
+  1216→  1216→Do not modify anything during this phase.
+  1217→  1217→
+  1218→  1218→PHASE 1 — DATABASE REVIEW CHANGES
+  1219→  1219→
+  1220→  1220→1. Add status.
+  1221→  1221→2. Add customer_name.
+  1222→  1222→3. Establish correct constraints/defaults.
+  1223→  1223→4. Create public review view if appropriate.
+  1224→  1224→5. Update public access only as required.
+  1225→  1225→6. Preserve ownership/eligibility policies.
+  1226→  1226→7. Verify schema through Supabase MCP.
+  1227→  1227→
+  1228→  1228→PHASE 2 — STOREFRONT REVIEW READ CHANGES
+  1229→  1229→
+  1230→  1230→1. Public review queries use approved reviews only.
+  1231→  1231→2. Public reviewer name comes from customer_name.
+  1232→  1232→3. Remove unnecessary public profile lookup for reviewer name.
+  1233→  1233→4. Preserve authenticated ownership/edit behavior.
+  1234→  1234→5. Preserve review UI.
+  1235→  1235→
+  1236→  1236→PHASE 3 — STOREFRONT REVIEW SUBMISSION CHANGE
+  1237→  1237→
+  1238→  1238→1. Preserve existing submission flow.
+  1239→  1239→2. Capture current authenticated user's name.
+  1240→  1240→3. Store customer_name.
+  1241→  1241→4. Store status = pending.
+  1242→  1242→5. Do not change eligibility logic.
+  1243→  1243→
+  1244→  1244→PHASE 4 — ADMIN APPLICATION
+  1245→  1245→
+  1246→  1246→1. Create /admin as independent Next.js app.
+  1247→  1247→2. Create its own package.json.
+  1248→  1248→3. Install only required dependencies.
+  1249→  1249→4. Configure server-only Supabase privileged client.
+  1250→  1250→5. Configure test environment.
+  1251→  1251→6. Build admin shell.
+  1252→  1252→7. Build Products.
+  1253→  1253→8. Build Categories.
+  1254→  1254→9. Build Reviews.
+  1255→  1255→10. Implement privileged server-side mutations.
+  1256→  1256→
+  1257→  1257→PHASE 5 — DEV SANDBOX INTEGRATION
+  1258→  1258→
+  1259→  1259→1. Inspect current dev orchestration.
+  1260→  1260→2. Start storefront and admin together.
+  1261→  1261→3. Route /admin to admin application.
+  1262→  1262→4. Preserve storefront routing.
+  1263→  1263→5. Ensure sandbox development URL exposes both.
+  1264→  1264→6. Ensure restart/stop lifecycle works.
+  1265→  1265→7. Verify admin is actually reachable through the development URL.
+  1266→  1266→
+  1267→  1267→PHASE 6 — TEST
+  1268→  1268→
+  1269→  1269→Run real tests.
+  1270→  1270→
+  1271→  1271→Do not stop after compilation.
+  1272→  1272→
+  1273→  1273→============================================================
+  1274→  1274→TESTING REQUIREMENTS
+  1275→  1275→============================================================
+  1276→  1276→
+  1277→  1277→You must actually test:
+  1278→  1278→
+  1279→  1279→DATABASE:
+  1280→  1280→
+  1281→  1281→- migration applies
+  1282→  1282→- status exists
+  1283→  1283→- customer_name exists
+  1284→  1284→- constraints work
+  1285→  1285→- view exists
+  1286→  1286→- public representation only exposes intended fields
+  1287→  1287→
+  1288→  1288→REVIEW SUBMISSION:
+  1289→  1289→
+  1290→  1290→- existing eligible user can submit
+  1291→  1291→- new review gets pending
+  1292→  1292→- customer_name is populated
+  1293→  1293→- existing eligibility still works
+  1294→  1294→- existing duplicate protection still works
+  1295→  1295→
+  1296→  1296→PUBLIC REVIEW:
+  1297→  1297→
+  1298→  1298→- approved review appears
+  1299→  1299→- pending review does not appear
+  1300→  1300→- rejected review does not appear
+  1301→  1301→- reviewer name appears correctly
+  1302→  1302→- public query does not require profiles table
+  1303→  1303→- user_id is not exposed through the public representation
+  1304→  1304→
+  1305→  1305→EXISTING REVIEW EDIT:
+  1306→  1306→
+  1307→  1307→- existing owner/edit flow still works
+  1308→  1308→- ownership remains based on existing user_id mechanism
+  1309→  1309→
+  1310→  1310→ADMIN:
+  1311→  1311→
+  1312→  1312→- /admin loads
+  1313→  1313→- products list loads
+  1314→  1314→- product create works
+  1315→  1315→- product edit works
+  1316→  1316→- category list loads
+  1317→  1317→- category create works
+  1318→  1318→- category edit works
+  1319→  1319→- reviews list loads
+  1320→  1320→- pending reviews appear
+  1321→  1321→- approve works
+  1322→  1322→- reject works
+  1323→  1323→
+  1324→  1324→SECURITY:
+  1325→  1325→
+  1326→  1326→- secret key is not in browser bundle
+  1327→  1327→- secret key is not in HTML
+  1328→  1328→- secret key is not in client source
+  1329→  1329→- secret key is not logged
+  1330→  1330→- storefront does not receive admin credentials
+  1331→  1331→- public users cannot approve reviews
+  1332→  1332→- public users cannot set status
+  1333→  1333→- public users cannot access private moderation fields
+  1334→  1334→- profiles remain protected
+  1335→  1335→
+  1336→  1336→DEVELOPMENT ENVIRONMENT:
+  1337→  1337→
+  1338→  1338→- storefront starts
+  1339→  1339→- admin starts
+  1340→  1340→- / works
+  1341→  1341→- /admin works
+  1342→  1342→- admin subroutes work
+  1343→  1343→- storefront routes still work
+  1344→  1344→- both apps restart correctly
+  1345→  1345→- no port/orchestration conflict
+  1346→  1346→
+  1347→  1347→BUILD:
+  1348→  1348→
+  1349→  1349→- storefront build succeeds
+  1350→  1350→- admin build succeeds
+  1351→  1351→- TypeScript checks
+  1352→  1352→- lint/checks where available
+  1353→  1353→- production/startup test if supported by the sandbox
+  1354→  1354→
+  1355→  1355→============================================================
+  1356→  1356→REGRESSION REQUIREMENTS
+  1357→  1357→============================================================
+  1358→  1358→
+  1359→  1359→Verify that the following remain unchanged:
+  1360→  1360→
+  1361→  1361→- login
+  1362→  1362→- product pages
+  1363→  1363→- category pages
+  1364→  1364→- shop
+  1365→  1365→- review eligibility
+  1366→  1366→- delivered-order verification
+  1367→  1367→- review ownership
+  1368→  1368→- review editing
+  1369→  1369→- product data
+  1370→  1370→- category data
+  1371→  1371→- stock
+  1372→  1372→- Worker
+  1373→  1373→- SEO
+  1374→  1374→- R2 images
+  1375→  1375→- navigation
+  1376→  1376→- header loader
+  1377→  1377→- existing caching
+  1378→  1378→- existing UI
+  1379→  1379→
+  1380→  1380→If a regression occurs, fix ONLY the regression caused by your Phase 1 changes.
+  1381→  1381→
+  1382→  1382→Do not use the regression as an excuse to refactor unrelated code.
+  1383→  1383→
+  1384→  1384→============================================================
+  1385→  1385→NO FAKE COMPLETION
+  1386→  1386→============================================================
+  1387→  1387→
+  1388→  1388→Do not say:
+  1389→  1389→
+  1390→  1390→"implemented"
+  1391→  1391→
+  1392→  1392→unless the implementation actually exists.
+  1393→  1393→
+  1394→  1394→Do not say:
+  1395→  1395→
+  1396→  1396→"tested"
+  1397→  1397→
+  1398→  1398→unless the test was actually run.
+  1399→  1399→
+  1400→  1400→Do not say:
+  1401→  1401→
+  1402→  1402→"secure"
+  1403→  1403→
+  1404→  1404→unless you actually verified the relevant boundary.
+  1405→  1405→
+  1406→  1406→Do not say:
+  1407→  1407→
+  1408→  1408→"admin works"
+  1409→  1409→
+  1410→  1410→unless /admin was actually accessed through the development URL.
+  1411→  1411→
+  1412→  1412→Do not say:
+  1413→  1413→
+  1414→  1414→"reviews are approved-only"
+  1415→  1415→
+  1416→  1416→unless the public query/data boundary was actually tested.
+  1417→  1417→
+  1418→  1418→============================================================
+  1419→  1419→FINAL REPORT
+  1420→  1420→============================================================
+  1421→  1421→
+  1422→  1422→After implementation and testing, provide a concise but complete report.
+  1423→  1423→
+  1424→  1424→Use exactly:
+  1425→  1425→
+  1426→  1426→# PHASE 1 IMPLEMENTATION COMPLETE
+  1427→  1427→
+  1428→  1428→## 1. What Changed
+  1429→  1429→
+  1430→  1430→List actual changes.
+  1431→  1431→
+  1432→  1432→## 2. Review System
+  1433→  1433→
+  1434→  1434→Explain:
+  1435→  1435→
+  1436→  1436→- status
+  1437→  1437→- pending behavior
+  1438→  1438→- approved-only public visibility
+  1439→  1439→- customer_name snapshot
+  1440→  1440→- public review data source
+  1441→  1441→- preserved existing eligibility/ownership behavior
+  1442→  1442→
+  1443→  1443→## 3. Admin Application
+  1444→  1444→
+  1445→  1445→Explain:
+  1446→  1446→
+  1447→  1447→- location
+  1448→  1448→- framework
+  1449→  1449→- independent package/dependencies
+  1450→  1450→- Products
+  1451→  1451→- Categories
+  1452→  1452→- Reviews
+  1453→  1453→
+  1454→  1454→## 4. Supabase
+  1455→  1455→
+  1456→  1456→List actual database changes.
+  1457→  1457→
+  1458→  1458→Do NOT output any secret credentials.
+  1459→  1459→
+  1460→  1460→## 5. Development Environment
+  1461→  1461→
+  1462→  1462→Explain exactly how /admin is exposed through the sandbox development URL.
+  1463→  1463→
+  1464→  1464→## 6. Security
+  1465→  1465→
+  1466→  1466→Confirm where the privileged Supabase credential exists and verify it is server-only.
+  1467→  1467→
+  1468→  1468→Do NOT print the credential.
+  1469→  1469→
+  1470→  1470→## 7. Tests Actually Run
+  1471→  1471→
+  1472→  1472→List exact commands/tests and results.
+  1473→  1473→
+  1474→  1474→## 8. Files Changed
+  1475→  1475→
+  1476→  1476→List actual changed files.
+  1477→  1477→
+  1478→  1478→## 9. Unrelated Issues Found
+  1479→  1479→
+  1480→  1480→Only list genuine issues discovered but intentionally left untouched.
+  1481→  1481→
+  1482→  1482→Do not turn these into extra work.
+  1483→  1483→
+  1484→  1484→## 10. Phase 2 Boundary
+  1485→  1485→
+  1486→  1486→Explicitly state:
+  1487→  1487→
+  1488→  1488→Phase 2 cache/revalidation redesign was NOT implemented.
+  1489→  1489→
+  1490→  1490→============================================================
+  1491→  1491→FINAL ABSOLUTE INSTRUCTION
+  1492→  1492→============================================================
+  1493→  1493→
+  1494→  1494→IMPLEMENT THE SPECIFICATION ABOVE.
+  1495→  1495→
+  1496→  1496→DO NOT DRIFT.
+  1497→  1497→
+  1498→  1498→DO NOT OVERENGINEER.
+  1499→  1499→
+  1500→  1500→DO NOT REBUILD WORKING SYSTEMS.
+  1501→  1501→
+  1502→  1502→DO NOT CHANGE OUT-OF-SCOPE SYSTEMS.
+  1503→  1503→
+  1504→  1504→DO NOT REMOVE FEATURES.
+  1505→  1505→
+  1506→  1506→DO NOT CHANGE UI/UX UNLESS EXPLICITLY REQUIRED.
+  1507→  1507→
+  1508→  1508→DO NOT TREAT CORRECT WORKING CODE AS BUGGY.
+  1509→  1509→
+  1510→  1510→DO NOT CREATE SUBAGENTS TO READ FILES.
+  1511→  1511→
+  1512→  1512→READ THE ACTUAL FILES YOURSELF.
+  1513→  1513→
+  1514→  1514→USE THE SUPABASE MCP.
+  1515→  1515→
+  1516→  1516→USE OFFICIAL DOCUMENTATION WHEN RESEARCH IS REQUIRED.
+  1517→  1517→
+  1518→  1518→TEST EVERYTHING YOU CLAIM TO HAVE IMPLEMENTED.
+  1519→  1519→
+  1520→  1520→THE TARGET IS A SMALL, PRODUCTION-GRADE REVIEW MODERATION CHANGE PLUS A CLEAN, SEPARATE PRIVATE ADMIN APPLICATION.
+  1521→  1521→
+  1522→  1522→NOT A CODEBASE REWRITE.

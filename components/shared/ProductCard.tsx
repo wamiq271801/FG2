@@ -16,11 +16,27 @@ type Props = {
   priority?: boolean;
 };
 
+/**
+ * NEW badge business rule: a product is NEW for exactly 7 × 24 hours (168
+ * hours) from its `addedAt` timestamp. At precisely 7 days it is no longer
+ * NEW (strict `<`).
+ *
+ * This file renders from both server (cached page scopes — where the value
+ * is computed at cache-fill time, the officially supported pattern for
+ * current-time reads under Cache Components) and client trees (where it is
+ * computed at the viewer's clock). Same rule, same UI, both contexts.
+ */
+export const NEW_BADGE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** The exact 7-day NEW rule, injectable `now` for tests. */
+export function isNewProduct(addedAt: string, now: number = Date.now()): boolean {
+  return now - +new Date(addedAt) < NEW_BADGE_WINDOW_MS;
+}
+
 export function ProductCard({ product, className, compact, priority }: Props) {
   const brandName = product.brandName;
   const href = `/product/${product.slug}`;
-  const isNew =
-    Date.now() - +new Date(product.addedAt) < 1000 * 60 * 60 * 24 * 60;
+  const isNew = isNewProduct(product.addedAt);
   const photo = product.images[0];
 
   return (
@@ -67,7 +83,10 @@ export function ProductCard({ product, className, compact, priority }: Props) {
                 Pre-order
               </span>
             )}
-            {!product.isPreorder && product.stock > 0 && isNew && (
+            {/* Stock is undefined on cached data before the live overlay —
+                an unknown stock never hides the NEW badge (optimistic, same
+                as the pre-overlay availability display). */}
+            {!product.isPreorder && (product.stock === undefined || product.stock > 0) && isNew && (
               <span className="rounded-full bg-background/85 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-foreground backdrop-blur-sm">
                 New
               </span>

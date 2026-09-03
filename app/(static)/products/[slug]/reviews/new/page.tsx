@@ -5,8 +5,6 @@ import { getProductBySlug } from "@/modules/catalog/products";
 import { ProductVisual } from "@/components/shared/ProductVisual";
 import { ReviewGate } from "./ReviewGate";
 
-export const revalidate = 0; // dynamic — auth-dependent
-
 type Params = Promise<{ slug: string }>;
 
 export async function generateMetadata({
@@ -25,6 +23,11 @@ export async function generateMetadata({
 }
 
 export default async function WriteReviewPage({ params }: { params: Params }) {
+  // COMPLETE server-rendered page: params are awaited directly in the page
+  // and the product scope resolves before the page renders (the root
+  // layout's above-body Suspense boundary is the official fully-dynamic
+  // opt-in). The auth-dependent form still lives in the ReviewGate client
+  // island; getProductBySlug reads through the shared "product" cache entry.
   const { slug } = await params;
   const product = await getProductBySlug(slug);
   if (!product) notFound();

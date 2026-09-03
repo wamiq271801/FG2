@@ -60,6 +60,8 @@ DROP TRIGGER IF EXISTS trg_orders_updated_at ON orders;
 CREATE TRIGGER trg_orders_updated_at BEFORE UPDATE ON orders FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 DROP TRIGGER IF EXISTS trg_product_reviews_eligibility ON product_reviews;
 CREATE TRIGGER trg_product_reviews_eligibility BEFORE INSERT OR UPDATE ON product_reviews FOR EACH ROW EXECUTE FUNCTION enforce_review_eligibility();
+DROP TRIGGER IF EXISTS trg_product_reviews_moderation ON product_reviews;
+CREATE TRIGGER trg_product_reviews_moderation BEFORE INSERT OR UPDATE ON product_reviews FOR EACH ROW EXECUTE FUNCTION stamp_review_moderation();
 DROP TRIGGER IF EXISTS trg_product_reviews_updated_at ON product_reviews;
 CREATE TRIGGER trg_product_reviews_updated_at BEFORE UPDATE ON product_reviews FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 DROP TRIGGER IF EXISTS trg_order_events_immutable ON order_events;

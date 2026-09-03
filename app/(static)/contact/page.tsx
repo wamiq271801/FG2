@@ -18,6 +18,14 @@ import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ContactForm } from "@/components/cms/ContactForm";
+import { JsonLd } from "@/components/shared/JsonLd";
+import {
+  buildJsonLdGraph,
+  organizationRef,
+  storeEntity,
+  storeRef,
+  webPageEntity,
+} from "@/lib/schema";
 
 export const metadata: Metadata = {
   title: "Contact us",
@@ -106,6 +114,20 @@ const HOURS_ROWS = [
 export default function ContactPage() {
   return (
     <div className="container-edge py-8 lg:py-12">
+      <JsonLd
+        data={buildJsonLdGraph(
+          storeEntity(),
+          webPageEntity({
+            path: "/contact",
+            type: "ContactPage",
+            name: "Contact us",
+            description:
+              "Talk to the people behind Fusion Gadgets. Phone, WhatsApp, email, or send us a message — we read everything within one business day. Visit our store in Bahraich, Uttar Pradesh.",
+            about: organizationRef(),
+            mainEntity: storeRef(),
+          })
+        )}
+      />
       <Breadcrumbs
         items={[{ label: "Home", href: "/" }, { label: "Contact" }]}
       />

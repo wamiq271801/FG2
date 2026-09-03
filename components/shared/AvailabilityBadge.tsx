@@ -2,7 +2,12 @@ import { cn } from "@/lib/utils";
 import type { Availability } from "@/types";
 
 type Props = {
-  availability: Availability;
+  /**
+   * Undefined when no live stock value is available (cached data before
+   * the overlay / a failed refresh) — the badge renders nothing rather
+   * than guessing an availability state.
+   */
+  availability?: Availability;
   stock?: number;
   className?: string;
 };
@@ -31,6 +36,7 @@ const map: Record<Availability, { label: string; dot: string; text: string }> = 
 };
 
 export function AvailabilityBadge({ availability, stock, className }: Props) {
+  if (!availability) return null;
   const m = map[availability];
   let label = m.label;
   if (availability === "low-stock" && stock) {

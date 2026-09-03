@@ -1,51 +1,62 @@
 /**
- * Server-side review data access. Reads via the public catalog client
- * (anon key, RLS-constrained). product_reviews has public SELECT.
+ * Server-side review data access. Public reads go through the
+ * published_reviews VIEW (approved reviews only, public columns only —
+ * no user_id, no moderation fields) via the public catalog client
+ * (anon key, RLS-constrained). The view is the single public review
+ * boundary defined by the Phase 1 review-moderation migration.
  *
- * Aggregates (average + distribution + count) are computed here from
- * product_reviews — never stored per-review.
+ * The reviewer's name comes from product_reviews.customer_name (the
+ * snapshot stamped by the database at submission time) — no profiles
+ * join and no access to the protected profiles table.
+ *
+ * Phase 2 cache architecture: the PDP review data
+ * (`getReviewData`) and each paginated reviews page
+ * (`getPaginatedReviews`) are 'use cache' scopes tagged
+ * `reviews:{productId}` + `reviews` — invalidated by review.* domain
+ * events. Aggregates (average + distribution + count) are computed from
+ * published_reviews at cache-fill time — never stored per-review.
  */
+import { cacheLife, cacheTag } from "next/cache";
 import { createCatalogClient } from "@/lib/supabase/catalog";
 import type { Review, ReviewSummary, RatingDistribution } from "@/types";
 
 type ReviewRow = {
   id: number;
   product_id: string;
-  user_id: string;
+  customer_name: string | null;
   rating: number;
   title: string;
   body: string;
   created_at: string;
   updated_at: string;
-  profiles: { full_name: string | null }[] | null;
 };
 
 const REVIEW_SELECT = `
-  id, product_id, user_id, rating, title, body, created_at, updated_at,
-  profiles:profiles(full_name)
+  id, product_id, customer_name, rating, title, body, created_at, updated_at
 `;
 
 function mapReview(r: ReviewRow): Review {
-  const profile = r.profiles?.[0];
   return {
     id: String(r.id),
     productId: r.product_id,
-    userId: r.user_id,
     rating: r.rating,
     title: r.title || "",
     body: r.body,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
-    authorName: profile?.full_name || "Verified buyer",
+    // Public review data carries no user identity — the view does not
+    // expose user_id. Ownership is resolved client-side by the
+    // authenticated edit flow, never from public review data.
+    authorName: r.customer_name || "Verified buyer",
   };
 }
 
 // Aggregate: average + count + per-star distribution. Computed fresh from
-// product_reviews. No stored aggregate table.
+// published_reviews (approved only). No stored aggregate table.
 export async function getReviewSummary(productId: string): Promise<ReviewSummary> {
   const supabase = createCatalogClient();
   const { data, error } = await supabase
-    .from("product_reviews")
+    .from("published_reviews")
     .select("rating")
     .eq("product_id", productId);
   if (error || !data) {
@@ -67,7 +78,7 @@ export async function getReviewSummary(productId: string): Promise<ReviewSummary
 export async function getLatestReviews(productId: string, limit = 4): Promise<Review[]> {
   const supabase = createCatalogClient();
   const { data, error } = await supabase
-    .from("product_reviews")
+    .from("published_reviews")
     .select(REVIEW_SELECT)
     .eq("product_id", productId)
     .order("created_at", { ascending: false })
@@ -76,25 +87,51 @@ export async function getLatestReviews(productId: string, limit = 4): Promise<Re
   return (data as ReviewRow[]).map(mapReview);
 }
 
-// Paginated reviews for the full reviews page (SSR).
+/**
+ * The PDP review-data scope — tags: `reviews`, `reviews:{productId}`.
+ * One entry per product serves the product page's summary, distribution,
+ * latest-reviews list and the reviews-page header summary.
+ */
+export async function getReviewData(
+  productId: string
+): Promise<{ summary: ReviewSummary; latest: Review[] }> {
+  "use cache";
+  cacheLife("indefinite");
+  cacheTag("reviews", `reviews:${productId}`);
+
+  const [summary, latest] = await Promise.all([
+    getReviewSummary(productId),
+    getLatestReviews(productId, 4),
+  ]);
+  return { summary, latest };
+}
+
+/**
+ * The paginated reviews scope — tags: `reviews`, `reviews:{productId}`.
+ * One entry per (productId, page); invalidated as a set by review events.
+ */
 export async function getPaginatedReviews(
   productId: string,
   page: number,
   pageSize = 20
 ): Promise<{ reviews: Review[]; total: number; totalPages: number }> {
+  "use cache";
+  cacheLife("indefinite");
+  cacheTag("reviews", `reviews:${productId}`);
+
   const supabase = createCatalogClient();
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
   const [reviewsRes, countRes] = await Promise.all([
     supabase
-      .from("product_reviews")
+      .from("published_reviews")
       .select(REVIEW_SELECT)
       .eq("product_id", productId)
       .order("created_at", { ascending: false })
       .range(from, to),
     supabase
-      .from("product_reviews")
+      .from("published_reviews")
       .select("id", { count: "exact", head: true })
       .eq("product_id", productId),
   ]);
@@ -106,17 +143,4 @@ export async function getPaginatedReviews(
     total,
     totalPages: Math.max(1, Math.ceil(total / pageSize)),
   };
-}
-
-// Single review by id (for the edit page). Public read; ownership is enforced
-// by RLS on UPDATE. The edit page SSR-fetches this for context only.
-export async function getReviewById(reviewId: string): Promise<Review | null> {
-  const supabase = createCatalogClient();
-  const { data, error } = await supabase
-    .from("product_reviews")
-    .select(REVIEW_SELECT)
-    .eq("id", reviewId)
-    .maybeSingle();
-  if (error || !data) return null;
-  return mapReview(data as ReviewRow);
 }

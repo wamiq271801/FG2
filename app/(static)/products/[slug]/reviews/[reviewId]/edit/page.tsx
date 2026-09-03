@@ -1,12 +1,9 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getProductBySlug } from "@/modules/catalog/products";
-import { getReviewById } from "@/modules/review/data";
 import { ProductVisual } from "@/components/shared/ProductVisual";
 import { ReviewEditGate } from "./ReviewEditGate";
-
-export const revalidate = 0;
 
 type Params = Promise<{ slug: string; reviewId: string }>;
 
@@ -26,12 +23,18 @@ export async function generateMetadata({
 }
 
 export default async function EditReviewPage({ params }: { params: Params }) {
+  // COMPLETE server-rendered page: params are awaited directly in the page
+  // and the product scope resolves before the page renders (the root
+  // layout's above-body Suspense boundary is the official fully-dynamic
+  // opt-in). The auth-dependent form still lives in the ReviewEditGate
+  // client island; getProductBySlug reads through the shared "product"
+  // cache entry. The review itself is fetched client-side by the gate with
+  // the signed-in user's session — a pending review is only visible to its
+  // owner (approved reviews are public), so an anonymous SSR fetch would 404
+  // the owner's edit page.
   const { slug, reviewId } = await params;
   const product = await getProductBySlug(slug);
   if (!product) notFound();
-
-  const review = await getReviewById(reviewId);
-  if (!review) notFound();
 
   const primaryImage = product.images[0];
 
@@ -74,7 +77,7 @@ export default async function EditReviewPage({ params }: { params: Params }) {
 
         {/* The gate renders the form itself client-side — function props
             cannot cross the Server→Client component boundary. */}
-        <ReviewEditGate review={review} slug={product.slug} />
+        <ReviewEditGate reviewId={reviewId} slug={product.slug} />
       </div>
     </main>
   );

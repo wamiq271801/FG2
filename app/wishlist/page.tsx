@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import { connection } from "next/server";
 import { Link } from "@/components/shared/Link";
 import { ArrowRight } from "lucide-react";
-import { getFeaturedProducts, getOnSaleProducts } from "@/modules/catalog/products";
+import { resolveFeedProducts } from "@/modules/catalog/products";
+import { getStocks, overlayStock } from "@/modules/catalog/stock";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { WishlistItems } from "@/components/wishlist/WishlistItems";
 import { Button } from "@/components/ui/button";
@@ -14,15 +17,12 @@ export const metadata: Metadata = {
   alternates: { canonical: "/wishlist" },
 };
 
-export default async function WishlistPage() {
-  const [featured, onSale] = await Promise.all([
-    getFeaturedProducts(2),
-    getOnSaleProducts(2),
-  ]);
-  const suggested = [...featured, ...onSale]
-    .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
-    .slice(0, 4);
-
+// Class B (user-specific) page: the shell renders PER REQUEST (Phase 2) —
+// nothing user-scoped is ever publicly cached, and the interactive wishlist
+// itself lives in the WishlistItems client island. The suggestion products
+// assemble the cached feed scopes + card dataset with one live stock
+// overlay, streamed inside Suspense so the shell paints immediately.
+export default function WishlistPage() {
   return (
     <div className="container-edge py-6 lg:py-10">
       <Breadcrumbs
@@ -54,7 +54,34 @@ export default async function WishlistPage() {
         </Button>
       </header>
 
-      <WishlistItems suggestedProducts={suggested} />
+      <Suspense fallback={null}>
+        <WishlistSuggestions />
+      </Suspense>
+
+      {/* Dynamic marker: guarantees the shell renders per request (official
+          Cache Components pattern — see the search page). */}
+      <Suspense>
+        <ConnectionMarker />
+      </Suspense>
     </div>
   );
+}
+
+async function ConnectionMarker() {
+  await connection();
+  return null;
+}
+
+async function WishlistSuggestions() {
+  const [featured, onSale] = await Promise.all([
+    resolveFeedProducts("featured", 2),
+    resolveFeedProducts("on-sale", 2),
+  ]);
+  const suggestedRaw = [...featured, ...onSale]
+    .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
+    .slice(0, 4);
+  const stockMap = await getStocks(suggestedRaw.map((p) => p.id));
+  const suggested = overlayStock(suggestedRaw, stockMap);
+
+  return <WishlistItems suggestedProducts={suggested} />;
 }

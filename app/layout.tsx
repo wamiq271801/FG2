@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Geist, Geist_Mono, Fraunces } from "next/font/google";
 import "./globals.css";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -10,6 +11,7 @@ import { SiteHeader } from "@/components/layout/SiteHeader";
 import { NavigationProgress } from "@/components/layout/NavigationProgress";
 import { OperationOverlay } from "@/components/shared/OperationOverlay";
 import { cn } from "@/lib/utils";
+import { SITE_ORIGIN } from "@/lib/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,10 +32,8 @@ const fraunces = Fraunces({
   axes: ["SOFT", "WONK", "opsz"],
 });
 
-const siteUrl = "https://fusiongadgets.in";
-
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  metadataBase: new URL(SITE_ORIGIN),
   title: {
     default: "Fusion Gadgets — Considered tech, for everyday life",
     template: "%s · Fusion Gadgets",
@@ -61,7 +61,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_IN",
-    url: siteUrl,
+    url: SITE_ORIGIN,
     siteName: "Fusion Gadgets",
     title: "Fusion Gadgets — Electronics, Home Appliances & Utility Gadgets Store in Bahraich",
     description:
@@ -96,36 +96,53 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={cn(
-          geistSans.variable,
-          geistMono.variable,
-          fraunces.variable,
-          "antialiased bg-background text-foreground min-h-screen flex flex-col font-sans"
-        )}
-      >
-        <AuthProvider>
-          <TurnstileProvider>
-            <CartProvider>
-              <RouteGuard>
-                <a
-                  href="#main"
-                  className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:shadow-lg"
-                >
-                  Skip to content
-                </a>
-                <NavigationProgress />
-                <SiteHeader />
-                <main id="main" className="flex-1">
-                  {children}
-                </main>
-                <OperationOverlay />
-              </RouteGuard>
-            </CartProvider>
-          </TurnstileProvider>
-        </AuthProvider>
-        <Sonner />
-      </body>
+      {/* Suspense ABOVE <body> — the official Cache Components opt-in for
+          fully dynamic rendering (see dynamic-rendering.js: hasSuspenseAbove
+          Body — "an explicit signal from the user that they acknowledge the
+          empty shell and want dynamic rendering"). With this boundary in
+          place, routes whose pages await uncached data directly (instead of
+          hiding it behind per-page `<Suspense fallback={null}>` holes)
+          render COMPLETELY on the server per request: the document is
+          rendered in full and returned — no empty-shell-first, no streamed
+          content sections. Pages that are fully static/cached still
+          prerender as before (nothing suspends, so this boundary resolves
+          and disappears from their output). During client navigation the
+          pending destination page suspends here at an already-committed
+          boundary, so React retains the current page until the new one is
+          fully rendered — the shared layout, header and footer stay mounted
+          and stable (no blank main, no footer jump, no scroll jump). */}
+      <Suspense fallback={null}>
+        <body
+          className={cn(
+            geistSans.variable,
+            geistMono.variable,
+            fraunces.variable,
+            "antialiased bg-background text-foreground min-h-screen flex flex-col font-sans"
+          )}
+        >
+          <AuthProvider>
+            <TurnstileProvider>
+              <CartProvider>
+                <RouteGuard>
+                  <a
+                    href="#main"
+                    className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:shadow-lg"
+                  >
+                    Skip to content
+                  </a>
+                  <NavigationProgress />
+                  <SiteHeader />
+                  <main id="main" className="flex-1">
+                    {children}
+                  </main>
+                  <OperationOverlay />
+                </RouteGuard>
+              </CartProvider>
+            </TurnstileProvider>
+          </AuthProvider>
+          <Sonner />
+        </body>
+      </Suspense>
     </html>
   );
 }

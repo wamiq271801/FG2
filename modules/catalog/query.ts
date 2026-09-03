@@ -1,8 +1,9 @@
 /**
  * Server-side catalog query helpers.
  *
- * Pure functions that take the full product list (from `getAllProducts` or
- * `getProductsByCategory`) and apply URL-driven filters, sort and pagination.
+ * Pure functions that take the full product list (from the cached card
+ * dataset `getAllProductCards` with its live stock overlay) and apply
+ * URL-driven filters, sort and pagination.
  *
  * These helpers are imported by Server Components only — the client filter UI
  * (`FilterPanel`) builds URLs that this module knows how to parse.

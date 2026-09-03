@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { Link } from "@/components/shared/Link";
 import { Suspense } from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { SearchResults } from "@/components/search/SearchResults";
-import { getTrendingProducts } from "@/modules/catalog/products";
+import { resolveFeedProducts } from "@/modules/catalog/products";
+import { getStocks, overlayStock } from "@/modules/catalog/stock";
 import { getAllCategories, getCategoryProductCounts } from "@/modules/catalog/categories";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -35,15 +35,22 @@ export async function generateMetadata({
   };
 }
 
+// COMPLETE server-rendered page: the trending/categories data resolves
+// server-side before the page renders (the root layout's above-body Suspense
+// boundary is the official fully-dynamic opt-in). The inner boundary below
+// exists only because SearchResults is a client island reading
+// useSearchParams — Next requires a Suspense boundary above that hook; the
+// actual search query runs client-side via the public Supabase client.
 export default async function SearchPage() {
-  // Server-render the trending products + categories so the shell (landing +
-  // empty states) renders instantly. The actual search query runs client-side
-  // via the public Supabase client.
-  const [trendingProducts, categories, countMap] = await Promise.all([
-    getTrendingProducts(4),
+  // Feed surface (feed:home-tagged ids) + cached card dataset + ONE live
+  // stock overlay — the same per-request assembly the home page uses.
+  const [trendingCards, categories, countMap] = await Promise.all([
+    resolveFeedProducts("trending", 4),
     getAllCategories(),
     getCategoryProductCounts(),
   ]);
+  const stockMap = await getStocks(trendingCards.map((p) => p.id));
+  const trendingProducts = overlayStock(trendingCards, stockMap);
   const categoriesWithCounts = categories.map((c) => ({
     ...c,
     productCount: countMap.get(c.id) ?? 0,

@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import { connection } from "next/server";
 import { Link } from "@/components/shared/Link";
 import { ArrowRight, ShoppingBag } from "lucide-react";
-import { getFeaturedProducts, getOnSaleProducts } from "@/modules/catalog/products";
+import { resolveFeedProducts } from "@/modules/catalog/products";
+import { getStocks, overlayStock } from "@/modules/catalog/stock";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { CartItems } from "@/components/cart/CartItems";
 import { Button } from "@/components/ui/button";
@@ -14,17 +17,12 @@ export const metadata: Metadata = {
   alternates: { canonical: "/cart" },
 };
 
-export default async function CartPage() {
-  // Pull a few suggestions server-side for the empty-cart state — preferred
-  // editorial picks + a couple of on-sale items so the suggestions feel fresh.
-  const [featured, onSale] = await Promise.all([
-    getFeaturedProducts(2),
-    getOnSaleProducts(2),
-  ]);
-  const suggested = [...featured, ...onSale]
-    .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
-    .slice(0, 4);
-
+// Class B (user-specific) page: the shell renders PER REQUEST (Phase 2) —
+// nothing user-scoped is ever publicly cached, and the interactive cart
+// itself lives in the CartItems client island. The suggestion products
+// assemble the cached feed scopes + card dataset with one live stock
+// overlay, streamed inside Suspense so the shell paints immediately.
+export default function CartPage() {
   return (
     <div className="container-edge py-6 lg:py-10">
       <Breadcrumbs
@@ -60,7 +58,36 @@ export default async function CartPage() {
       </header>
 
       {/* Interactive body — client island handles hydration + empty + populated states */}
-      <CartItems suggestedProducts={suggested} />
+      <Suspense fallback={null}>
+        <CartSuggestions />
+      </Suspense>
+
+      {/* Dynamic marker: guarantees the shell renders per request (official
+          Cache Components pattern — see the search page). */}
+      <Suspense>
+        <ConnectionMarker />
+      </Suspense>
     </div>
   );
+}
+
+async function ConnectionMarker() {
+  await connection();
+  return null;
+}
+
+async function CartSuggestions() {
+  // Pull a few suggestions server-side for the empty-cart state — preferred
+  // editorial picks + a couple of on-sale items so the suggestions feel fresh.
+  const [featured, onSale] = await Promise.all([
+    resolveFeedProducts("featured", 2),
+    resolveFeedProducts("on-sale", 2),
+  ]);
+  const suggestedRaw = [...featured, ...onSale]
+    .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
+    .slice(0, 4);
+  const stockMap = await getStocks(suggestedRaw.map((p) => p.id));
+  const suggested = overlayStock(suggestedRaw, stockMap);
+
+  return <CartItems suggestedProducts={suggested} />;
 }

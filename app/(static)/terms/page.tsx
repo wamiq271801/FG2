@@ -3,6 +3,8 @@ import { Link } from "@/components/shared/Link";
 import { Mail, Scale } from "lucide-react";
 import { storeInfo } from "@/lib/store-info";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
+import { JsonLd } from "@/components/shared/JsonLd";
+import { buildJsonLdGraph, webPageEntity } from "@/lib/schema";
 import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = {
@@ -45,6 +47,16 @@ const SECTIONS = [
 export default function TermsPage() {
   return (
     <div className="container-edge py-8 lg:py-12">
+      <JsonLd
+        data={buildJsonLdGraph(
+          webPageEntity({
+            path: "/terms",
+            name: "Terms of sale",
+            description:
+              "Fusion Gadgets terms of sale — acceptance, products & pricing, orders, payment, shipping, returns, warranties, liability, intellectual property, governing law (India/Maharashtra), and contact.",
+          })
+        )}
+      />
       <Breadcrumbs
         items={[{ label: "Home", href: "/" }, { label: "Terms of sale" }]}
       />

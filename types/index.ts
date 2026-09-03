@@ -41,6 +41,19 @@ export type Brand = {
 export type Availability = "in-stock" | "low-stock" | "out-of-stock" | "preorder";
 
 /**
+ * Live stock snapshot for one product — the ONLY source of availability
+ * truth at render time. Cached catalog scopes exclude stock entirely;
+ * pages merge a live `getStocks()` overlay (server) and the PDP refreshes
+ * once more after hydration via `useStock` / GET /api/stock.
+ */
+export type StockInfo = {
+  stock: number;
+  isActive: boolean;
+  isPreorder: boolean;
+  availability: Availability;
+};
+
+/**
  * Derive the display availability state from authoritative product fields.
  * This is computed client-side from the data returned by the DB — no
  * availability_enum column exists anymore.
@@ -59,8 +72,14 @@ export function deriveAvailability(
   return "in-stock";
 }
 
+/**
+ * One specifications row from the products.specs JSONB column.
+ * `key` is the spec's own identity field — written by the product import
+ * (normalizeSpecs) and verified unique within each product's specs array.
+ * It is the stable React element identity for spec rows.
+ */
 export type ProductSpec = {
-  label: string;
+  key: string;
   value: string;
 };
 
@@ -89,14 +108,20 @@ export type ProductVariation = {
 export type Review = {
   id: string;
   productId: string;
-  userId: string;
+  /**
+   * Present only on owner-scoped reads (the authenticated edit flow).
+   * Public review data (published_reviews view) carries no user
+   * identity, so public reviews have no userId.
+   */
+  userId?: string;
   rating: number; // 1–5
   title: string;
   body: string;
   createdAt: string; // ISO
   updatedAt: string; // ISO
-  // Display-only: the reviewer's name. Reviews require a delivered purchase,
-  // so all reviews are "verified purchases" — no stored boolean.
+  // Display-only: the reviewer's name (customer_name snapshot at
+  // submission time). Reviews require a delivered purchase, so all
+  // reviews are "verified purchases" — no stored boolean.
   authorName: string;
 };
 
@@ -126,9 +151,13 @@ export type Product = {
   brand: Slug;
   /** Denormalized brand name for card display (avoids a separate lookup) */
   brandName?: string;
+  /** Denormalized brand country — detail queries only (PDP brand line) */
+  brandCountry?: string;
   category: Slug;
   /** Internal category identity (uuid) — used for ID-based relationships */
   categoryId?: string;
+  /** Denormalized category name (breadcrumb / JSON-LD on detail pages) */
+  categoryName?: string;
   subcategory?: string;
   /** Short marketing line for cards */
   tagline: string;
@@ -144,10 +173,18 @@ export type Product = {
   /** Visual key used by the procedural ProductVisual fallback */
   visualKey: ProductVisualKey;
   accent: string;
-  /** Derived availability — computed from isActive + isPreorder + stock. */
-  availability: Availability;
-  /** Numeric stock value. Always a number (>= 0). */
-  stock: number;
+  /**
+   * Derived availability — computed from isActive + isPreorder + stock.
+   * UNSET on cached catalog data (stock never enters a shared cache); set
+   * by the live stock overlay at render time (server) or by `useStock`
+   * (client, after hydration).
+   */
+  availability?: Availability;
+  /**
+   * Numeric stock value (>= 0). UNSET on cached catalog data — volatile
+   * stock is read live (getStocks / GET /api/stock) and never cached.
+   */
+  stock?: number;
   /** True if this product is a preorder item (stock may be 0 but purchasable). */
   isPreorder: boolean;
   rating: number;

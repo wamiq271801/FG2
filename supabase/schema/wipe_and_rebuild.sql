@@ -26,6 +26,8 @@ DROP TRIGGER IF EXISTS trg_worker_rate_limits_updated_at ON worker_rate_limits;
 DROP TRIGGER IF EXISTS trg_products_assign_sku ON products;
 DROP TRIGGER IF EXISTS trg_order_events_reject_mutation ON order_events;
 DROP TRIGGER IF EXISTS trg_product_reviews_enforce_eligibility ON product_reviews;
+DROP TRIGGER IF EXISTS trg_product_reviews_eligibility ON product_reviews;
+DROP TRIGGER IF EXISTS trg_product_reviews_moderation ON product_reviews;
 DROP TRIGGER IF EXISTS trg_auth_users AFTER INSERT ON auth.users;
 
 -- Policies
@@ -44,6 +46,7 @@ END $$;
 
 -- Tables (reverse dependency order)
 DROP TABLE IF EXISTS product_reviews CASCADE;
+DROP VIEW IF EXISTS published_reviews;
 DROP TABLE IF EXISTS order_events CASCADE;
 DROP TABLE IF EXISTS order_items CASCADE;
 DROP TABLE IF EXISTS orders CASCADE;
@@ -118,7 +121,8 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 -- 06_triggers.sql (paste contents of 06_triggers.sql here)
 -- 07_rls.sql (paste contents of 07_rls.sql here)
 -- 08_grants.sql (paste contents of 08_grants.sql here)
--- 09_seed.sql (paste contents of 09_seed.sql here)
+-- 09_views.sql (paste contents of 09_views.sql here)
+-- 10_seed.sql (paste contents of 09_seed.sql here)
 
 -- ─── PHASE 3: Seed data ─────────────────────────────────────
 -- Run seed_generated.sql after schema is recreated.

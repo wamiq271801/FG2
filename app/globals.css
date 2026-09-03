@@ -121,7 +121,9 @@
   }
 }
 
-  /* Navigation progress indicator — indeterminate comet */
+  /* Navigation progress indicator — indeterminate comet. The single loader
+     animation: it runs for the entire pending period and the element simply
+     unmounts when the navigation commits (no completion/fill animation). */
   @keyframes nav-progress {
     0% { transform: translateX(-100%); }
     100% { transform: translateX(300%); }
@@ -129,17 +131,8 @@
   .animate-nav-progress {
     animation: nav-progress 1.2s ease-in-out infinite;
   }
-  /* Navigation progress — completion fade */
-  @keyframes nav-finish {
-    0% { opacity: 1; }
-    100% { opacity: 0; }
-  }
-  .animate-nav-finish {
-    animation: nav-finish 0.4s ease-out forwards;
-  }
   @media (prefers-reduced-motion: reduce) {
     .animate-nav-progress { animation: none; }
-    .animate-nav-finish { animation: none; }
   }
 
 @layer utilities {

@@ -1,0 +1,2002 @@
+     1→You are implementing PHASE 2 of the Fusion Gadgets project.
+     2→
+     3→THIS IS AN IMPLEMENTATION TASK.
+     4→
+     5→You must inspect the real codebase, design the target architecture from the requirements below, rewrite the relevant legacy architecture where necessary, implement the complete system across BOTH the main storefront and the separate admin application, test it end-to-end, and finish with a verified working implementation.
+     6→
+     7→DO NOT treat this as a small patch.
+     8→
+     9→DO NOT try to force the new architecture onto the old architecture.
+    10→
+    11→DO NOT preserve obsolete architecture merely because it already works.
+    12→
+    13→DO NOT create compatibility layers just to avoid rewriting legacy code.
+    14→
+    15→DO NOT implement a half-storefront / half-admin solution.
+    16→
+    17→The main website and admin are TWO APPLICATIONS but this phase is ONE COORDINATED SYSTEM.
+    18→
+    19→The main website OWNS the cache and invalidation system.
+    20→
+    21→The admin OWNS product/category/review management and acts as the NOTIFIER of domain changes.
+    22→
+    23→Read this entire prompt before planning or editing anything.
+    24→
+    25→============================================================
+    26→0. NON-NEGOTIABLE EXECUTION RULES
+    27→============================================================
+    28→
+    29→1. READ THE ACTUAL CODEBASE FIRST.
+    30→
+    31→Do not assume the previous analysis is complete or correct.
+    32→
+    33→Inspect the actual files, functions, components, routes, configs, database schema, migrations, and runtime setup.
+    34→
+    35→2. DO NOT CREATE SUBAGENTS JUST TO READ FILES.
+    36→
+    37→You have direct access to the repository.
+    38→
+    39→Read the files yourself.
+    40→
+    41→Do not delegate basic file discovery, file reading, grep/search, or content retrieval to subagents.
+    42→
+    43→Subagents are not needed for basic repository inspection.
+    44→
+    45→3. DO NOT IMPLEMENT FROM MEMORY OR FROM THE PREVIOUS SUMMARY.
+    46→
+    47→The repository is the source of truth.
+    48→
+    49→Previous plans are requirements and context, not proof that the code currently matches them.
+    50→
+    51→4. IF THE CURRENT CODE CONFLICTS WITH THIS TARGET ARCHITECTURE:
+    52→
+    53→REWRITE IT.
+    54→
+    55→Do not create adapters, shims, wrappers, compatibility layers, dual systems, or fallback logic whose only purpose is keeping obsolete architecture alive.
+    56→
+    57→5. DO NOT OPTIMIZE FOR THE SMALLEST DIFF.
+    58→
+    59→Optimize for a clean, correct, understandable modern architecture.
+    60→
+    61→6. DO NOT CALL CORRECT WORKING CODE "BUGGY" MERELY BECAUSE YOU WOULD HAVE WRITTEN IT DIFFERENTLY.
+    62→
+    63→Only change existing behavior when required by this phase, when required for the target architecture, or when there is a demonstrated correctness/security problem.
+    64→
+    65→7. DO NOT OVERENGINEER.
+    66→
+    67→Do not add infrastructure unless the requirements explicitly need it.
+    68→
+    69→8. DO NOT SKIP REQUIREMENTS.
+    70→
+    71→Maintain a requirements checklist and verify every item before finishing.
+    72→
+    73→9. DO NOT CLAIM SUCCESS WITHOUT TESTING.
+    74→
+    75→If something is not verified, say so.
+    76→
+    77→10. DO NOT STOP AFTER COMPILATION.
+    78→
+    79→Build success is not enough.
+    80→
+    81→You must test the real behavior across both applications.
+    82→
+    83→============================================================
+    84→1. PHASE 2 OBJECTIVE
+    85→============================================================
+    86→
+    87→Build the final modern public-catalog caching + invalidation architecture.
+    88→
+    89→The architecture MUST be:
+    90→
+    91→PUBLIC STABLE CATALOG DATA
+    92→    → cached by the MAIN WEBSITE
+    93→    → explicitly invalidated when relevant domain data changes
+    94→
+    95→VOLATILE STOCK / AVAILABILITY
+    96→    → NOT part of shared catalog cache
+    97→    → refreshed in the browser after hydration
+    98→
+    99→USER-SPECIFIC APPLICATION DATA
+   100→    → remains dynamic/client-loaded according to the existing architecture
+   101→
+   102→STATIC INFORMATIONAL PAGES
+   103→    → generated as static pages during build
+   104→    → no runtime invalidation
+   105→
+   106→ADMIN
+   107→    → performs database mutations
+   108→    → notifies the main website that a domain event happened
+   109→
+   110→MAIN WEBSITE
+   111→    → owns cache boundaries
+   112→    → owns cache tags
+   113→    → owns invalidation policy
+   114→    → owns the invalidation endpoint
+   115→    → performs revalidation itself
+   116→
+   117→THIS IS ONE SYSTEM BETWEEN THE MAIN WEBSITE AND ADMIN.
+   118→
+   119→============================================================
+   120→2. PAGE CLASSIFICATION — HARD BOUNDARIES
+   121→============================================================
+   122→
+   123→There are THREE fundamentally different page/data classes.
+   124→
+   125→------------------------------------------------------------
+   126→CLASS A — STATIC INFORMATIONAL PAGES
+   127→------------------------------------------------------------
+   128→
+   129→Examples include:
+   130→
+   131→- About
+   132→- Privacy
+   133→- Terms
+   134→- Contact
+   135→- Other genuinely static informational pages
+   136→
+   137→These pages are completely static.
+   138→
+   139→Their intended lifecycle is:
+   140→
+   141→SOURCE
+   142→    ↓
+   143→BUILD
+   144→    ↓
+   145→STATIC OUTPUT
+   146→    ↓
+   147→SERVE
+   148→
+   149→They require:
+   150→
+   151→- no cache tags
+   152→- no runtime invalidation
+   153→- no periodic revalidation
+   154→- no runtime catalog queries
+   155→- no invalidation events
+   156→
+   157→Do not pull these pages into the catalog caching system.
+   158→
+   159→Do not invent refresh events for static informational pages.
+   160→
+   161→Keep them static.
+   162→
+   163→------------------------------------------------------------
+   164→CLASS B — USER-SPECIFIC APPLICATION PAGES
+   165→------------------------------------------------------------
+   166→
+   167→Examples include:
+   168→
+   169→- profile
+   170→- account
+   171→- wishlist
+   172→- cart
+   173→- orders
+   174→- other authenticated/user-specific application pages
+   175→
+   176→The existing architecture is:
+   177→
+   178→STATIC SERVER SHELL
+   179→    ↓
+   180→CLIENT-SIDE DATA LOADING
+   181→
+   182→THIS MUST REMAIN.
+   183→
+   184→Do not convert these pages into public shared caches.
+   185→
+   186→Do not introduce public cache tags for user data.
+   187→
+   188→Do not move their user-specific data fetching into shared public cache scopes.
+   189→
+   190→Do not redesign their architecture merely because Phase 2 is modernizing catalog caching.
+   191→
+   192→Preserve the static shell + client-side user-data architecture unless a concrete dependency required by Phase 2 makes a minimal change unavoidable.
+   193→
+   194→Do not use the catalog invalidation system for user-specific state.
+   195→
+   196→------------------------------------------------------------
+   197→CLASS C — PUBLIC CATALOG / PUBLIC CONTENT
+   198→------------------------------------------------------------
+   199→
+   200→This is the actual Phase 2 target.
+   201→
+   202→Examples include:
+   203→
+   204→- homepage
+   205→- shop/catalog
+   206→- categories
+   207→- category detail
+   208→- product detail
+   209→- public offers
+   210→- approved public reviews
+   211→- catalog-driven navigation/footer where appropriate
+   212→- sitemap data
+   213→- other public catalog-derived content
+   214→
+   215→These pages/data are where the new cache architecture applies.
+   216→
+   217→============================================================
+   218→3. NO PERIODIC REVALIDATION — ABSOLUTE
+   219→============================================================
+   220→
+   221→THIS IS NON-NEGOTIABLE.
+   222→
+   223→DO NOT implement periodic catalog freshness.
+   224→
+   225→DO NOT use periodic revalidation as the application freshness strategy.
+   226→
+   227→DO NOT implement:
+   228→
+   229→- 5 minute revalidation
+   230→- 10 minute revalidation
+   231→- 15 minute revalidation
+   232→- hourly refresh
+   233→- cron refresh
+   234→- polling
+   235→- scheduled cache refresh
+   236→- background refresh
+   237→- timed catalog refresh
+   238→- catalog polling
+   239→- "fallback TTL" designed to keep catalog data fresh
+   240→
+   241→The current system contains TTL-driven cacheLife profiles.
+   242→
+   243→Those must NOT remain as the application's catalog freshness mechanism.
+   244→
+   245→Do not simply change the numbers.
+   246→
+   247→Do not preserve them "for safety."
+   248→
+   249→The target model is:
+   250→
+   251→CACHE
+   252→    ↓
+   253→remain cached
+   254→    ↓
+   255→DOMAIN CHANGE / EXPLICIT REFRESH
+   256→    ↓
+   257→ON-DEMAND INVALIDATION
+   258→    ↓
+   259→next relevant request obtains fresh data
+   260→    ↓
+   261→fresh result becomes cached again
+   262→
+   263→There is NO periodic catalog refresh mechanism.
+   264→
+   265→IMPORTANT:
+   266→
+   267→Do not interpret this as "remove cacheLife blindly."
+   268→
+   269→Use the current supported Next.js cache APIs correctly.
+   270→
+   271→Determine the correct modern cache configuration for the installed Next.js version.
+   272→
+   273→The application MUST NOT use time-based server revalidation as its intended freshness strategy.
+   274→
+   275→============================================================
+   276→4. MODERNIZATION / REWRITE RULE
+   277→============================================================
+   278→
+   279→Do NOT build the modern architecture around legacy architecture.
+   280→
+   281→Do NOT do this:
+   282→
+   283→legacy system
+   284→    ↓
+   285→compatibility wrapper
+   286→    ↓
+   287→new cache system
+   288→
+   289→Do this:
+   290→
+   291→requirements
+   292→    ↓
+   293→correct modern architecture
+   294→    ↓
+   295→rewrite affected legacy implementation
+   296→    ↓
+   297→remove obsolete implementation
+   298→
+   299→If an existing page, data-access function, aggregate cache boundary, invalidation mechanism, or abstraction makes the target architecture awkward, rewrite or replace it.
+   300→
+   301→Do not maintain:
+   302→
+   303→- old and new cache systems in parallel
+   304→- old and new invalidation systems in parallel
+   305→- legacy revalidation fallbacks
+   306→- legacy adapters
+   307→- cache compatibility wrappers
+   308→- duplicate data-access APIs
+   309→- special-case compatibility code
+   310→
+   311→Do not preserve obsolete architecture merely to reduce the number of changed lines.
+   312→
+   313→However:
+   314→
+   315→Do NOT rewrite unrelated working systems without a concrete Phase 2 reason.
+   316→
+   317→The rewrite boundary is:
+   318→
+   319→THE PUBLIC CATALOG CACHING / DATA / INVALIDATION ARCHITECTURE REQUIRED BY THIS PHASE.
+   320→
+   321→============================================================
+   322→5. SOURCE OF TRUTH
+   323→============================================================
+   324→
+   325→Supabase/PostgreSQL remains the source of truth.
+   326→
+   327→Next.js cache is only a cached representation.
+   328→
+   329→Do not add cache tables to PostgreSQL.
+   330→
+   331→Do not duplicate catalog data just to support the cache.
+   332→
+   333→Do not introduce a database-backed cache state system.
+   334→
+   335→============================================================
+   336→6. MAIN WEBSITE OWNS INVALIDATION
+   337→============================================================
+   338→
+   339→THIS IS A HARD ARCHITECTURAL RULE.
+   340→
+   341→The MAIN WEBSITE owns:
+   342→
+   343→- cache boundaries
+   344→- cache tags
+   345→- tag vocabulary
+   346→- invalidation policy
+   347→- invalidation endpoint
+   348→- event validation
+   349→- mapping domain events → affected cache scopes
+   350→- calling revalidateTag()
+   351→
+   352→The ADMIN does NOT own cache invalidation.
+   353→
+   354→The ADMIN does NOT call revalidateTag().
+   355→
+   356→The ADMIN does NOT know internal cache tags.
+   357→
+   358→The ADMIN does NOT decide which pages/tags must be invalidated.
+   359→
+   360→The ADMIN only:
+   361→
+   362→1. mutates the database
+   363→2. sends a domain notification to the main website
+   364→
+   365→============================================================
+   366→7. ADMIN = DOMAIN CHANGE NOTIFIER
+   367→============================================================
+   368→
+   369→The admin's responsibilities are:
+   370→
+   371→DATABASE MUTATION
+   372→    ↓
+   373→mutation succeeds
+   374→    ↓
+   375→send domain notification to MAIN WEBSITE
+   376→
+   377→Example:
+   378→
+   379→{
+   380→  "type": "product.updated",
+   381→  "productId": "123"
+   382→}
+   383→
+   384→The admin should NOT send:
+   385→
+   386→{
+   387→  "tags": [
+   388→    "product:123",
+   389→    "home",
+   390→    "category:5"
+   391→  ]
+   392→}
+   393→
+   394→The admin must never depend on the internal cache topology of the storefront.
+   395→
+   396→The main website receives domain intent and decides what cache scopes are affected.
+   397→
+   398→============================================================
+   399→8. ONE INVALIDATION SYSTEM
+   400→============================================================
+   401→
+   402→There MUST be exactly ONE invalidation system.
+   403→
+   404→Do not create:
+   405→
+   406→- automatic invalidation system
+   407→- manual invalidation system
+   408→- retry invalidation system
+   409→
+   410→as three different implementations.
+   411→
+   412→They must all enter the SAME system.
+   413→
+   414→Conceptually:
+   415→
+   416→AUTOMATIC MUTATION
+   417→    ↓
+   418→domain event
+   419→
+   420→MANUAL REFRESH
+   421→    ↓
+   422→domain event
+   423→
+   424→EXPLICIT RETRY
+   425→    ↓
+   426→domain event
+   427→
+   428→All three then follow:
+   429→
+   430→domain event
+   431→    ↓
+   432→MAIN WEBSITE invalidation endpoint
+   433→    ↓
+   434→event validation
+   435→    ↓
+   436→invalidation policy
+   437→    ↓
+   438→resolve affected cache tags
+   439→    ↓
+   440→revalidateTag(...)
+   441→
+   442→ONE SYSTEM.
+   443→
+   444→============================================================
+   445→9. MANUAL REFRESH EVENT MODEL
+   446→============================================================
+   447→
+   448→Use:
+   449→
+   450→product.refresh
+   451→
+   452→for the manual product refresh action.
+   453→
+   454→This means:
+   455→
+   456→"Invalidate the public cached representation associated with this product now."
+   457→
+   458→It does NOT mean that the product database was changed.
+   459→
+   460→Similarly use appropriate domain refresh events such as:
+   461→
+   462→category.refresh
+   463→review.refresh
+   464→
+   465→when required.
+   466→
+   467→The important architectural rule is:
+   468→
+   469→MANUAL REFRESH IS NOT A SPECIAL REVALIDATION IMPLEMENTATION.
+   470→
+   471→It is simply another domain invalidation event entering the SAME invalidation system.
+   472→
+   473→Example:
+   474→
+   475→Admin product page
+   476→    ↓
+   477→[Revalidate Storefront]
+   478→    ↓
+   479→product.refresh
+   480→    ↓
+   481→same admin notifier
+   482→    ↓
+   483→same storefront endpoint
+   484→    ↓
+   485→same invalidation policy
+   486→    ↓
+   487→same tags
+   488→    ↓
+   489→revalidateTag()
+   490→
+   491→============================================================
+   492→10. RETRY BEHAVIOR — ABSOLUTELY SIMPLE
+   493→============================================================
+   494→
+   495→There is NO automatic retry.
+   496→
+   497→There is NO retry loop.
+   498→
+   499→There is NO queue.
+   500→
+   501→There is NO exponential backoff.
+   502→
+   503→There is NO retry worker.
+   504→
+   505→There is NO persistent retry state.
+   506→
+   507→There is NO multi-step retry mechanism.
+   508→
+   509→Rule:
+   510→
+   511→ONE MUTATION
+   512→    ↓
+   513→ONE notification attempt
+   514→
+   515→If the notification fails:
+   516→
+   517→STOP.
+   518→
+   519→Show the operator:
+   520→
+   521→DATABASE MUTATION: SUCCESS
+   522→STOREFRONT NOTIFICATION: FAILED
+   523→
+   524→Then show:
+   525→
+   526→[Retry Invalidation]
+   527→
+   528→The retry is a new explicit operator-triggered attempt.
+   529→
+   530→The retry enters the SAME invalidation notification system.
+   531→
+   532→No hidden retries.
+   533→
+   534→============================================================
+   535→11. NO DATABASE-BACKED INVALIDATION QUEUE
+   536→============================================================
+   537→
+   538→DO NOT build:
+   539→
+   540→- revalidation_jobs table
+   541→- invalidation_jobs table
+   542→- outbox table
+   543→- retry_count
+   544→- next_attempt_at
+   545→- failed_events
+   546→- dead_letter_queue
+   547→- background invalidation queue
+   548→- cache event persistence
+   549→- worker-based invalidation
+   550→- event bus
+   551→- Kafka
+   552→- RabbitMQ
+   553→
+   554→None of this is required.
+   555→
+   556→If the storefront notification fails, show failure and provide a manual retry action.
+   557→
+   558→That is the complete failure model.
+   559→
+   560→============================================================
+   561→12. STOREFRONT INVALIDATION ENDPOINT
+   562→============================================================
+   563→
+   564→The main website MUST have one protected server-side invalidation endpoint.
+   565→
+   566→The exact route name may be chosen from the existing application conventions, but conceptually:
+   567→
+   568→POST /api/revalidate
+   569→
+   570→Its job is ONLY:
+   571→
+   572→authenticate request
+   573→    ↓
+   574→validate request schema
+   575→    ↓
+   576→validate supported event
+   577→    ↓
+   578→resolve affected cache scopes/tags
+   579→    ↓
+   580→call revalidateTag()
+   581→    ↓
+   582→return explicit result
+   583→
+   584→It must NOT:
+   585→
+   586→- mutate products
+   587→- mutate categories
+   588→- mutate reviews
+   589→- create jobs
+   590→- queue work
+   591→- retry
+   592→- poll
+   593→- perform arbitrary database operations
+   594→- accept arbitrary cache tags from callers
+   595→
+   596→The endpoint is the cache-control boundary of the MAIN WEBSITE.
+   597→
+   598→============================================================
+   599→13. INVALIDATION ENDPOINT SECURITY
+   600→============================================================
+   601→
+   602→The admin server calls the storefront server.
+   603→
+   604→Do NOT call the invalidation endpoint directly from admin browser JavaScript.
+   605→
+   606→Flow:
+   607→
+   608→ADMIN BROWSER
+   609→    ↓
+   610→ADMIN SERVER ACTION
+   611→    ↓
+   612→Supabase mutation
+   613→    ↓
+   614→ADMIN SERVER
+   615→    ↓
+   616→authenticated server-to-server notification
+   617→    ↓
+   618→MAIN WEBSITE /api/revalidate
+   619→
+   620→Use a server-only shared secret.
+   621→
+   622→Do NOT expose that secret to:
+   623→
+   624→- browser code
+   625→- NEXT_PUBLIC_* variables
+   626→- HTML
+   627→- query parameters
+   628→- logs
+   629→- screenshots
+   630→- API responses
+   631→
+   632→Validate the event body strictly.
+   633→
+   634→Do not accept arbitrary tags.
+   635→
+   636→============================================================
+   637→14. EVENT VOCABULARY
+   638→============================================================
+   639→
+   640→Keep the event system intentionally small.
+   641→
+   642→Relevant examples:
+   643→
+   644→product.created
+   645→product.updated
+   646→product.deleted
+   647→product.refresh
+   648→
+   649→category.created
+   650→category.updated
+   651→category.deleted
+   652→category.refresh
+   653→
+   654→review.approved
+   655→review.rejected
+   656→review.updated
+   657→review.refresh
+   658→
+   659→Only add events for additional mutable domains if the real codebase proves they require them.
+   660→
+   661→Do NOT create a generic enterprise event framework.
+   662→
+   663→============================================================
+   664→15. PUBLIC CACHE ARCHITECTURE
+   665→============================================================
+   666→
+   667→The main website should use the current modern Next.js caching model supported by the installed version.
+   668→
+   669→Use the correct supported mechanisms such as:
+   670→
+   671→'use cache'
+   672→cacheTag()
+   673→cacheLife()
+   674→
+   675→only where appropriate.
+   676→
+   677→The exact boundaries MUST be redesigned from the actual code.
+   678→
+   679→Do not simply copy the current cache boundaries.
+   680→
+   681→Do not attach tags blindly to existing functions.
+   682→
+   683→For every cache boundary determine:
+   684→
+   685→- what is cached
+   686→- why it is cached
+   687→- what inputs define the cache entry
+   688→- what data it contains
+   689→- what changes can affect it
+   690→- which tag(s) represent those dependencies
+   691→- what domain events invalidate those tags
+   692→
+   693→============================================================
+   694→16. CACHE GRANULARITY
+   695→============================================================
+   696→
+   697→Do NOT cache every page as one giant object.
+   698→
+   699→Do NOT create one tiny cache for every visual component.
+   700→
+   701→Target:
+   702→
+   703→ONE MEANINGFUL CACHE BOUNDARY PER INDEPENDENTLY CHANGING PUBLIC DATA GROUP.
+   704→
+   705→Examples:
+   706→
+   707→Product data
+   708→    → product:{id}
+   709→
+   710→Public reviews
+   711→    → reviews:{productId}
+   712→
+   713→Home feed
+   714→    → feed:home
+   715→
+   716→Category data
+   717→    → category:{id}
+   718→
+   719→The exact architecture must follow real dependencies.
+   720→
+   721→The objective is:
+   722→
+   723→If only reviews changed, do NOT make unrelated product information stale.
+   724→
+   725→If only product information changed, do NOT invalidate the feed merely because that product appears in it.
+   726→
+   727→If only feed ordering changed, do NOT invalidate every product.
+   728→
+   729→============================================================
+   730→17. PRODUCT DATA
+   731→============================================================
+   732→
+   733→Product public data is cacheable.
+   734→
+   735→This can include:
+   736→
+   737→- name
+   738→- description
+   739→- subtitle
+   740→- price
+   741→- images
+   742→- category
+   743→- brand
+   744→- specifications
+   745→- other stable public catalog fields
+   746→
+   747→Do NOT include volatile stock in the shared product cache.
+   748→
+   749→A product-specific cache tag should exist conceptually:
+   750→
+   751→product:{id}
+   752→
+   753→Use the actual cache boundary created by the rewritten implementation.
+   754→
+   755→============================================================
+   756→18. PRODUCT MUTATIONS
+   757→============================================================
+   758→
+   759→After a successful product mutation:
+   760→
+   761→DB MUTATION
+   762→    ↓
+   763→success
+   764→    ↓
+   765→admin sends product.* event
+   766→    ↓
+   767→storefront determines actual dependencies
+   768→    ↓
+   769→storefront invalidates required cache tags
+   770→
+   771→Do NOT let the admin decide the tags.
+   772→
+   773→Handle correctly:
+   774→
+   775→- create
+   776→- update
+   777→- delete
+   778→- archive/inactive
+   779→- activate
+   780→- category changes
+   781→- slug changes
+   782→
+   783→IMPORTANT:
+   784→
+   785→If category changes from A → B, the invalidation policy may need both affected category scopes.
+   786→
+   787→Do not invalidate only the new category.
+   788→
+   789→If slug changes:
+   790→
+   791→old slug → new slug
+   792→
+   793→account for old and new route/cache/SEO implications where the actual implementation requires it.
+   794→
+   795→If activation changes route/listing/sitemap visibility, account for that too.
+   796→
+   797→Do not invent dependencies.
+   798→
+   799→Verify them from code.
+   800→
+   801→============================================================
+   802→19. HOMEPAGE ARCHITECTURE
+   803→============================================================
+   804→
+   805→The homepage MUST be implemented properly now.
+   806→
+   807→Do NOT treat it as throwaway architecture.
+   808→
+   809→The current homepage derives content from multiple data sources, including products, categories, circulation entries, and offers.
+   810→
+   811→The important architecture is:
+   812→
+   813→HOMEPAGE
+   814→    ↓
+   815→FEED MEMBERSHIP / FEED DATA
+   816→    ↓
+   817→PRODUCT IDS
+   818→    ↓
+   819→PRODUCT DATA
+   820→
+   821→Feed membership and product data MUST be separate concerns.
+   822→
+   823→The feed must describe which products appear.
+   824→
+   825→Product data describes what each product contains.
+   826→
+   827→Do NOT duplicate product information into the feed.
+   828→
+   829→============================================================
+   830→20. HOMEPAGE FEED CACHE
+   831→============================================================
+   832→
+   833→The homepage feed must have an independent cache boundary.
+   834→
+   835→Conceptually:
+   836→
+   837→feed:home
+   838→
+   839→Product data has independent tags:
+   840→
+   841→product:{id}
+   842→
+   843→Therefore:
+   844→
+   845→PRODUCT UPDATE
+   846→    ↓
+   847→product:{id}
+   848→    ↓
+   849→do NOT invalidate feed:home
+   850→
+   851→FEED UPDATE
+   852→    ↓
+   853→feed:home
+   854→    ↓
+   855→do NOT invalidate product:{id}
+   856→
+   857→This independence MUST be preserved.
+   858→
+   859→============================================================
+   860→21. FUTURE ACTIVITY-DRIVEN FEED COMPATIBILITY
+   861→============================================================
+   862→
+   863→The future homepage feed will eventually be generated from activity tracking and a feed table.
+   864→
+   865→The feed table will use product IDs rather than duplicating product details.
+   866→
+   867→For example:
+   868→
+   869→feed
+   870→----
+   871→product_id
+   872→position
+   873→section
+   874→...
+   875→
+   876→The current homepage architecture MUST be designed around the same conceptual contract:
+   877→
+   878→FEED
+   879→    → ordered product IDs
+   880→
+   881→PRODUCT DATA
+   882→    → product details
+   883→
+   884→Later, the source can evolve from the current circulation-based implementation to an activity-driven feed table without redesigning the fundamental cache relationship.
+   885→
+   886→Do NOT build a product→homepage invalidation architecture that assumes the current temporary feed source is permanently coupled to products.
+   887→
+   888→============================================================
+   889→22. PRODUCT UPDATE MUST NOT INVALIDATE FEED BY DEFAULT
+   890→============================================================
+   891→
+   892→If Product 123 changes:
+   893→
+   894→name
+   895→description
+   896→price
+   897→image
+   898→other product content
+   899→
+   900→then:
+   901→
+   902→product:123
+   903→
+   904→may become stale.
+   905→
+   906→DO NOT automatically invalidate:
+   907→
+   908→feed:home
+   909→
+   910→unless the product mutation also changes something that the feed selection logic actually depends on.
+   911→
+   912→The cache system must NOT guess feed membership dependencies.
+   913→
+   914→If a mutation changes feed membership, the feed itself must be updated by the appropriate feed/domain logic and then the feed cache is invalidated.
+   915→
+   916→============================================================
+   917→23. CATEGORY DATA
+   918→============================================================
+   919→
+   920→Category data is cacheable.
+   921→
+   922→Use independent category cache boundaries where appropriate.
+   923→
+   924→Conceptually:
+   925→
+   926→category:{id}
+   927→categories
+   928→
+   929→Category updates must invalidate only the affected public category-dependent scopes.
+   930→
+   931→Do not invalidate unrelated product detail caches simply because a category changed.
+   932→
+   933→If category slug changes, handle the old/new route identity where required by the actual architecture.
+   934→
+   935→============================================================
+   936→24. CATEGORY MUTATIONS
+   937→============================================================
+   938→
+   939→After successful category mutation:
+   940→
+   941→DB mutation
+   942→    ↓
+   943→admin notification
+   944→    ↓
+   945→storefront invalidation policy
+   946→    ↓
+   947→invalidate affected category/catalog/home/sitemap scopes
+   948→       only where actual dependencies prove they are affected
+   949→
+   950→Do not let admin directly name the cache tags.
+   951→
+   952→============================================================
+   953→25. PUBLIC REVIEW CACHE
+   954→============================================================
+   955→
+   956→The public website must only expose approved reviews.
+   957→
+   958→Keep the Phase 1 moderation model:
+   959→
+   960→pending
+   961→approved
+   962→rejected
+   963→
+   964→Public data must remain approved-only.
+   965→
+   966→Cache public review data independently.
+   967→
+   968→Conceptually:
+   969→
+   970→reviews:{productId}
+   971→
+   972→The actual cache boundary must be designed from the real code.
+   973→
+   974→============================================================
+   975→26. REVIEW SUBMISSION
+   976→============================================================
+   977→
+   978→Customer review submission:
+   979→
+   980→customer
+   981→    ↓
+   982→product_reviews insert
+   983→    ↓
+   984→status = pending
+   985→    ↓
+   986→not publicly visible
+   987→
+   988→DO NOT invalidate the public review cache merely because a pending review was submitted.
+   989→
+   990→There is nothing public to refresh.
+   991→
+   992→Do NOT add a notification to the storefront for ordinary pending review submission.
+   993→
+   994→============================================================
+   995→27. REVIEW APPROVAL / REJECTION
+   996→============================================================
+   997→
+   998→When an admin approves:
+   999→
+  1000→status = approved
+  1001→    ↓
+  1002→admin notifies storefront
+  1003→    ↓
+  1004→review.approved
+  1005→    ↓
+  1006→storefront invalidates public review cache for the product
+  1007→
+  1008→When an already-public approved review becomes rejected:
+  1009→
+  1010→status = rejected
+  1011→    ↓
+  1012→admin notifies storefront
+  1013→    ↓
+  1014→review.rejected
+  1015→    ↓
+  1016→storefront invalidates public review cache
+  1017→
+  1018→A pending → rejected transition does not require public review invalidation merely because the review was rejected, but it is acceptable to use the same deterministic review invalidation policy if that keeps the event handling simple.
+  1019→
+  1020→Do NOT overcomplicate this.
+  1021→
+  1022→============================================================
+  1023→28. REVIEW MANUAL REFRESH
+  1024→============================================================
+  1025→
+  1026→The review management page should have the normal:
+  1027→
+  1028→[Revalidate Storefront]
+  1029→
+  1030→control.
+  1031→
+  1032→That generates:
+  1033→
+  1034→review.refresh
+  1035→
+  1036→and follows the EXACT SAME:
+  1037→
+  1038→admin notifier
+  1039→    ↓
+  1040→storefront endpoint
+  1041→    ↓
+  1042→review invalidation policy
+  1043→    ↓
+  1044→revalidateTag()
+  1045→
+  1046→There is no separate manual review refresh implementation.
+  1047→
+  1048→============================================================
+  1049→29. STOCK / AVAILABILITY ARCHITECTURE
+  1050→============================================================
+  1051→
+  1052→Stock is NOT part of the shared public catalog cache.
+  1053→
+  1054→Do not create:
+  1055→
+  1056→stock cache
+  1057→stock cache tag
+  1058→stock invalidation event
+  1059→order→storefront cache notification
+  1060→stock worker
+  1061→stock invalidation queue
+  1062→stock polling
+  1063→
+  1064→Instead:
+  1065→
+  1066→SERVER-RENDERED PRODUCT PAGE
+  1067→    ↓
+  1068→browser receives HTML
+  1069→    ↓
+  1070→React hydrates
+  1071→    ↓
+  1072→small client-side stock/availability component starts
+  1073→    ↓
+  1074→fetch current stock/availability
+  1075→    ↓
+  1076→update ONLY the stock/availability UI
+  1077→
+  1078→This is the intended design.
+  1079→
+  1080→============================================================
+  1081→30. STOCK HYDRATION
+  1082→============================================================
+  1083→
+  1084→The product page should remain server-rendered.
+  1085→
+  1086→Do NOT turn the entire product page into a client component.
+  1087→
+  1088→Create or rewrite only the necessary client boundary for stock/availability.
+  1089→
+  1090→Conceptually:
+  1091→
+  1092→ProductPage Server Component
+  1093→    ├── cached product content
+  1094→    ├── cached reviews
+  1095→    ├── other public cached data
+  1096→    └── StockAvailability Client Component
+  1097→            ↓
+  1098→         current stock fetch
+  1099→            ↓
+  1100→         update UI
+  1101→
+  1102→The initial server-rendered HTML may contain an initial/stale availability representation if necessary.
+  1103→
+  1104→After hydration, the browser fetches the current availability and updates that UI.
+  1105→
+  1106→============================================================
+  1107→31. STOCK REQUEST MUST BE MINIMAL
+  1108→============================================================
+  1109→
+  1110→The hydration request should retrieve ONLY what the stock UI needs.
+  1111→
+  1112→Do not re-fetch the entire product.
+  1113→
+  1114→Do not re-fetch:
+  1115→
+  1116→- description
+  1117→- product images
+  1118→- category
+  1119→- reviews
+  1120→- metadata
+  1121→- unrelated catalog fields
+  1122→
+  1123→The purpose is:
+  1124→
+  1125→initial page
+  1126→    ↓
+  1127→cached catalog content
+  1128→
+  1129→hydration
+  1130→    ↓
+  1131→latest stock only
+  1132→
+  1133→============================================================
+  1134→32. NO STOCK POLLING
+  1135→============================================================
+  1136→
+  1137→Do NOT implement:
+  1138→
+  1139→- interval polling
+  1140→- refresh every N seconds
+  1141→- periodic inventory fetching
+  1142→- background polling
+  1143→
+  1144→One hydration-time refresh is enough for this phase.
+  1145→
+  1146→Do not create a real-time inventory system.
+  1147→
+  1148→That is a different feature.
+  1149→
+  1150→============================================================
+  1151→33. STOCK AFTER ORDER
+  1152→============================================================
+  1153→
+  1154→When an order changes stock:
+  1155→
+  1156→stock changes
+  1157→    ↓
+  1158→NO storefront cache invalidation
+  1159→    ↓
+  1160→NO admin involvement
+  1161→    ↓
+  1162→NO worker notification
+  1163→    ↓
+  1164→next product-page hydration fetches current stock
+  1165→
+  1166→Do not add order→cache invalidation just for inventory.
+  1167→
+  1168→The actual checkout/order transaction remains responsible for authoritative stock correctness.
+  1169→
+  1170→The hydrated stock display is informational freshness, not purchase concurrency control.
+  1171→
+  1172→============================================================
+  1173→34. HOMEPAGE STOCK
+  1174→============================================================
+  1175→
+  1176→Inspect the real codebase and determine where stock/availability is currently displayed on:
+  1177→
+  1178→- homepage
+  1179→- shop
+  1180→- category pages
+  1181→- search
+  1182→- related products
+  1183→- product detail
+  1184→
+  1185→Where stock is displayed in a client-visible public component, keep the same principle:
+  1186→
+  1187→CACHED PRODUCT DATA
+  1188→    +
+  1189→CLIENT-SIDE CURRENT AVAILABILITY
+  1190→
+  1191→Do not accidentally place stale stock inside a long-lived shared catalog cache.
+  1192→
+  1193→Do not make the entire listing page client-side.
+  1194→
+  1195→Use the smallest practical client boundary.
+  1196→
+  1197→============================================================
+  1198→35. OFFERS / PROMOTIONS
+  1199→============================================================
+  1200→
+  1201→The current homepage and product pages may depend on offers.
+  1202→
+  1203→Inspect the actual codebase and determine:
+  1204→
+  1205→- where offers are queried
+  1206→- which public pages consume them
+  1207→- which offers are actually mutable
+  1208→- whether admin has mutation paths for them
+  1209→
+  1210→If offers are actually mutated by the current system, include proper invalidation in the unified storefront invalidation system.
+  1211→
+  1212→Do not build a new offers management subsystem merely because an offers table exists.
+  1213→
+  1214→Do not invent mutation paths.
+  1215→
+  1216→============================================================
+  1217→36. CIRCULATION / CURRENT FEED SOURCE
+  1218→============================================================
+  1219→
+  1220→Inspect the current circulation/feed implementation.
+  1221→
+  1222→Establish the clean feed boundary.
+  1223→
+  1224→Current source:
+  1225→circulation-based data
+  1226→
+  1227→Future source:
+  1228→activity-driven feed table with product IDs
+  1229→
+  1230→The caching architecture must be built around the feed abstraction, not around the temporary physical implementation.
+  1231→
+  1232→Do not duplicate product details inside feed records.
+  1233→
+  1234→============================================================
+  1235→37. BRANDS
+  1236→============================================================
+  1237→
+  1238→Inspect brand usage.
+  1239→
+  1240→If brands are only read and have no mutation path in this phase, do not invent a new brand-management subsystem.
+  1241→
+  1242→If actual brand mutations exist, include their real cache dependencies in the storefront invalidation policy.
+  1243→
+  1244→============================================================
+  1245→38. SITEMAPS
+  1246→============================================================
+  1247→
+  1248→Sitemaps are public catalog data.
+  1249→
+  1250→They are part of the same main-website cache/invalidation architecture.
+  1251→
+  1252→Do not create a separate sitemap revalidation system.
+  1253→
+  1254→Product/category route changes that affect sitemap contents must invalidate the appropriate sitemap cache scope.
+  1255→
+  1256→Do not use periodic one-hour freshness as the intended update mechanism.
+  1257→
+  1258→============================================================
+  1259→39. SEO
+  1260→============================================================
+  1261→
+  1262→Do not break:
+  1263→
+  1264→- generateMetadata
+  1265→- structured data / JSON-LD
+  1266→- canonical URLs
+  1267→- generateStaticParams where actually used
+  1268→- sitemap generation
+  1269→- server-rendered product/category content
+  1270→
+  1271→Caching redesign must preserve SEO behavior.
+  1272→
+  1273→If rewriting cache/data boundaries requires changing how metadata obtains its data, do it cleanly and correctly rather than wrapping legacy code.
+  1274→
+  1275→============================================================
+  1276→40. QUERY / DATA FLOW DESIGN
+  1277→============================================================
+  1278→
+  1279→The rewritten architecture should make the relationship clear:
+  1280→
+  1281→DATABASE
+  1282→    ↓
+  1283→SERVER DATA ACCESS
+  1284→    ↓
+  1285→CACHE BOUNDARY
+  1286→    ↓
+  1287→SERVER COMPONENT
+  1288→    ↓
+  1289→HTML/RSC
+  1290→
+  1291→For volatile stock:
+  1292→
+  1293→DATABASE
+  1294→    ↓
+  1295→CLIENT-SIDE AVAILABILITY FETCH AFTER HYDRATION
+  1296→    ↓
+  1297→STOCK UI
+  1298→
+  1299→For user-specific pages:
+  1300→
+  1301→STATIC SHELL
+  1302→    ↓
+  1303→CLIENT-SIDE USER DATA
+  1304→
+  1305→For static informational pages:
+  1306→
+  1307→BUILD
+  1308→    ↓
+  1309→STATIC OUTPUT
+  1310→
+  1311→Do not mix these models together.
+  1312→
+  1313→============================================================
+  1314→41. TAG VOCABULARY
+  1315→============================================================
+  1316→
+  1317→Create a small, centralized and consistent cache-tag vocabulary.
+  1318→
+  1319→Conceptual examples:
+  1320→
+  1321→product:{id}
+  1322→products
+  1323→category:{id}
+  1324→categories
+  1325→reviews:{productId}
+  1326→feed:home
+  1327→offers
+  1328→offer:{id}
+  1329→home
+  1330→sitemap
+  1331→
+  1332→The exact list must come from the actual rewritten architecture.
+  1333→
+  1334→Do not invent tags for things that are not cached.
+  1335→
+  1336→Do not scatter random tag strings throughout the code.
+  1337→
+  1338→Do not allow admin to know internal tags.
+  1339→
+  1340→Centralize tag generation where appropriate.
+  1341→
+  1342→Keep the abstraction small.
+  1343→
+  1344→DO NOT create a giant custom cache framework.
+  1345→
+  1346→============================================================
+  1347→42. INVALIDATION POLICY
+  1348→============================================================
+  1349→
+  1350→The main website should have one clear invalidation policy.
+  1351→
+  1352→Conceptually:
+  1353→
+  1354→product.updated
+  1355→    ↓
+  1356→resolve product-dependent cached scopes
+  1357→    ↓
+  1358→invalidate correct tags
+  1359→
+  1360→product.refresh
+  1361→    ↓
+  1362→resolve exact same product-dependent cached scopes
+  1363→    ↓
+  1364→invalidate correct tags
+  1365→
+  1366→category.updated
+  1367→    ↓
+  1368→resolve category-dependent scopes
+  1369→    ↓
+  1370→invalidate correct tags
+  1371→
+  1372→category.refresh
+  1373→    ↓
+  1374→same category policy
+  1375→
+  1376→review.approved
+  1377→    ↓
+  1378→reviews:{productId}
+  1379→
+  1380→review.refresh
+  1381→    ↓
+  1382→same review policy
+  1383→
+  1384→feed change
+  1385→    ↓
+  1386→feed:home
+  1387→
+  1388→This policy must live on the MAIN WEBSITE.
+  1389→
+  1390→Admin does not implement it.
+  1391→
+  1392→============================================================
+  1393→43. DO NOT INVALIDATE WHOLE PAGES UNNECESSARILY
+  1394→============================================================
+  1395→
+  1396→The goal is:
+  1397→
+  1398→invalidate the affected cached scope
+  1399→
+  1400→NOT:
+  1401→
+  1402→invalidate every URL that might mention it.
+  1403→
+  1404→For example:
+  1405→
+  1406→review approved
+  1407→    → review cache
+  1408→
+  1409→not:
+  1410→
+  1411→review approved
+  1412→    → whole product page architecture
+  1413→
+  1414→Product changed:
+  1415→    → product data cache
+  1416→    → other proven dependent public scopes
+  1417→
+  1418→not:
+  1419→    → every page in the website
+  1420→
+  1421→However, if a cache boundary genuinely contains multiple dependencies, invalidating that cache boundary is correct.
+  1422→
+  1423→Do not split caches artificially merely to claim "granular invalidation."
+  1424→
+  1425→Use meaningful boundaries.
+  1426→
+  1427→============================================================
+  1428→44. ADMIN MUTATION FLOW
+  1429→============================================================
+  1430→
+  1431→For every relevant admin mutation:
+  1432→
+  1433→ADMIN UI
+  1434→    ↓
+  1435→Server Action
+  1436→    ↓
+  1437→requireSession()
+  1438→    ↓
+  1439→privileged Supabase mutation
+  1440→    ↓
+  1441→mutation succeeds
+  1442→    ↓
+  1443→notify storefront
+  1444→
+  1445→The notification must happen AFTER the database mutation succeeds.
+  1446→
+  1447→Never invalidate/notify as though a mutation happened before the database confirms success.
+  1448→
+  1449→============================================================
+  1450→45. ADMIN FAILURE FLOW
+  1451→============================================================
+  1452→
+  1453→Example:
+  1454→
+  1455→Product update succeeds.
+  1456→
+  1457→Notification fails.
+  1458→
+  1459→The admin state must communicate BOTH facts:
+  1460→
+  1461→Database update:
+  1462→SUCCESS
+  1463→
+  1464→Storefront notification:
+  1465→FAILED
+  1466→
+  1467→Then provide:
+  1468→
+  1469→[Retry Invalidation]
+  1470→
+  1471→The product update must NOT be rolled back merely because cache notification failed.
+  1472→
+  1473→Supabase remains the source of truth.
+  1474→
+  1475→============================================================
+  1476→46. MANUAL REFRESH CONTROLS
+  1477→============================================================
+  1478→
+  1479→Add normal revalidation controls to:
+  1480→
+  1481→PRODUCT MANAGEMENT
+  1482→    → product.refresh
+  1483→
+  1484→CATEGORY MANAGEMENT
+  1485→    → category.refresh
+  1486→
+  1487→REVIEW MANAGEMENT
+  1488→    → review.refresh
+  1489→
+  1490→These controls are NOT emergency hacks.
+  1491→
+  1492→They are first-class operations of the same invalidation system.
+  1493→
+  1494→They must use the same server notification path as automatic mutation notifications.
+  1495→
+  1496→Do not implement a separate manual endpoint.
+  1497→
+  1498→============================================================
+  1499→47. RETRY CONTROL
+  1500→============================================================
+  1501→
+  1502→When an automatic notification fails, the existing management page should present a retry action.
+  1503→
+  1504→Examples:
+  1505→
+  1506→Product updated, storefront notification failed.
+  1507→[Retry Invalidation]
+  1508→
+  1509→Category updated, storefront notification failed.
+  1510→[Retry Invalidation]
+  1511→
+  1512→Review approved, storefront notification failed.
+  1513→[Retry Invalidation]
+  1514→
+  1515→Retry must perform exactly one new attempt.
+  1516→
+  1517→If it fails again:
+  1518→
+  1519→show failure
+  1520→stop
+  1521→
+  1522→Do not retry automatically.
+  1523→
+  1524→============================================================
+  1525→48. ADMIN UI MUST NOT EXPOSE CACHE TAGS
+  1526→============================================================
+  1527→
+  1528→The admin UI should communicate domain intent.
+  1529→
+  1530→Correct:
+  1531→
+  1532→Revalidate Product
+  1533→
+  1534→Incorrect:
+  1535→
+  1536→Invalidate:
+  1537→product:123
+  1538→products
+  1539→home
+  1540→category:5
+  1541→
+  1542→The user should not be expected to understand the cache topology.
+  1543→
+  1544→============================================================
+  1545→49. MAIN WEBSITE RESPONSE CONTRACT
+  1546→============================================================
+  1547→
+  1548→The storefront invalidation endpoint should return explicit machine-readable success/failure.
+  1549→
+  1550→Do not return sensitive information.
+  1551→
+  1552→Conceptually:
+  1553→
+  1554→success:
+  1555→{
+  1556→  success: true
+  1557→}
+  1558→
+  1559→failure:
+  1560→{
+  1561→  success: false,
+  1562→  error: "..."
+  1563→}
+  1564→
+  1565→Keep the response simple.
+  1566→
+  1567→Do not leak secrets.
+  1568→
+  1569→Do not expose internal implementation details unnecessarily.
+  1570→
+  1571→============================================================
+  1572→50. DO NOT USE ADMIN'S revalidatePath AS THE STOREFRONT SOLUTION
+  1573→============================================================
+  1574→
+  1575→The existing admin currently calls:
+  1576→
+  1577→revalidatePath("/", "layout")
+  1578→
+  1579→but because admin and storefront are separate applications with separate Next.js caches, that does not solve storefront cache invalidation.
+  1580→
+  1581→Do not keep obsolete admin-local revalidation logic merely because it already exists.
+  1582→
+  1583→If the modern architecture no longer needs it, remove it.
+  1584→
+  1585→The final system must have one correct storefront invalidation path.
+  1586→
+  1587→============================================================
+  1588→51. VERCEL / RUNTIME EXPECTATION
+  1589→============================================================
+  1590→
+  1591→The main website will run with Next.js caching on its deployment environment.
+  1592→
+  1593→Do not assume the application cache is simply "a browser cache."
+  1594→
+  1595→The target is server-side Next.js cache scopes with explicit tags.
+  1596→
+  1597→A request should reuse cached public catalog data when valid.
+  1598→
+  1599→After a relevant tag is invalidated, the affected cached scope is stale and subsequent use obtains fresh data according to the modern Next.js cache semantics.
+  1600→
+  1601→Do not force a page-wide regeneration model when a smaller cached scope can be independently invalidated.
+  1602→
+  1603→============================================================
+  1604→52. IMPORTANT NEXT.JS SEMANTICS
+  1605→============================================================
+  1606→
+  1607→Research the current official Next.js documentation if exact behavior is unclear.
+  1608→
+  1609→Use official Next.js documentation.
+  1610→
+  1611→Do not rely on random blog posts.
+  1612→
+  1613→You must understand:
+  1614→
+  1615→- use cache
+  1616→- cacheTag
+  1617→- cacheLife
+  1618→- revalidateTag
+  1619→- Cache Components
+  1620→- interaction between cached scopes
+  1621→- client Router Cache behavior
+  1622→- dynamic versus cached rendering
+  1623→- server-only versus client-only boundaries
+  1624→
+  1625→Do not implement based on guesses.
+  1626→
+  1627→The installed project version is the actual compatibility constraint.
+  1628→
+  1629→Do not blindly upgrade Next.js.
+  1630→
+  1631→Only upgrade if objectively required for the target architecture and safe for the actual project.
+  1632→
+  1633→============================================================
+  1634→53. IMPORTANT SUPABASE SEMANTICS
+  1635→============================================================
+  1636→
+  1637→Research current official Supabase documentation when exact behavior is unclear.
+  1638→
+  1639→Use official Supabase documentation.
+  1640→
+  1641→Keep the existing public storefront Supabase security boundary intact.
+  1642→
+  1643→Do not expose the admin secret in the storefront.
+  1644→
+  1645→Admin privileged operations remain server-only.
+  1646→
+  1647→Do not make arbitrary database changes to solve caching.
+  1648→
+  1649→============================================================
+  1650→54. NO REDIS / NO EXTERNAL CACHE
+  1651→============================================================
+  1652→
+  1653→Do not add:
+  1654→
+  1655→- Redis
+  1656→- Upstash
+  1657→- KV
+  1658→- custom cache server
+  1659→
+  1660→unless the actual deployment architecture proves such infrastructure is required.
+  1661→
+  1662→It is not part of this phase.
+  1663→
+  1664→Next.js's built-in cache architecture is the intended first implementation.
+  1665→
+  1666→============================================================
+  1667→55. NO WEBHOOK INFRASTRUCTURE
+  1668→============================================================
+  1669→
+  1670→Do not introduce database webhooks, event buses, or external event systems for this phase.
+  1671→
+  1672→The admin server already knows when its own mutation succeeded.
+  1673→
+  1674→It can notify the storefront directly.
+  1675→
+  1676→Keep this simple.
+  1677→
+  1678→If future architecture adds additional mutation writers, that can be reconsidered later.
+  1679→
+  1680→Do not solve hypothetical future problems now.
+  1681→
+  1682→============================================================
+  1683→56. STATIC PAGE PRESERVATION
+  1684→============================================================
+  1685→
+  1686→Do not accidentally convert static informational pages into runtime dynamic pages.
+  1687→
+  1688→Verify they remain build-generated static output.
+  1689→
+  1690→No invalidation events for these pages.
+  1691→
+  1692→============================================================
+  1693→57. USER PAGE PRESERVATION
+  1694→============================================================
+  1695→
+  1696→Do not accidentally move user-specific pages into public shared caching.
+  1697→
+  1698→Verify:
+  1699→
+  1700→profile
+  1701→account
+  1702→wishlist
+  1703→cart
+  1704→orders
+  1705→etc.
+  1706→
+  1707→remain:
+  1708→
+  1709→STATIC SHELL
+  1710→+
+  1711→CLIENT-SIDE DATA LOADING
+  1712→
+  1713→unless there is a concrete existing architecture requirement that forces a minimal change.
+  1714→
+  1715→Do not rewrite them for Phase 2 convenience.
+  1716→
+  1717→============================================================
+  1718→58. SEARCH PRESERVATION
+  1719→============================================================
+  1720→
+  1721→The current search system is intentionally dynamic/client-driven.
+  1722→
+  1723→Keep search dynamic.
+  1724→
+  1725→Do not turn the user-entered search result dataset into a shared public catalog cache.
+  1726→
+  1727→Do not break the current search behavior merely to increase cache coverage.
+  1728→
+  1729→============================================================
+  1730→59. IMAGE ARCHITECTURE PRESERVATION
+  1731→============================================================
+  1732→
+  1733→Do not redesign the existing image architecture.
+  1734→
+  1735→Keep the current direct CDN image delivery.
+  1736→
+  1737→Do not introduce Next.js image proxy/optimization merely because this is a caching phase.
+  1738→
+  1739→Do not redirect image behavior through the application cache.
+  1740→
+  1741→============================================================
+  1742→60. NAVIGATION / LOADER PRESERVATION
+  1743→============================================================
+  1744→
+  1745→Do not redesign the existing navigation loader UI.
+  1746→
+  1747→Do not change its visual appearance.
+  1748→
+  1749→Do not remove it.
+  1750→
+  1751→Only fix it if this phase's data-flow rewrite actually causes a concrete navigation bug.
+  1752→
+  1753→Do not treat correct existing navigation behavior as a problem.
+  1754→
+  1755→============================================================
+  1756→61. CACHE DEPENDENCY MODEL
+  1757→============================================================
+  1758→
+  1759→Before implementation, create a verified dependency map from the actual code.
+  1760→
+  1761→At minimum map:
+  1762→
+  1763→PRODUCT DATA
+  1764→    → product detail
+  1765→    → shop/catalog
+  1766→    → category pages
+  1767→    → homepage feed items
+  1768→    → related products
+  1769→    → metadata
+  1770→    → sitemap where relevant
+  1771→
+  1772→CATEGORY DATA
+  1773→    → homepage
+  1774→    → shop facets
+  1775→    → category pages
+  1776→    → footer/navigation
+  1777→    → sitemap
+  1778→    → metadata where relevant
+  1779→
+  1780→REVIEW DATA
+  1781→    → product page
+  1782→    → public review views
+  1783→
+  1784→FEED DATA
+  1785→    → homepage
+  1786→
+  1787→OFFERS
+  1788→    → homepage
+  1789→    → product page
+  1790→    → offers page
+  1791→
+  1792→SITEMAP
+  1793→    → product/category URL datasets
+  1794→
+  1795→Only include dependencies verified from the actual implementation.
+  1796→
+  1797→============================================================
+  1798→62. ROUTE IDENTITY
+  1799→============================================================
+  1800→
+  1801→Pay special attention to changes involving:
+  1802→
+  1803→- product slug
+  1804→- category slug
+  1805→- active/inactive state
+  1806→- deletion
+  1807→- category reassignment
+  1808→
+  1809→These can affect more than ordinary record content.
+  1810→
+  1811→A content change and a route-identity change are not automatically the same thing.
+  1812→
+  1813→Handle old/new route representations correctly where required.
+  1814→
+  1815→============================================================
+  1816→63. CACHE BOUNDARY DESIGN RULE
+  1817→============================================================
+  1818→
+  1819→Do NOT place cache tags merely on convenient function names.
+  1820→
+  1821→Determine which scope actually produces the cached result.
+  1822→
+  1823→For every 'use cache' scope, document:
+  1824→
+  1825→- cache inputs
+  1826→- output
+  1827→- dependencies
+  1828→- tags
+  1829→- mutation events that invalidate it
+  1830→
+  1831→If the current architecture has a broad aggregate cache that prevents correct granular invalidation, rewrite it.
+  1832→
+  1833→============================================================
+  1834→64. HOMEPAGE CACHE BOUNDARY DESIGN
+  1835→============================================================
+  1836→
+  1837→The homepage should NOT become one giant cache containing:
+  1838→
+  1839→feed
+  1840→+
+  1841→all products
+  1842→+
+  1843→reviews
+  1844→+
+  1845→offers
+  1846→+
+  1847→everything else
+  1848→
+  1849→unless the dependency analysis proves that this is actually the correct architecture.
+  1850→
+  1851→The preferred target is separate meaningful cached scopes.
+  1852→
+  1853→For example:
+  1854→
+  1855→Homepage
+  1856→    ├── feed data
+  1857→    ├── product data
+  1858→    ├── category data
+  1859→    └── offer data
+  1860→
+  1861→with independent cache dependencies.
+  1862→
+  1863→Do not turn every visual fragment into a cache just to claim granularity.
+  1864→
+  1865→============================================================
+  1866→65. FUTURE FEED DATA CONTRACT
+  1867→============================================================
+  1868→
+  1869→Design the homepage so its feed layer can eventually consume:
+  1870→
+  1871→feed rows
+  1872→    ↓
+  1873→product IDs
+  1874→    ↓
+  1875→product data
+  1876→
+  1877→The future feed table should store IDs and feed-specific information.
+  1878→
+  1879→Do not duplicate product content.
+  1880→
+  1881→The current implementation should establish the same conceptual contract now.
+  1882→
+  1883→============================================================
+  1884→66. WHAT PRODUCT UPDATE MEANS
+  1885→============================================================
+  1886→
+  1887→A product update invalidates the caches that depend on the changed product information.
+  1888→
+  1889→It does NOT automatically mean:
+  1890→
+  1891→invalidate homepage feed
+  1892→
+  1893→It does NOT automatically mean:
+  1894→
+  1895→invalidate every product list
+  1896→
+  1897→unless the actual cached data depends on the changed property.
+  1898→
+  1899→For example:
+  1900→
+  1901→Changing product description:
+  1902→    → product data
+  1903→
+  1904→Changing category membership:
+  1905→    → product data
+  1906→    → old category listing
+  1907→    → new category listing
+  1908→    → other proven dependent scopes
+  1909→
+  1910→Changing active state:
+  1911→    → product/listing visibility
+  1912→    → sitemap / route-related data where applicable
+  1913→    → feed only if actual feed membership depends on it
+  1914→
+  1915→Changing slug:
+  1916→    → route identity
+  1917→    → relevant product cache
+  1918→    → SEO/sitemap dependencies
+  1919→
+  1920→Do not make a generic "invalidate everything" policy.
+  1921→
+  1922→============================================================
+  1923→67. WHAT FEED UPDATE MEANS
+  1924→============================================================
+  1925→
+  1926→A feed change means:
+  1927→
+  1928→- product order changed
+  1929→- product membership changed
+  1930→- section membership changed
+  1931→- feed ranking changed
+  1932→- feed generation changed
+  1933→
+  1934→Then:
+  1935→
+  1936→feed:home
+  1937→
+  1938→becomes stale.
+  1939→
+  1940→Do NOT invalidate individual product caches simply because the feed changed.
+  1941→
+  1942→============================================================
+  1943→68. WHAT REVIEW UPDATE MEANS
+  1944→============================================================
+  1945→
+  1946→Review approval/rejection/update affects public approved review data.
+  1947→
+  1948→Invalidate the appropriate review cache scope.
+  1949→
+  1950→Do NOT invalidate product data merely because a review changed.
+  1951→
+  1952→If the product page contains a review summary within a separate cached scope, tag that scope correctly during the cache redesign.
+  1953→
+  1954→============================================================
+  1955→69. NO DUPLICATE BUSINESS DATA
+  1956→============================================================
+  1957→
+  1958→Do not introduce duplicate:
+  1959→
+  1960→- products tables
+  1961→- category tables
+  1962→- review tables
+  1963→- feed product snapshots
+  1964→- cache database tables
+  1965→
+  1966→Use existing source-of-truth data.
+  1967→
+  1968→Cache is not a second database.
+  1969→
+  1970→============================================================
+  1971→70. IMPLEMENTATION PHASES
+  1972→============================================================
+  1973→
+  1974→Execute implementation in the following order.
+  1975→
+  1976→------------------------------------------------------------
+  1977→PHASE A — DEEP AUDIT
+  1978→------------------------------------------------------------
+  1979→
+  1980→Read actual code and verify:
+  1981→
+  1982→- current cache scopes
+  1983→- current public data flows
+  1984→- homepage feed implementation
+  1985→- stock locations
+  1986→- all public catalog dependencies
+  1987→- review flows
+  1988→- admin mutations
+  1989→- sitemap
+  1990→- SEO
+  1991→- existing invalidation
+  1992→- admin/storefront connectivity
+  1993→- dev/proxy setup
+  1994→- actual database schema
+  1995→
+  1996→Do not modify anything during the audit.
+  1997→
+  1998→------------------------------------------------------------
+  1999→PHASE B — TARGET ARCHITECTURE
+  2000→------------------------------------------------------------
+
+[showing lines 1-2000 of 2696; use offset=2001 with limit to continue reading]

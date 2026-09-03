@@ -1,28 +1,37 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuthContext } from "@/providers/AuthProvider";
+import { createClient } from "@/lib/supabase/client";
 import { ReviewForm } from "@/components/review/ReviewForm";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
-import type { Review } from "@/types";
 
 type State =
   | { status: "checking" }
   | { status: "unauthenticated" }
   | { status: "notOwner" }
-  | { status: "owner" };
+  | {
+      status: "owner";
+      review: { rating: number; title: string; body: string };
+    };
 
+/**
+ * Owner-scoped edit gate. The review is fetched client-side with the
+ * signed-in user's session: RLS lets the owner read their own review in
+ * ANY moderation status (pending included — newly submitted reviews are
+ * pending until approved), while anyone else can only see approved
+ * reviews. Ownership is still the existing user_id check; the edit
+ * itself remains protected by the owner UPDATE policy.
+ */
 export function ReviewEditGate({
-  review,
+  reviewId,
   slug,
 }: {
-  review: Review;
+  reviewId: string;
   slug: string;
 }) {
-  const router = useRouter();
   const { state: authState, user } = useAuthContext();
   const [s, setS] = useState<State>({ status: "checking" });
 
@@ -33,12 +42,32 @@ export function ReviewEditGate({
       setS({ status: "unauthenticated" });
       return;
     }
-    if (user.id !== review.userId) {
-      setS({ status: "notOwner" });
-      return;
-    }
-    setS({ status: "owner" });
-  }, [authState, user, review.userId]);
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("product_reviews")
+        .select("id, user_id, rating, title, body")
+        .eq("id", reviewId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (!data || data.user_id !== user.id) {
+        setS({ status: "notOwner" });
+        return;
+      }
+      setS({
+        status: "owner",
+        review: {
+          rating: data.rating,
+          title: data.title,
+          body: data.body,
+        },
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authState, user, reviewId]);
 
   if (s.status === "checking") {
     return (
@@ -68,14 +97,18 @@ export function ReviewEditGate({
       </div>
     );
   }
-  // Rendered here rather than passed from the server page — functions
+  // Rendered here rather than passed from the server page — function props
   // cannot cross the Server→Client component boundary.
   return (
     <ReviewForm
       mode={{
         kind: "edit",
-        reviewId: review.id,
-        initial: { rating: review.rating, title: review.title, body: review.body },
+        reviewId,
+        initial: {
+          rating: s.review.rating,
+          title: s.review.title,
+          body: s.review.body,
+        },
       }}
       slug={slug}
     />

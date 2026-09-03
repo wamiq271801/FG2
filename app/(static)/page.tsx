@@ -1,14 +1,22 @@
 import { Link } from "@/components/shared/Link";
 import Image from "next/image";
 import {
-  getFeaturedProducts,
-  getNewArrivals,
-  getOnSaleProducts,
-  getTrendingProducts,
+  getFeedSurfaceIds,
+  getAllProductCards,
+  type FeedSurface,
 } from "@/modules/catalog/products";
 import { getAllCategories } from "@/modules/catalog/categories";
 import { getPromotionBySlug, isPromotionActive } from "@/modules/catalog/offers";
+import { getStocks, overlayStock } from "@/modules/catalog/stock";
 import { storeInfo } from "@/lib/store-info";
+import { JsonLd } from "@/components/shared/JsonLd";
+import {
+  buildJsonLdGraph,
+  organizationEntity,
+  organizationRef,
+  webPageEntity,
+  websiteEntity,
+} from "@/lib/schema";
 import { ProductCard } from "@/components/shared/ProductCard";
 import { ProductVisual } from "@/components/shared/ProductVisual";
 import { Button } from "@/components/ui/button";
@@ -20,133 +28,50 @@ import {
   Headphones,
   Store,
 } from "lucide-react";
+import type { Product, ProductVisualKey } from "@/types";
 
-// ISR: catalog sections revalidate every 5 minutes so price/availability/
-// offer changes propagate without making the page fully dynamic.
-export const revalidate = 300;
-
+/**
+ * Home page — a COMPLETE server-rendered page (request → server → cached
+ * scopes resolved → homepage rendered in full → complete response). The
+ * page is an uncached per-request render that resolves every cache scope
+ * it needs up front (the feed surfaces tagged `feed:home`, the card
+ * dataset tagged `products`/`product:{id}`, `categories`, the offers
+ * scope) plus ONE live batched stock overlay, then returns the fully
+ * rendered homepage. There is no shell-first streaming and no
+ * client-side reconstruction — granular data caching and complete server
+ * rendering are independent layers, so the Phase 2 invalidation semantics
+ * are unchanged: product events drop the card dataset and the page
+ * re-renders; the feed ORDER (`feed:home`) stays untouched by product
+ * events.
+ */
 export default async function HomePage() {
-  const [categories, trending, newArrivals, editors, onSale, festive] =
-    await Promise.all([
-      getAllCategories(),
-      getTrendingProducts(4),
-      getNewArrivals(4),
-      getFeaturedProducts(4),
-      getOnSaleProducts(4),
-      getPromotionBySlug("festive-edit"),
-    ]);
+  const [categories, sections, festive] = await Promise.all([
+    getAllCategories(),
+    resolveHomeSections(),
+    getPromotionBySlug("festive-edit"),
+  ]);
+  const { trending, newArrivals, featured: editors, onSale } = sections;
   const festiveActive = festive && isPromotionActive(festive) ? festive : undefined;
+
+  // Homepage is the primary business-identity page: ONE graph defining the
+  // canonical Organization (with its #store / #return-policy references)
+  // and the canonical WebSite, plus this page's WebPage node. Pure static
+  // business data — no catalog entities are duplicated into this graph.
+  const homeGraph = buildJsonLdGraph(
+    websiteEntity(),
+    organizationEntity(),
+    webPageEntity({
+      path: "/",
+      name: "Fusion Gadgets — Considered tech, for everyday life",
+      description: storeInfo.tagline,
+      about: organizationRef(),
+    })
+  );
 
   return (
     <div className="flex flex-col">
-      {/* ── Hero ───────────────────────────────────────────
-          Product-led. Desktop: asymmetric — text left, large product
-          image right. Mobile: full-bleed product visual first, then
-          proposition — intentionally art-directed, not a stacked desktop. */}
-      <section className="border-b border-border">
-        {/* Mobile composition: product first, proposition second */}
-        <div className="lg:hidden">
-          <div className="relative aspect-[4/5] w-full overflow-hidden bg-muted">
-            <Image
-              src="/images/hero-tech.jpg"
-              alt="Premium wireless over-ear headphones — one of the products Fusion Gadgets carries"
-              fill
-              priority
-              sizes="100vw"
-              className="object-cover"
-              style={{ objectPosition: "68% 50%" }}
-            />
-          </div>
-          <div className="container-edge py-10">
-            <p className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
-              <span className="h-px w-8 bg-copper" />
-              Independent tech store · Bahraich, UP
-            </p>
-            <h1 className="mt-4 font-display text-[2.5rem] font-semibold leading-[1.02] tracking-tight text-balance">
-              Good tech, well chosen<span className="text-copper">.</span>
-            </h1>
-            <p className="mt-4 max-w-md text-pretty text-[15px] leading-relaxed text-muted-foreground">
-              Electronics, home appliances, batteries & car accessories — picked
-              by people who actually use them. Local store in Bahraich, UP.
-            </p>
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              <Button asChild size="lg" className="press">
-                <Link href="/shop">
-                  Shop all products <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
-              <Button asChild variant="ghost" size="lg" className="press">
-                <Link href="/categories/audio">Shop audio</Link>
-              </Button>
-            </div>
-            <dl className="mt-8 grid grid-cols-3 gap-4 border-t border-border pt-5 text-sm">
-              <div>
-                <dt className="text-muted-foreground">Categories</dt>
-                <dd className="mt-1 font-display text-xl tracking-tight">8</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Brands</dt>
-                <dd className="mt-1 font-display text-xl tracking-tight">15+</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Shipping</dt>
-                <dd className="mt-1 font-display text-xl tracking-tight">24h</dd>
-              </div>
-            </dl>
-          </div>
-        </div>
-
-        {/* Desktop composition: asymmetric, product image dominant */}
-        <div className="container-edge hidden lg:grid lg:grid-cols-[0.85fr_1.15fr] lg:gap-0">
-          <div className="flex flex-col justify-center py-20 pr-12">
-            <p className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
-              <span className="h-px w-8 bg-copper" />
-              Independent tech store · Bahraich, UP
-            </p>
-            <h1 className="mt-5 font-display text-[clamp(2.75rem,4.2vw,4rem)] font-semibold leading-[1.02] tracking-tight text-balance">
-              Good tech, well chosen<span className="text-copper">.</span>
-            </h1>
-            <p className="mt-6 max-w-md text-pretty text-[15px] leading-relaxed text-muted-foreground">
-              Electronics, home appliances, batteries & car accessories — picked
-              by people who actually use them. Local store in Bahraich, UP.
-            </p>
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Button asChild size="lg" className="press">
-                <Link href="/shop">
-                  Shop all products <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
-              <Button asChild variant="ghost" size="lg" className="press">
-                <Link href="/categories/audio">Shop audio</Link>
-              </Button>
-            </div>
-            <dl className="mt-12 grid grid-cols-3 gap-6 border-t border-border pt-6 text-sm">
-              <div>
-                <dt className="text-muted-foreground">Categories</dt>
-                <dd className="mt-1 font-display text-2xl tracking-tight">8</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Brands</dt>
-                <dd className="mt-1 font-display text-2xl tracking-tight">15+</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Shipping</dt>
-                <dd className="mt-1 font-display text-2xl tracking-tight">24h</dd>
-              </div>
-            </dl>
-          </div>
-          <div className="relative min-h-[540px] overflow-hidden bg-muted lg:border-l lg:border-border">
-            <Image
-              src="/images/hero-tech.jpg"
-              alt="Premium wireless over-ear headphones — one of the products Fusion Gadgets carries"
-              fill
-              priority
-              sizes="60vw"
-              className="object-cover"
-            />
-          </div>
-        </div>
-      </section>
+      <JsonLd data={homeGraph} />
+      <HomeHero />
 
       {/* ── Category discovery — compact horizontal rail ── */}
       <section className="border-b border-border py-10 lg:py-12">
@@ -327,112 +252,277 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/* ── Value / trust ───────────────────────────────── */}
-      <section className="border-b border-border bg-muted/40 py-14 lg:py-20">
-        <div className="container-edge grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { icon: Truck, title: "Free, fast shipping", body: "Free delivery across India on orders over ₹1,000. Most orders ship within 24 hours." },
-            { icon: ShieldCheck, title: "Real warranties", body: "Up to 5-year manufacturer warranty on every product. No grey-market stock, ever." },
-            { icon: RotateCcw, title: "7-day returns", body: "Changed your mind? Return within 7 days for a full refund — no friction." },
-            { icon: Headphones, title: "Talk to a person", body: "Speak to someone who\u2019s actually used the product. Monday to Saturday, 10 to 7." },
-          ].map(({ icon: Icon, title, body }) => (
-            <div key={title} className="flex flex-col gap-3">
-              <Icon className="h-6 w-6 text-copper" strokeWidth={1.5} />
-              <h3 className="font-display text-lg tracking-tight">{title}</h3>
-              <p className="text-sm leading-relaxed text-muted-foreground">{body}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Store presence ──────────────────────────────── */}
-      <section className="border-b border-border py-14 lg:py-20">
-        <div className="container-edge grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
-          <div className="relative aspect-[4/3] overflow-hidden rounded-xl border border-border lg:aspect-auto lg:min-h-[380px]">
-            <Image
-              src="/images/store-interior.jpg"
-              alt="The Fusion Gadgets store in Bahraich, Uttar Pradesh"
-              fill
-              sizes="(max-width: 1024px) 100vw, 55vw"
-              className="object-cover"
-            />
-          </div>
-          <div className="flex flex-col justify-center">
-            <p className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
-              <Store className="h-4 w-4" /> Our store
-            </p>
-            <h2 className="mt-4 font-display text-3xl tracking-tight md:text-4xl">
-              Visit us in Bahraich.
-            </h2>
-            <p className="mt-4 max-w-md text-pretty text-[15px] leading-relaxed text-muted-foreground">
-              Visit our store at K.B. Global Square in Bahraich. Drop in to see
-              products in person, try before you buy, get advice from people who
-              know the gear, or pick up an online order. No appointment needed.
-            </p>
-            <dl className="mt-8 grid gap-4 text-sm sm:grid-cols-2">
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-muted-foreground">Address</dt>
-                <dd className="mt-1">
-                  {storeInfo.address.line1}, {storeInfo.address.line2},{" "}
-                  {storeInfo.address.city}, {storeInfo.address.postcode}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-muted-foreground">Hours</dt>
-                <dd className="mt-1">{storeInfo.hours}</dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-muted-foreground">Phone</dt>
-                <dd className="mt-1">
-                  <a href={`tel:${storeInfo.phone}`} className="hover:text-copper">
-                    {storeInfo.phone}
-                  </a>
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-muted-foreground">Email</dt>
-                <dd className="mt-1">
-                  <a href={`mailto:${storeInfo.email}`} className="hover:text-copper">
-                    {storeInfo.email}
-                  </a>
-                </dd>
-              </div>
-            </dl>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Button asChild className="press">
-                <Link href="/contact">Get directions</Link>
-              </Button>
-              <Button asChild variant="ghost" className="press">
-                <Link href="/about">About Fusion</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Closing CTA ─────────────────────────────────── */}
-      <section className="py-16 lg:py-24">
-        <div className="container-edge flex flex-col items-center gap-6 text-center">
-          <h2 className="font-display text-3xl tracking-tight md:text-4xl text-balance">
-            Browse the full range.
-          </h2>
-          <p className="max-w-md text-sm text-muted-foreground">
-            From cables and chargers to cameras and headphones — explore
-            everything we carry.
-          </p>
-          <Button asChild size="lg" className="press">
-            <Link href="/shop">
-              Shop all products <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-        </div>
-      </section>
+      <TrustSection />
+      <StoreSection />
+      <ClosingCta />
     </div>
   );
 }
 
+type HomeSections = {
+  trending: Product[];
+  newArrivals: Product[];
+  featured: Product[];
+  onSale: Product[];
+};
+
+async function resolveHomeSections(): Promise<HomeSections> {
+  const limits: Record<FeedSurface, number> = {
+    trending: 4,
+    "new-arrivals": 4,
+    featured: 4,
+    "on-sale": 4,
+  };
+  const surfaces: FeedSurface[] = [
+    "trending",
+    "new-arrivals",
+    "featured",
+    "on-sale",
+  ];
+  // Four feed scopes (ids only, feed:home-tagged) + the shared card
+  // dataset — each surface resolves its ids against the dataset in order.
+  const [idLists, dataset] = await Promise.all([
+    Promise.all(surfaces.map((s) => getFeedSurfaceIds(s, limits[s]))),
+    getAllProductCards(),
+  ]);
+  const byId = new Map(dataset.map((p) => [p.id, p]));
+  const resolve = (ids: string[]): Product[] =>
+    ids
+      .map((id) => byId.get(id))
+      .filter((p): p is Product => Boolean(p));
+
+  // ONE live batched stock overlay for every feed product on the page.
+  const allIds = [...new Set(idLists.flat())];
+  const stockMap = await getStocks(allIds);
+  return {
+    trending: overlayStock(resolve(idLists[0]), stockMap),
+    newArrivals: overlayStock(resolve(idLists[1]), stockMap),
+    featured: overlayStock(resolve(idLists[2]), stockMap),
+    onSale: overlayStock(resolve(idLists[3]), stockMap),
+  };
+}
+
+function HomeHero() {
+  return (
+    <section className="border-b border-border">
+      {/* Mobile composition: product first, proposition second */}
+      <div className="lg:hidden">
+        <div className="relative aspect-[4/5] w-full overflow-hidden bg-muted">
+          <Image
+            src="/images/hero-tech.jpg"
+            alt="Premium wireless over-ear headphones — one of the products Fusion Gadgets carries"
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover"
+            style={{ objectPosition: "68% 50%" }}
+          />
+        </div>
+        <div className="container-edge py-10">
+          <p className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+            <span className="h-px w-8 bg-copper" />
+            Independent tech store · Bahraich, UP
+          </p>
+          <h1 className="mt-4 font-display text-[2.5rem] font-semibold leading-[1.02] tracking-tight text-balance">
+            Good tech, well chosen<span className="text-copper">.</span>
+          </h1>
+          <p className="mt-4 max-w-md text-pretty text-[15px] leading-relaxed text-muted-foreground">
+            Electronics, home appliances, batteries & car accessories — picked
+            by people who actually use them. Local store in Bahraich, UP.
+          </p>
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <Button asChild size="lg" className="press">
+              <Link href="/shop">
+                Shop all products <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild variant="ghost" size="lg" className="press">
+              <Link href="/categories/audio">Shop audio</Link>
+            </Button>
+          </div>
+          <dl className="mt-8 grid grid-cols-3 gap-4 border-t border-border pt-5 text-sm">
+            <div>
+              <dt className="text-muted-foreground">Categories</dt>
+              <dd className="mt-1 font-display text-xl tracking-tight">8</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Brands</dt>
+              <dd className="mt-1 font-display text-xl tracking-tight">15+</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Shipping</dt>
+              <dd className="mt-1 font-display text-xl tracking-tight">24h</dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+
+      {/* Desktop composition: asymmetric, product image dominant */}
+      <div className="container-edge hidden lg:grid lg:grid-cols-[0.85fr_1.15fr] lg:gap-0">
+        <div className="flex flex-col justify-center py-20 pr-12">
+          <p className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+            <span className="h-px w-8 bg-copper" />
+            Independent tech store · Bahraich, UP
+          </p>
+          <h1 className="mt-5 font-display text-[clamp(2.75rem,4.2vw,4rem)] font-semibold leading-[1.02] tracking-tight text-balance">
+            Good tech, well chosen<span className="text-copper">.</span>
+          </h1>
+          <p className="mt-6 max-w-md text-pretty text-[15px] leading-relaxed text-muted-foreground">
+            Electronics, home appliances, batteries & car accessories — picked
+            by people who actually use them. Local store in Bahraich, UP.
+          </p>
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <Button asChild size="lg" className="press">
+              <Link href="/shop">
+                Shop all products <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild variant="ghost" size="lg" className="press">
+              <Link href="/categories/audio">Shop audio</Link>
+            </Button>
+          </div>
+          <dl className="mt-12 grid grid-cols-3 gap-6 border-t border-border pt-6 text-sm">
+            <div>
+              <dt className="text-muted-foreground">Categories</dt>
+              <dd className="mt-1 font-display text-2xl tracking-tight">8</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Brands</dt>
+              <dd className="mt-1 font-display text-2xl tracking-tight">15+</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Shipping</dt>
+              <dd className="mt-1 font-display text-2xl tracking-tight">24h</dd>
+            </div>
+          </dl>
+        </div>
+        <div className="relative min-h-[540px] overflow-hidden bg-muted lg:border-l lg:border-border">
+          <Image
+            src="/images/hero-tech.jpg"
+            alt="Premium wireless over-ear headphones — one of the products Fusion Gadgets carries"
+            fill
+            priority
+            sizes="60vw"
+            className="object-cover"
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function TrustSection() {
+  return (
+    <section className="border-b border-border bg-muted/40 py-14 lg:py-20">
+      <div className="container-edge grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          { icon: Truck, title: "Free, fast shipping", body: "Free delivery across India on orders over ₹1,000. Most orders ship within 24 hours." },
+          { icon: ShieldCheck, title: "Real warranties", body: "Up to 5-year manufacturer warranty on every product. No grey-market stock, ever." },
+          { icon: RotateCcw, title: "7-day returns", body: "Changed your mind? Return within 7 days for a full refund — no friction." },
+          { icon: Headphones, title: "Talk to a person", body: "Speak to someone who\u2019s actually used the product. Monday to Saturday, 10 to 7." },
+        ].map(({ icon: Icon, title, body }) => (
+          <div key={title} className="flex flex-col gap-3">
+            <Icon className="h-6 w-6 text-copper" strokeWidth={1.5} />
+            <h3 className="font-display text-lg tracking-tight">{title}</h3>
+            <p className="text-sm leading-relaxed text-muted-foreground">{body}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function StoreSection() {
+  return (
+    <section className="border-b border-border py-14 lg:py-20">
+      <div className="container-edge grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
+        <div className="relative aspect-[4/3] overflow-hidden rounded-xl border border-border lg:aspect-auto lg:min-h-[380px]">
+          <Image
+            src="/images/store-interior.jpg"
+            alt="The Fusion Gadgets store in Bahraich, Uttar Pradesh"
+            fill
+            sizes="(max-width: 1024px) 100vw, 55vw"
+            className="object-cover"
+          />
+        </div>
+        <div className="flex flex-col justify-center">
+          <p className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+            <Store className="h-4 w-4" /> Our store
+          </p>
+          <h2 className="mt-4 font-display text-3xl tracking-tight md:text-4xl">
+            Visit us in Bahraich.
+          </h2>
+          <p className="mt-4 max-w-md text-pretty text-[15px] leading-relaxed text-muted-foreground">
+            Visit our store at K.B. Global Square in Bahraich. Drop in to see
+            products in person, try before you buy, get advice from people who
+            know the gear, or pick up an online order. No appointment needed.
+          </p>
+          <dl className="mt-8 grid gap-4 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Address</dt>
+              <dd className="mt-1">
+                {storeInfo.address.line1}, {storeInfo.address.line2},{" "}
+                {storeInfo.address.city}, {storeInfo.address.postcode}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Hours</dt>
+              <dd className="mt-1">{storeInfo.hours}</dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Phone</dt>
+              <dd className="mt-1">
+                <a href={`tel:${storeInfo.phone}`} className="hover:text-copper">
+                  {storeInfo.phone}
+                </a>
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Email</dt>
+              <dd className="mt-1">
+                <a href={`mailto:${storeInfo.email}`} className="hover:text-copper">
+                  {storeInfo.email}
+                </a>
+              </dd>
+            </div>
+          </dl>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Button asChild className="press">
+              <Link href="/contact">Get directions</Link>
+            </Button>
+            <Button asChild variant="ghost" className="press">
+              <Link href="/about">About Fusion</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ClosingCta() {
+  return (
+    <section className="py-16 lg:py-24">
+      <div className="container-edge flex flex-col items-center gap-6 text-center">
+        <h2 className="font-display text-3xl tracking-tight md:text-4xl text-balance">
+          Browse the full range.
+        </h2>
+        <p className="max-w-md text-sm text-muted-foreground">
+          From cables and chargers to cameras and headphones — explore
+          everything we carry.
+        </p>
+        <Button asChild size="lg" className="press">
+          <Link href="/shop">
+            Shop all products <ArrowRight className="h-4 w-4" />
+          </Link>
+        </Button>
+      </div>
+    </section>
+  );
+}
+
 function productVisualForCategory(slug: string) {
-  const map: Record<string, ProductVisualKeyLike> = {
+  const map: Record<string, ProductVisualKey> = {
     audio: "headphones",
     keyboards: "keyboard",
     computing: "mouse",
@@ -444,8 +534,3 @@ function productVisualForCategory(slug: string) {
   };
   return map[slug] ?? "headphones";
 }
-
-type ProductVisualKeyLike =
-  | "headphones" | "earbuds" | "speaker" | "keyboard" | "mouse" | "watch"
-  | "camera" | "lens" | "drone" | "charger" | "cable" | "stand" | "lamp"
-  | "backpack" | "controller" | "mic" | "monitor" | "tracker";

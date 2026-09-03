@@ -123,9 +123,23 @@ export function SiteHeader() {
           </SheetContent>
         </Sheet>
 
-        {/* Logo */}
+        {/* Logo — `prefetch` forces a FULL RSC prefetch (FetchStrategy.Full),
+            not the default shell-only one. This matters for back-navigation:
+            when a product page is entered as a full page load (pre-hydration
+            link click, RSC-fetch failure fallback, or reload), the app boots
+            fresh and the router cache for "/" holds only the shell-prefetch.
+            A back-traversal then commits that shell — the page segment's only
+            available fallback is empty, the document collapses to viewport
+            height, and Chrome's one-shot native scroll restoration (which
+            fires ~20ms after popstate, clamped to the current document
+            height and never retried) is destroyed. With the full tree
+            prefetched, the traverse commits the complete homepage
+            synchronously at popstate — the document is at full height when
+            the browser restores the scroll offset, so normal history
+            restoration works naturally. */}
         <Link
           href="/"
+          prefetch={true}
           className="font-display text-lg font-medium tracking-tight"
           aria-label="Fusion Gadgets home"
         >

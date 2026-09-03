@@ -13,6 +13,8 @@ import {
   Clock,
 } from "lucide-react";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
+import { JsonLd } from "@/components/shared/JsonLd";
+import { buildJsonLdGraph, webPageEntity } from "@/lib/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { storeInfo } from "@/lib/store-info";
@@ -93,6 +95,20 @@ const TOC = [
 export default function ShippingPage() {
   return (
     <div className="container-edge py-8 lg:py-12">
+      {/* Plain WebPage semantics only. Shipping-rate structured data is
+          intentionally NOT emitted: the Shipping page's rates and the
+          checkout's authoritative rates differ (see project audit) and
+          conflicting rules must not be encoded into structured data. */}
+      <JsonLd
+        data={buildJsonLdGraph(
+          webPageEntity({
+            path: "/shipping",
+            name: "Shipping",
+            description:
+              "How Fusion Gadgets ships across India — standard, express, and local delivery within Bahraich. Processing times, coverage, tracking, and packaging notes.",
+          })
+        )}
+      />
       <Breadcrumbs
         items={[{ label: "Home", href: "/" }, { label: "Shipping" }]}
       />

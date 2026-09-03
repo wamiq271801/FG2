@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { Link } from "@/components/shared/Link";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
 import { ArrowRight, PackageOpen } from "lucide-react";
-import { getProductsByCategoryId } from "@/modules/catalog/products";
+import { getAllProductCards } from "@/modules/catalog/products";
+import { getStocks, overlayStock } from "@/modules/catalog/stock";
 import { getAllCategories, getCategoryBySlug } from "@/modules/catalog/categories";
 import { getAllBrands } from "@/modules/catalog/brands";
+import type { Category, Product } from "@/types";
 import {
   applyFilters,
   applySort,
@@ -24,16 +25,17 @@ import { MobileFilters } from "@/components/shop/MobileFilters";
 import { ActiveFilters } from "@/components/shop/ActiveFilters";
 import { Pagination } from "@/components/shop/Pagination";
 import { Button } from "@/components/ui/button";
-
-const SITE_URL = "https://fusiongadgets.in";
+import { JsonLd } from "@/components/shared/JsonLd";
+import {
+  breadcrumbRef,
+  buildBreadcrumbList,
+  buildItemList,
+  buildJsonLdGraph,
+  collectionPageEntity,
+} from "@/lib/schema";
 
 type Params = Promise<{ slug: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
-
-export async function generateStaticParams() {
-  const categories = await getAllCategories();
-  return categories.map((c) => ({ slug: c.slug }));
-}
 
 export async function generateMetadata({
   params,
@@ -41,6 +43,7 @@ export async function generateMetadata({
   params: Params;
 }): Promise<Metadata> {
   const { slug } = await params;
+  // Reads through the same cached category-detail scope as the page.
   const category = await getCategoryBySlug(slug);
   if (!category) return {};
 
@@ -66,20 +69,6 @@ export async function generateMetadata({
   };
 }
 
-function breadcrumbJsonLd(name: string, path: string) {
-  return {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
-      { "@type": "ListItem", position: 2, name: "Shop", item: `${SITE_URL}/shop` },
-      { "@type": "ListItem", position: 3, name, item: `${SITE_URL}${path}` },
-    ],
-  };
-}
-
-export const revalidate = 300;
-
 export default async function CategoryPage({
   params,
   searchParams,
@@ -87,25 +76,64 @@ export default async function CategoryPage({
   params: Params;
   searchParams: SearchParams;
 }) {
+  // COMPLETE server-rendered page: params/searchParams are awaited directly
+  // in the page and every scope (cached category detail + card dataset +
+  // LIVE stock overlay) is resolved before the page renders (the root
+  // layout's above-body Suspense boundary is the official fully-dynamic
+  // opt-in). The response contains the complete category page; client
+  // navigation commits the new page only once it is fully rendered.
   const { slug } = await params;
+
+  // UNcached page render assembling the cached scopes (Phase 2): the
+  // category-detail scope, the category list, the product-card dataset
+  // filtered to this category, and one LIVE batched stock overlay —
+  // availability filtering operates on live values.
   const category = await getCategoryBySlug(slug);
   if (!category) notFound();
 
-  const basePath = `/categories/${slug}`;
-  const inCategory = await getProductsByCategoryId(category.id);
+  const [cards, allCategories] = await Promise.all([
+    getAllProductCards(),
+    getAllCategories(),
+  ]);
+  const categoryCards = cards.filter((p) => p.categoryId === category.id);
+  const stockMap = await getStocks(categoryCards.map((p) => p.id));
+  const inCategory = overlayStock(categoryCards, stockMap);
+  const others = allCategories.filter((c) => c.slug !== slug).slice(0, 4);
 
-  // The static shell (breadcrumbs, identity, JSON-LD, SEO paragraph) renders
-  // immediately. The dynamic filter+results block is wrapped in <Suspense>
-  // so the page streams — required by Next 16 for `searchParams` access.
+  const basePath = `/categories/${slug}`;
+
+  // ONE JSON-LD graph in the static shell: CollectionPage → BreadcrumbList
+  // + ItemList of this category's collection (from the products already
+  // loaded for the header count — no additional query).
+  const categoryList = buildItemList(
+    basePath,
+    inCategory.map((p) => ({ url: `/product/${p.slug}` }))
+  );
+  const categoryGraph = buildJsonLdGraph(
+    collectionPageEntity({
+      path: basePath,
+      name: category.name,
+      description: category.description,
+      breadcrumb: breadcrumbRef(basePath),
+      ...(categoryList ? { mainEntity: { "@id": categoryList["@id"] } } : {}),
+    }),
+    buildBreadcrumbList(basePath, [
+      { name: "Home", path: "/" },
+      { name: "Shop", path: "/shop" },
+      { name: category.name },
+    ]),
+    categoryList
+  );
+
+  // The COMPLETE page renders in one pass: the identity header and the
+  // filter+results block (which awaits searchParams) resolve together in the
+  // page render — awaiting searchParams here is allowed by the root layout's
+  // above-body Suspense boundary (the official fully-dynamic opt-in), so no
+  // per-page streaming boundary is needed.
   return (
     <div className="container-edge py-8 lg:py-12">
       <CategoryViewTracker slug={slug} />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(breadcrumbJsonLd(category.name, basePath)),
-        }}
-      />
+      <JsonLd data={categoryGraph} />
 
       <Breadcrumbs
         items={[
@@ -166,9 +194,11 @@ export default async function CategoryPage({
         </div>
       </header>
 
-      <Suspense fallback={<CategoryResultsFallback />}>
-        <CategoryResults slug={slug} searchParams={searchParams} />
-      </Suspense>
+      <CategoryResults
+        category={category}
+        inCategory={inCategory}
+        searchParams={searchParams}
+      />
 
       {/* SEO closing paragraph */}
       <section className="mt-12 border-t border-border pt-10">
@@ -186,22 +216,17 @@ export default async function CategoryPage({
               shop
             </Link>{" "}
             or explore another shelf:{" "}
-            {await (async () => {
-              const others = (await getAllCategories())
-                .filter((c) => c.slug !== slug)
-                .slice(0, 4);
-              return others.map((c, i, arr) => (
-                <span key={c.slug}>
-                  <Link
-                    href={`/categories/${c.slug}`}
-                    className="text-copper underline-offset-4 hover:underline"
-                  >
-                    {c.name}
-                  </Link>
-                  {i < arr.length - 1 ? " · " : "."}
-                </span>
-              ));
-            })()}
+            {others.map((c, i, arr) => (
+              <span key={c.slug}>
+                <Link
+                  href={`/categories/${c.slug}`}
+                  className="text-copper underline-offset-4 hover:underline"
+                >
+                  {c.name}
+                </Link>
+                {i < arr.length - 1 ? " · " : "."}
+              </span>
+            ))}
           </p>
         </div>
       </section>
@@ -209,41 +234,19 @@ export default async function CategoryPage({
   );
 }
 
-function CategoryResultsFallback() {
-  return (
-    <div className="mt-8 grid gap-8 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-10">
-      <aside className="hidden lg:block">
-        <div className="h-64 animate-pulse rounded-md bg-muted" />
-      </aside>
-      <section>
-        <div className="h-6 w-48 animate-pulse rounded bg-muted" />
-        <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-3 lg:gap-x-6">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="aspect-square animate-pulse rounded-xl bg-muted" />
-          ))}
-        </div>
-      </section>
-    </div>
-  );
-}
-
 async function CategoryResults({
-  slug,
+  category,
+  inCategory,
   searchParams,
 }: {
-  slug: string;
+  category: Category;
+  inCategory: Product[];
   searchParams: SearchParams;
 }) {
-  const category = await getCategoryBySlug(slug);
-  if (!category) return null;
-
   const sp = await searchParams;
   const filters = parseFilters(sp);
 
-  const [inCategory, allBrands] = await Promise.all([
-    getProductsByCategoryId(category.id),
-    getAllBrands(),
-  ]);
+  const allBrands = await getAllBrands();
 
   const filtered = applyFilters(inCategory, filters);
   const sorted = applySort(filtered, filters.sort);
@@ -264,7 +267,7 @@ async function CategoryResults({
     .sort((a, b) => b.count - a.count);
 
   const bounds = priceBounds(inCategory);
-  const basePath = `/categories/${slug}`;
+  const basePath = `/categories/${category.slug}`;
   const activeCount = countActiveFilters(filters);
 
   const pagelessQuery = buildQuery({

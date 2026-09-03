@@ -2,8 +2,9 @@
  * Regression tests for the bugs fixed by the Cache Components migration.
  *
  * 1. NEW badge — exact 7-day rule (was 60 days before the migration).
- * 2. Navigation progress store — reference-counted model (was a racy global
- *    boolean before the migration).
+ * 2. Navigation progress store — single-cycle boolean model (was a racy
+ *    reference-counted per-link mirroring system before the lifecycle
+ *    rewrite).
  *
  * Run: bun test tests/regression.test.ts
  */
@@ -48,33 +49,31 @@ describe("NEW badge — exact 7-day rule", () => {
   });
 });
 
-describe("nav progress store — reference-counted lifecycle", () => {
-  test("pending is count > 0, not a boolean", () => {
+describe("nav progress store — single-cycle boolean lifecycle", () => {
+  test("start → active, end → inactive (one navigation, one cycle)", () => {
     const s = useNavProgress.getState();
-    s.reset();
+    s.end(); // clear any leaked state from other tests
+    expect(useNavProgress.getState().active).toBe(false);
     s.start();
-    expect(useNavProgress.getState().pendingCount).toBe(1);
-    s.start(); // second concurrent reporter
-    expect(useNavProgress.getState().pendingCount).toBe(2);
-    s.complete(); // one completes — the other's navigation is still in flight
-    expect(useNavProgress.getState().pendingCount).toBe(1);
-    s.complete();
-    expect(useNavProgress.getState().pendingCount).toBe(0);
+    expect(useNavProgress.getState().active).toBe(true);
+    s.end();
+    expect(useNavProgress.getState().active).toBe(false);
   });
 
-  test("complete clamps at zero (stale reporters can't go negative)", () => {
+  test("overlapping starts collapse into one continuous cycle", () => {
     const s = useNavProgress.getState();
-    s.reset();
-    s.complete(); // unguarded completion with nothing in flight
-    expect(useNavProgress.getState().pendingCount).toBe(0);
+    s.end();
+    s.start(); // first click
+    s.start(); // second click while first navigation is still in flight
+    expect(useNavProgress.getState().active).toBe(true);
+    s.end(); // the superseding navigation commits
+    expect(useNavProgress.getState().active).toBe(false);
   });
 
-  test("reset clears any leaked count (pathname-change safety net)", () => {
+  test("end is a no-op when nothing is in flight", () => {
     const s = useNavProgress.getState();
-    s.start();
-    s.start();
-    s.start();
-    s.reset();
-    expect(useNavProgress.getState().pendingCount).toBe(0);
+    s.end();
+    s.end();
+    expect(useNavProgress.getState().active).toBe(false);
   });
 });

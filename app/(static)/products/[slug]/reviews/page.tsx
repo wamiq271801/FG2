@@ -2,16 +2,19 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getProductBySlug } from "@/modules/catalog/products";
-import {
-  getReviewSummary,
-  getPaginatedReviews,
-} from "@/modules/review/data";
+import { getReviewData, getPaginatedReviews } from "@/modules/review/data";
 import { RatingSummary } from "@/components/review/RatingSummary";
 import { RatingDistribution } from "@/components/review/RatingDistribution";
 import { ReviewList } from "@/components/review/ReviewList";
 import { ReviewActions } from "@/components/review/ReviewActions";
-
-export const revalidate = 300;
+import { JsonLd } from "@/components/shared/JsonLd";
+import {
+  breadcrumbRef,
+  buildBreadcrumbList,
+  buildJsonLdGraph,
+  productRef,
+  webPageEntity,
+} from "@/lib/schema";
 
 type Params = Promise<{ slug: string }>;
 type SearchParams = Promise<{ page?: string | string[] | undefined }>;
@@ -22,8 +25,10 @@ export async function generateMetadata({
   params: Params;
 }): Promise<Metadata> {
   const { slug } = await params;
+  // getProductBySlug is a cached function ("product" profile) — the metadata
+  // reads through the same cache entry as the page.
   const product = await getProductBySlug(slug);
-  if (!product) return {};
+  if (!product) return {}
   return {
     title: `Reviews · ${product.name}`,
     description: `Read customer reviews for ${product.name}.`,
@@ -41,6 +46,10 @@ export default async function ProductReviewsPage({
   params: Params;
   searchParams: SearchParams;
 }) {
+  // COMPLETE server-rendered page: params/searchParams are awaited directly
+  // in the page and the review data resolves before the page renders (the
+  // root layout's above-body Suspense boundary is the official fully-dynamic
+  // opt-in).
   const { slug } = await params;
   const product = await getProductBySlug(slug);
   if (!product) notFound();
@@ -49,13 +58,36 @@ export default async function ProductReviewsPage({
   const pageRaw = Number(Array.isArray(sp.page) ? sp.page[0] : sp.page);
   const page = Number.isFinite(pageRaw) && pageRaw > 0 ? Math.floor(pageRaw) : 1;
 
-  const [summary, { reviews, totalPages }] = await Promise.all([
-    getReviewSummary(product.id),
+  const [reviewData, { reviews, totalPages }] = await Promise.all([
+    getReviewData(product.id),
     getPaginatedReviews(product.id, page, PAGE_SIZE),
   ]);
+  const summary = reviewData.summary;
+
+  const reviewsPath = `/products/${product.slug}/reviews`;
+
+  // ONE JSON-LD graph: WebPage + BreadcrumbList + a compact Product
+  // reference. This page is not the Product Detail page — the merchant
+  // product graph is not duplicated here, and no private review state is
+  // ever exposed.
+  const reviewsGraph = buildJsonLdGraph(
+    webPageEntity({
+      path: reviewsPath,
+      name: `Reviews · ${product.name}`,
+      description: `Read customer reviews for ${product.name}.`,
+      mainEntity: productRef(product.slug, product.name),
+      breadcrumb: breadcrumbRef(reviewsPath),
+    }),
+    buildBreadcrumbList(reviewsPath, [
+      { name: "Home", path: "/" },
+      { name: product.name, path: `/product/${product.slug}` },
+      { name: "Reviews" },
+    ])
+  );
 
   return (
     <main className="container-edge py-8 lg:py-12">
+      <JsonLd data={reviewsGraph} />
       <nav className="mb-6 text-sm text-muted-foreground" aria-label="Breadcrumb">
         <Link href={`/product/${product.slug}`} className="hover:text-foreground">
           {product.name}

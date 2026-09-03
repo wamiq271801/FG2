@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { storeInfo } from "@/lib/store-info";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
+import { JsonLd } from "@/components/shared/JsonLd";
+import { buildJsonLdGraph, organizationRef, webPageEntity } from "@/lib/schema";
 import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = {
@@ -82,6 +84,18 @@ const TRUST = [
 export default function AboutPage() {
   return (
     <div className="container-edge py-8 lg:py-12">
+      <JsonLd
+        data={buildJsonLdGraph(
+          webPageEntity({
+            path: "/about",
+            type: "AboutPage",
+            name: "About Fusion Gadgets",
+            description:
+              "Fusion Gadgets is your trusted local store for electronics, home appliances, batteries, and car accessories — founded in 2024 in Bahraich, Uttar Pradesh.",
+            about: organizationRef(),
+          })
+        )}
+      />
       <Breadcrumbs
         items={[{ label: "Home", href: "/" }, { label: "About" }]}
       />

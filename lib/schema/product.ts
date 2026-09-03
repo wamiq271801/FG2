@@ -80,7 +80,9 @@ function buildOffer(product: Product): JsonLdObject {
     url: productUrl(product.slug),
     price: String(product.price),
     priceCurrency: product.currency,
-    availability: schemaAvailability(product.availability),
+    // The PDP always overlays live stock before building JSON-LD; the
+    // fallback only guards the (never-rendered) sans-stock cached shape.
+    availability: schemaAvailability(product.availability ?? "in-stock"),
     itemCondition: `${SCHEMA_ORG}/NewCondition`,
     seller: organizationRef(),
     hasMerchantReturnPolicy: merchantReturnPolicyRef(),

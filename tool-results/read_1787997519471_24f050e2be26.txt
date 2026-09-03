@@ -1,0 +1,1886 @@
+     1→     1→You are working directly on the MAIN production website repository.
+     2→     2→
+     3→     3→This is an end-to-end modernization, refactoring, bug-fixing, caching, navigation, and SEO implementation.
+     4→     4→
+     5→     5→You MUST execute this carefully and completely.
+     6→     6→
+     7→     7→DO NOT drift.
+     8→     8→DO NOT invent requirements.
+     9→     9→DO NOT remove existing features.
+    10→    10→DO NOT redesign the UI/UX.
+    11→    11→DO NOT introduce unnecessary abstractions.
+    12→    12→DO NOT blindly copy patterns from older Next.js versions.
+    13→    13→DO NOT blindly copy a previous implementation.
+    14→    14→DO NOT stop after making code changes without production verification.
+    15→    15→
+    16→    16→The goal is:
+    17→    17→
+    18→    18→CURRENT OFFICIAL NEXT.JS + SUPABASE PRACTICES
+    19→    19→+
+    20→    20→CORRECT NEXT.JS 16 CACHE COMPONENTS ARCHITECTURE
+    21→    21→+
+    22→    22→PAGE-LEVEL CACHE LIFETIMES
+    23→    23→+
+    24→    24→CORRECT FIRST-CLICK NAVIGATION
+    25→    25→+
+    26→    26→CORRECT HEADER NAVIGATION LOADER LIFECYCLE
+    27→    27→+
+    28→    28→SERVER-RENDERED SEO-FRIENDLY HTML
+    29→    29→+
+    30→    30→CLOUDFLARE R2 IMAGE DELIVERY
+    31→    31→+
+    32→    32→EXACT EXISTING FEATURES AND UI/UX PRESERVATION
+    33→    33→+
+    34→    34→MINIMUM NECESSARY COMPLEXITY
+    35→    35→
+    36→    36→============================================================
+    37→    37→0. ABSOLUTE PRIORITY RULES
+    38→    38→============================================================
+    39→    39→
+    40→    40→These rules override your assumptions and prevent implementation drift.
+    41→    41→
+    42→    42→1. DO NOT remove existing product features.
+    43→    43→
+    44→    44→2. DO NOT change existing UI or UX except where explicitly stated in this prompt.
+    45→    45→
+    46→    46→3. The existing "NEW" product badge MUST remain.
+    47→    47→
+    48→    48→4. The NEW badge MUST continue functioning.
+    49→    49→
+    50→    50→5. The NEW badge duration MUST be EXACTLY 7 days.
+    51→    51→
+    52→    52→6. Do NOT remove the NEW badge.
+    53→    53→
+    54→    54→7. Do NOT disable the NEW badge.
+    55→    55→
+    56→    56→8. Do NOT replace the NEW badge with `isNew = false`.
+    57→    57→
+    58→    58→9. Do NOT approximate the 7-day duration.
+    59→    59→
+    60→    60→10. Do NOT change the visual appearance of the NEW badge.
+    61→    61→
+    62→    62→11. Do NOT introduce another loading UI.
+    63→    63→
+    64→    64→12. The existing header navigation loader is the ONLY navigation loading indicator.
+    65→    65→
+    66→    66→13. Do NOT change the visual design of the existing header loader.
+    67→    67→
+    68→    68→14. Do NOT change its dimensions, position, color, thickness, animation, easing, or styling.
+    69→    69→
+    70→    70→15. Only its underlying navigation lifecycle/state logic may be changed.
+    71→    71→
+    72→    72→16. Do NOT add:
+    73→    73→    - loading.tsx
+    74→    74→    - skeletons
+    75→    75→    - spinners
+    76→    76→    - product-page loaders
+    77→    77→    - full-page loaders
+    78→    78→    - Suspense fallback UI for this purpose
+    79→    79→    - duplicate navigation indicators
+    80→    80→
+    81→    81→17. Product pages MUST remain Server Components.
+    82→    82→
+    83→    83→18. Product content MUST remain server-rendered.
+    84→    84→
+    85→    85→19. Product content MUST remain present in the initial server-rendered HTML/RSC output.
+    86→    86→
+    87→    87→20. Do NOT move product fetching to:
+    88→    88→    - useEffect
+    89→    89→    - client-side fetch
+    90→    90→    - SWR
+    91→    91→    - React Query
+    92→    92→    - another client-side data layer
+    93→    93→
+    94→    94→21. Products are public.
+    95→    95→
+    96→    96→22. Keep the existing public Supabase access architecture.
+    97→    97→
+    98→    98→23. DO NOT introduce:
+    99→    99→    - SUPABASE_SERVICE_ROLE_KEY
+   100→   100→    - SUPABASE_SECRET_KEY
+   101→   101→    - privileged Supabase catalog access
+   102→   102→    - RLS bypasses
+   103→   103→
+   104→   104→24. The existing Supabase anon/public low-privilege key and RLS model must remain unless repository inspection proves a concrete problem that requires change.
+   105→   105→
+   106→   106→25. Do NOT proxy Cloudflare R2 images through Next.js.
+   107→   107→
+   108→   108→26. Do NOT introduce Next.js image optimization merely for SEO.
+   109→   109→
+   110→   110→27. Images are already optimized and served through the existing Cloudflare R2/custom CDN architecture.
+   111→   111→
+   112→   112→28. Keep that architecture.
+   113→   113→
+   114→   114→29. Do NOT change the image delivery system unless a concrete correctness/security problem is discovered.
+   115→   115→
+   116→   116→30. Do NOT disable Next.js prefetching globally merely to hide navigation bugs.
+   117→   117→
+   118→   118→31. Do NOT use `window.location` as a navigation workaround.
+   119→   119→
+   120→   120→32. Do NOT require a second click.
+   121→   121→
+   122→   122→33. Do NOT add arbitrary navigation delays.
+   123→   123→
+   124→   124→34. Do NOT use a fixed timeout to pretend that navigation has completed.
+   125→   125→
+   126→   126→35. Do NOT downgrade Next.js.
+   127→   127→
+   128→   128→36. Do NOT migrate back to legacy Next.js caching APIs.
+   129→   129→
+   130→   130→37. Do NOT introduce `unstable_cache` as the primary caching architecture.
+   131→   131→
+   132→   132→38. Do NOT use `dynamic = 'force-static'` as a workaround.
+   133→   133→
+   134→   134→39. Do NOT use `dynamic = 'force-dynamic'` to hide caching problems.
+   135→   135→
+   136→   136→40. Do NOT use `fetchCache = 'force-cache'` as a blunt workaround.
+   137→   137→
+   138→   138→41. Do NOT invent a second caching abstraction.
+   139→   139→
+   140→   140→42. Do NOT create unnecessary wrappers, utilities, hooks, repositories, state layers, or abstractions.
+   141→   141→
+   142→   142→43. Do NOT rewrite working code simply because another implementation exists.
+   143→   143→
+   144→   144→44. Preserve all existing business logic unless it is explicitly required to be corrected.
+   145→   145→
+   146→   146→45. When existing logic is unnecessarily complicated, simplify it ONLY if the resulting behavior remains exactly correct.
+   147→   147→
+   148→   148→46. Modernization does NOT mean rewriting the application.
+   149→   149→
+   150→   150→47. The target is:
+   151→   151→    current official practice
+   152→   152→    +
+   153→   153→    minimum necessary change
+   154→   154→    +
+   155→   155→    exact existing behavior preservation.
+   156→   156→
+   157→   157→
+   158→   158→============================================================
+   159→   159→1. RESEARCH REQUIREMENT — DO THIS FIRST
+   160→   160→============================================================
+   161→   161→
+   162→   162→Before modifying the repository, perform deep web research.
+   163→   163→
+   164→   164→Use CURRENT official documentation.
+   165→   165→
+   166→   166→Primary authorities:
+   167→   167→
+   168→   168→- Next.js official documentation
+   169→   169→- Supabase official documentation
+   170→   170→- Google Search Central / Google Search documentation
+   171→   171→
+   172→   172→Do NOT rely solely on model knowledge.
+   173→   173→
+   174→   174→Do NOT rely on old blog posts.
+   175→   175→
+   176→   176→Do NOT rely on random tutorials when official documentation exists.
+   177→   177→
+   178→   178→Do NOT assume behavior from older Next.js versions.
+   179→   179→
+   180→   180→Research the CURRENT supported behavior for:
+   181→   181→
+   182→   182→NEXT.JS:
+   183→   183→- Next.js 16
+   184→   184→- current Active LTS release
+   185→   185→- Cache Components
+   186→   186→- `cacheComponents`
+   187→   187→- `'use cache'`
+   188→   188→- `cacheLife`
+   189→   189→- custom cache profiles
+   190→   190→- `cacheTag`
+   191→   191→- `revalidateTag`
+   192→   192→- `updateTag`
+   193→   193→- Server Components
+   194→   194→- App Router navigation
+   195→   195→- Link behavior
+   196→   196→- prefetching
+   197→   197→- `useLinkStatus`
+   198→   198→- RSC navigation
+   199→   199→- loading states
+   200→   200→- Suspense and Cache Components
+   201→   201→- dynamic/request-time APIs
+   202→   202→- `connection()`
+   203→   203→- metadata
+   204→   204→- structured data
+   205→   205→- image handling
+   206→   206→- server-rendered HTML
+   207→   207→
+   208→   208→SUPABASE:
+   209→   209→- current Next.js integration
+   210→   210→- public data access
+   211→   211→- anon/public low-privilege key behavior
+   212→   212→- RLS
+   213→   213→- current key terminology
+   214→   214→- server-side Supabase client patterns
+   215→   215→- interaction between request-dependent Supabase Auth and caching
+   216→   216→
+   217→   217→GOOGLE:
+   218→   218→- crawlable internal links
+   219→   219→- `<a href>`
+   220→   220→- image crawling
+   221→   221→- `<img src>`
+   222→   222→- image alt text
+   223→   223→- internal linking
+   224→   224→- product structured data
+   225→   225→- canonical URLs
+   226→   226→- server-rendered discoverability
+   227→   227→
+   228→   228→IMPORTANT:
+   229→   229→
+   230→   230→Research is for determining the correct implementation.
+   231→   231→
+   232→   232→Do not blindly implement every new API you find.
+   233→   233→
+   234→   234→Use the simplest current officially supported approach that fits THIS application.
+   235→   235→
+   236→   236→If current documentation conflicts with an existing implementation, explain the conflict internally, determine the minimum required migration, then implement it.
+   237→   237→
+   238→   238→
+   239→   239→============================================================
+   240→   240→2. INSPECT THE MAIN REPOSITORY BEFORE CHANGING ANYTHING
+   241→   241→============================================================
+   242→   242→
+   243→   243→You are working on the MAIN project.
+   244→   244→
+   245→   245→Do NOT assume any previous project state.
+   246→   246→
+   247→   247→Do NOT assume file paths are identical to examples.
+   248→   248→
+   249→   249→Inspect the actual repository.
+   250→   250→
+   251→   251→At minimum inspect:
+   252→   252→
+   253→   253→- package.json
+   254→   254→- next.config.*
+   255→   255→- tsconfig.json
+   256→   256→- app/layout.*
+   257→   257→- app/(static)/layout.*
+   258→   258→- app/(static)/page.*
+   259→   259→- app/(static)/shop/*
+   260→   260→- app/(static)/product/[slug]/*
+   261→   261→- app/(static)/categories/*
+   262→   262→- app/(static)/categories/[slug]/*
+   263→   263→- all loading.tsx files
+   264→   264→- all error.tsx files
+   265→   265→- all Suspense boundaries
+   266→   266→- components/shared/*
+   267→   267→- components/layout/*
+   268→   268→- hooks/*
+   269→   269→- lib/supabase/*
+   270→   270→- modules/catalog/*
+   271→   271→- modules/review/*
+   272→   272→- metadata/SEO utilities
+   273→   273→- structured data utilities
+   274→   274→- image utilities
+   275→   275→- custom CDN/R2 utilities
+   276→   276→- sitemap
+   277→   277→- robots
+   278→   278→- middleware/proxy
+   279→   279→- custom Link components
+   280→   280→- navigation state
+   281→   281→- navigation progress state
+   282→   282→
+   283→   283→Search the repository for:
+   284→   284→
+   285→   285→- `revalidate`
+   286→   286→- `dynamic`
+   287→   287→- `fetchCache`
+   288→   288→- `unstable_cache`
+   289→   289→- `'use cache'`
+   290→   290→- `cacheLife`
+   291→   291→- `cacheTag`
+   292→   292→- `revalidateTag`
+   293→   293→- `updateTag`
+   294→   294→- `connection`
+   295→   295→- `Date.now`
+   296→   296→- `new Date`
+   297→   297→- `Math.random`
+   298→   298→- `crypto.randomUUID`
+   299→   299→- `cookies`
+   300→   300→- `headers`
+   301→   301→- `useRouter`
+   302→   302→- `router.push`
+   303→   303→- `router.replace`
+   304→   304→- `useLinkStatus`
+   305→   305→- `Link`
+   306→   306→- `<a`
+   307→   307→- `onClick`
+   308→   308→- `loading.tsx`
+   309→   309→- `Suspense`
+   310→   310→- `pending`
+   311→   311→- `isLoading`
+   312→   312→- `NavigationProgress`
+   313→   313→- `start`
+   314→   314→- `complete`
+   315→   315→- `isNew`
+   316→   316→- `addedAt`
+   317→   317→- `<img`
+   318→   318→- `next/image`
+   319→   319→- R2/CDN URLs
+   320→   320→- JSON-LD
+   321→   321→- Product structured data
+   322→   322→- canonical metadata
+   323→   323→
+   324→   324→Do not change anything yet.
+   325→   325→
+   326→   326→
+   327→   327→============================================================
+   328→   328→3. ESTABLISH A BASELINE
+   329→   329→============================================================
+   330→   330→
+   331→   331→Before implementation, establish the current behavior.
+   332→   332→
+   333→   333→Run the existing production build.
+   334→   334→
+   335→   335→Use the project's actual package scripts.
+   336→   336→
+   337→   337→Then run the production server.
+   338→   338→
+   339→   339→Reproduce:
+   340→   340→
+   341→   341→1. Home page.
+   342→   342→2. Shop page.
+   343→   343→3. First click on a product.
+   344→   344→4. Second click on the same product.
+   345→   345→5. Different product first click.
+   346→   346→6. Direct product URL.
+   347→   347→7. Navigation back to shop.
+   348→   348→8. Shop → category → product.
+   349→   349→9. Any other important existing navigation.
+   350→   350→
+   351→   351→Record:
+   352→   352→
+   353→   353→- build result
+   354→   354→- route classification
+   355→   355→- HTML response
+   356→   356→- RSC response
+   357→   357→- navigation timing
+   358→   358→- URL changes
+   359→   359→- header loader state
+   360→   360→- whether first click commits
+   361→   361→- whether second click is required
+   362→   362→- whether product content exists in initial HTML
+   363→   363→
+   364→   364→Do not assume the bug.
+   365→   365→
+   366→   366→Prove the bug in the MAIN repository.
+   367→   367→
+   368→   368→
+   369→   369→============================================================
+   370→   370→4. TARGET NEXT.JS 16 CACHE ARCHITECTURE
+   371→   371→============================================================
+   372→   372→
+   373→   373→The application MUST use the current Next.js 16 Cache Components model.
+   374→   374→
+   375→   375→Use:
+   376→   376→
+   377→   377→    cacheComponents: true
+   378→   378→
+   379→   379→Use:
+   380→   380→
+   381→   381→    'use cache'
+   382→   382→
+   383→   383→and:
+   384→   384→
+   385→   385→    cacheLife(...)
+   386→   386→
+   387→   387→for intentional cached boundaries.
+   388→   388→
+   389→   389→Do NOT build a hybrid legacy/new caching architecture.
+   390→   390→
+   391→   391→When Cache Components is enabled, do not preserve obsolete route-level caching configuration merely for compatibility.
+   392→   392→
+   393→   393→Audit existing:
+   394→   394→
+   395→   395→    export const revalidate
+   396→   396→    export const dynamic
+   397→   397→    export const fetchCache
+   398→   398→
+   399→   399→and remove/replace them where they are obsolete under the current architecture.
+   400→   400→
+   401→   401→Do NOT blindly delete them.
+   402→   402→
+   403→   403→Inspect each usage and migrate it correctly.
+   404→   404→
+   405→   405→The final architecture should use current Cache Components semantics.
+   406→   406→
+   407→   407→
+   408→   408→============================================================
+   409→   409→5. PAGE-LEVEL CACHE LIFETIMES
+   410→   410→============================================================
+   411→   411→
+   412→   412→The application MUST support independently configurable cache lifetimes PER PAGE.
+   413→   413→
+   414→   414→Do NOT use one universal catalog lifetime for every page.
+   415→   415→
+   416→   416→The intended examples are:
+   417→   417→
+   418→   418→HOME:
+   419→   419→    client stale/reuse: 5 minutes
+   420→   420→    server revalidate: 5 minutes
+   421→   421→    expire: 1 hour
+   422→   422→
+   423→   423→PRODUCT DETAIL:
+   424→   424→    client stale/reuse: 5 minutes
+   425→   425→    server revalidate: 15 minutes
+   426→   426→    expire: 1 hour
+   427→   427→
+   428→   428→Use named cache profiles in next.config where appropriate.
+   429→   429→
+   430→   430→Conceptually:
+   431→   431→
+   432→   432→    cacheLife: {
+   433→   433→      home: {
+   434→   434→        stale: 300,
+   435→   435→        revalidate: 300,
+   436→   436→        expire: 3600,
+   437→   437→      },
+   438→   438→
+   439→   439→      product: {
+   440→   440→        stale: 300,
+   441→   441→        revalidate: 900,
+   442→   442→        expire: 3600,
+   443→   443→      },
+   444→   444→    }
+   445→   445→
+   446→   446→Use the actual current Next.js-supported configuration syntax after verifying it in the official documentation.
+   447→   447→
+   448→   448→Home:
+   449→   449→
+   450→   450→    'use cache'
+   451→   451→    cacheLife('home')
+   452→   452→
+   453→   453→Product:
+   454→   454→
+   455→   455→    'use cache'
+   456→   456→    cacheLife('product')
+   457→   457→
+   458→   458→The page is the PRIMARY cache boundary because the requirement is page-level caching.
+   459→   459→
+   460→   460→Do not unnecessarily put separate `cacheLife` policies on every data function.
+   461→   461→
+   462→   462→Nested cache boundaries are allowed only when there is a concrete reason.
+   463→   463→
+   464→   464→Do not create unnecessary cache layers.
+   465→   465→
+   466→   466→Understand and correctly apply:
+   467→   467→
+   468→   468→- `stale`
+   469→   469→- `revalidate`
+   470→   470→- `expire`
+   471→   471→
+   472→   472→Do not confuse client-side Router Cache reuse with server-side cache revalidation.
+   473→   473→
+   474→   474→The intended semantics are:
+   475→   475→
+   476→   476→HOME:
+   477→   477→    stale = 5 min
+   478→   478→    revalidate = 5 min
+   479→   479→
+   480→   480→PRODUCT:
+   481→   481→    stale = 5 min
+   482→   482→    revalidate = 15 min
+   483→   483→
+   484→   484→Do not change these values.
+   485→   485→
+   486→   486→
+   487→   487→============================================================
+   488→   488→6. PRODUCT PAGE
+   489→   489→============================================================
+   490→   490→
+   491→   491→The product detail page:
+   492→   492→
+   493→   493→    /product/[slug]
+   494→   494→
+   495→   495→MUST remain a Server Component.
+   496→   496→
+   497→   497→It MUST:
+   498→   498→
+   499→   499→- server-render product content
+   500→   500→- include the product content in initial HTML/RSC output
+   501→   501→- use the page-level product cache policy
+   502→   502→- use the existing Supabase public catalog architecture
+   503→   503→- remain SEO discoverable
+   504→   504→
+   505→   505→Do NOT convert it to a Client Component.
+   506→   506→
+   507→   507→Do NOT fetch the product on the client.
+   508→   508→
+   509→   509→Do NOT add client-side loading for product data.
+   510→   510→
+   511→   511→
+   512→   512→============================================================
+   513→   513→7. NEW BADGE — ABSOLUTE BUSINESS REQUIREMENT
+   514→   514→============================================================
+   515→   515→
+   516→   516→The existing NEW product badge MUST REMAIN.
+   517→   517→
+   518→   518→This is an existing product feature.
+   519→   519→
+   520→   520→Do not remove it.
+   521→   521→
+   522→   522→Do not disable it.
+   523→   523→
+   524→   524→Do not hardcode it to false.
+   525→   525→
+   526→   526→Do not change its visual appearance.
+   527→   527→
+   528→   528→Do not change its placement unless the existing implementation already requires it.
+   529→   529→
+   530→   530→Do not change its behavior except to ensure it works correctly under the current Next.js 16 architecture.
+   531→   531→
+   532→   532→EXACT BUSINESS RULE:
+   533→   533→
+   534→   534→A product is NEW for exactly 7 x 24 hours from `addedAt`.
+   535→   535→
+   536→   536→That is:
+   537→   537→
+   538→   538→    7 days = 168 hours
+   539→   539→
+   540→   540→The badge MUST be active while the product is within that 7-day window.
+   541→   541→
+   542→   542→After exactly 7 days, it MUST no longer be NEW.
+   543→   543→
+   544→   544→Do not interpret this as a calendar-date approximation unless the existing business specification explicitly says so.
+   545→   545→
+   546→   546→The feature must remain functionally equivalent to:
+   547→   547→
+   548→   548→    currentTime - addedAt < 7 days
+   549→   549→
+   550→   550→BUT:
+   551→   551→
+   552→   552→DO NOT simply put `Date.now()` into a cached/PPR computation if that creates an invalid/non-deterministic cache boundary.
+   553→   553→
+   554→   554→Do NOT solve this by:
+   555→   555→
+   556→   556→    const isNew = false
+   557→   557→
+   558→   558→Do NOT solve this by removing `addedAt`.
+   559→   559→
+   560→   560→Do NOT solve this by introducing a huge abstraction.
+   561→   561→
+   562→   562→Instead:
+   563→   563→
+   564→   564→1. Research the current official Next.js 16 approach to time-dependent/dynamic values with Cache Components.
+   565→   565→2. Determine the simplest production-correct way to preserve the exact 7-day behavior.
+   566→   566→3. Isolate only the time-dependent portion if necessary.
+   567→   567→4. Keep the rest of ProductCard/cacheable product rendering deterministic.
+   568→   568→5. Preserve the existing NEW badge UI exactly.
+   569→   569→
+   570→   570→The solution must be minimal.
+   571→   571→
+   572→   572→Do not invent a complicated badge state-management system.
+   573→   573→
+   574→   574→Do not create unnecessary client-side state.
+   575→   575→
+   576→   576→Do not create unnecessary API routes.
+   577→   577→
+   578→   578→Do not create unnecessary cache layers.
+   579→   579→
+   580→   580→Do not make the entire product page dynamic just because the badge is time-dependent unless official architecture and actual requirements prove that is necessary.
+   581→   581→
+   582→   582→The objective is:
+   583→   583→
+   584→   584→    exact 7-day NEW behavior
+   585→   585→    +
+   586→   586→    current Next.js 16 architecture
+   587→   587→    +
+   588→   588→    minimal complexity
+   589→   589→    +
+   590→   590→    preserved UI.
+   591→   591→
+   592→   592→
+   593→   593→============================================================
+   594→   594→8. DETERMINISM AUDIT
+   595→   595→============================================================
+   596→   596→
+   597→   597→Audit all cached/PPR/static code.
+   598→   598→
+   599→   599→Look for:
+   600→   600→
+   601→   601→    Date.now()
+   602→   602→    new Date()
+   603→   603→    Math.random()
+   604→   604→    crypto.randomUUID()
+   605→   605→
+   606→   606→and request-dependent APIs:
+   607→   607→
+   608→   608→    cookies()
+   609→   609→    headers()
+   610→   610→
+   611→   611→Do NOT mechanically delete them.
+   612→   612→
+   613→   613→For each occurrence, determine:
+   614→   614→
+   615→   615→1. Is it inside a cached computation?
+   616→   616→2. Is the value actually request/time dependent?
+   617→   617→3. Does it need to be dynamic?
+   618→   618→4. Can it be deterministic?
+   619→   619→5. Is there a simpler architecture?
+   620→   620→
+   621→   621→Fix only where necessary.
+   622→   622→
+   623→   623→Known categories to inspect include:
+   624→   624→
+   625→   625→- NEW badge
+   626→   626→- rotated product selection
+   627→   627→- footer year
+   628→   628→- timestamps
+   629→   629→- random recommendations
+   630→   630→- generated IDs
+   631→   631→- request-specific UI
+   632→   632→- catalog sorting
+   633→   633→- cached metadata
+   634→   634→
+   635→   635→Do not change business behavior just to make code static.
+   636→   636→
+   637→   637→If a time-dependent behavior is actually required, use the current official Next.js mechanism for explicit runtime/dynamic behavior instead of hiding the dependency.
+   638→   638→
+   639→   639→
+   640→   640→============================================================
+   641→   641→9. SUPABASE — PUBLIC CATALOG
+   642→   642→============================================================
+   643→   643→
+   644→   644→Products are PUBLIC.
+   645→   645→
+   646→   646→The current application already accesses public product data through the existing Supabase anon/public low-privilege key.
+   647→   647→
+   648→   648→KEEP THAT ARCHITECTURE.
+   649→   649→
+   650→   650→ABSOLUTE RULE:
+   651→   651→
+   652→   652→DO NOT introduce:
+   653→   653→
+   654→   654→    SUPABASE_SERVICE_ROLE_KEY
+   655→   655→    SUPABASE_SECRET_KEY
+   656→   656→
+   657→   657→for the product catalog.
+   658→   658→
+   659→   659→DO NOT bypass RLS.
+   660→   660→
+   661→   661→DO NOT create an admin Supabase client for public products.
+   662→   662→
+   663→   663→DO NOT change public catalog access to privileged access.
+   664→   664→
+   665→   665→The existing anon/public key + RLS model remains the security boundary.
+   666→   666→
+   667→   667→Verify:
+   668→   668→
+   669→   669→- required tables have correct grants
+   670→   670→- RLS is enabled where applicable
+   671→   671→- public SELECT is intentional
+   672→   672→- catalog data exposed to anonymous visitors is actually public
+   673→   673→- no private/user-specific information enters the cached public product page
+   674→   674→
+   675→   675→Do not weaken RLS to make caching work.
+   676→   676→
+   677→   677→Do not introduce privileged credentials to make a query work.
+   678→   678→
+   679→   679→If the current anon-key setup works correctly, preserve it.
+   680→   680→
+   681→   681→
+   682→   682→============================================================
+   683→   683→10. AUTHENTICATED DATA MUST REMAIN SEPARATE
+   684→   684→============================================================
+   685→   685→
+   686→   686→Do NOT cache user-specific data globally.
+   687→   687→
+   688→   688→Inspect the product page and related data for:
+   689→   689→
+   690→   690→- cookies
+   691→   691→- headers
+   692→   692→- user sessions
+   693→   693→- personalized data
+   694→   694→- cart/account information
+   695→   695→- authenticated Supabase client calls
+   696→   696→
+   697→   697→Public product/catalog data:
+   698→   698→
+   699→   699→    cacheable
+   700→   700→
+   701→   701→User-specific data:
+   702→   702→
+   703→   703→    request-dependent/dynamic
+   704→   704→
+   705→   705→Never put user-specific/session-dependent data into a shared public cache.
+   706→   706→
+   707→   707→If a page contains both public cached content and user-specific dynamic content, use the current Next.js architecture to separate those boundaries correctly.
+   708→   708→
+   709→   709→Do not make the entire public product page dynamic merely because some unrelated user-specific feature exists.
+   710→   710→
+   711→   711→
+   712→   712→============================================================
+   713→   713→11. NAVIGATION BUG — ROOT CAUSE FIX
+   714→   714→============================================================
+   715→   715→
+   716→   716→There is a critical navigation bug that MUST be diagnosed and fixed.
+   717→   717→
+   718→   718→Observed behavior:
+   719→   719→
+   720→   720→    Shop
+   721→   721→      ↓
+   722→   722→    first click on product
+   723→   723→      ↓
+   724→   724→    header loader appears
+   725→   725→      ↓
+   726→   726→    navigation can become stuck
+   727→   727→      ↓
+   728→   728→    second click opens product
+   729→   729→
+   730→   730→This MUST be fixed at the root cause.
+   731→   731→
+   732→   732→Do NOT treat the second click as acceptable.
+   733→   733→
+   734→   734→Do NOT add a workaround.
+   735→   735→
+   736→   736→Do NOT add another loader.
+   737→   737→
+   738→   738→Do NOT disable navigation prefetching globally.
+   739→   739→
+   740→   740→Do NOT use window.location.
+   741→   741→
+   742→   742→Do NOT force a full browser reload.
+   743→   743→
+   744→   744→Do NOT add arbitrary delays.
+   745→   745→
+   746→   746→Do NOT hide the problem with timeout logic.
+   747→   747→
+   748→   748→FIRST reproduce the issue in the MAIN repository.
+   749→   749→
+   750→   750→Then trace the actual lifecycle:
+   751→   751→
+   752→   752→    user click
+   753→   753→       ↓
+   754→   754→    Link/custom Link
+   755→   755→       ↓
+   756→   756→    navigation/prefetch state
+   757→   757→       ↓
+   758→   758→    RSC request
+   759→   759→       ↓
+   760→   760→    server rendering
+   761→   761→       ↓
+   762→   762→    RSC response
+   763→   763→       ↓
+   764→   764→    React/App Router commit
+   765→   765→       ↓
+   766→   766→    pathname change
+   767→   767→       ↓
+   768→   768→    navigation completion
+   769→   769→       ↓
+   770→   770→    header loader completion
+   771→   771→
+   772→   772→Determine exactly where the failure occurs.
+   773→   773→
+   774→   774→
+   775→   775→============================================================
+   776→   776→12. NAVIGATION DEBUGGING REQUIREMENTS
+   777→   777→============================================================
+   778→   778→
+   779→   779→Use actual evidence.
+   780→   780→
+   781→   781→Inspect browser/network/runtime behavior.
+   782→   782→
+   783→   783→For the first click determine:
+   784→   784→
+   785→   785→A. Does the RSC request start?
+   786→   786→
+   787→   787→B. Does it finish?
+   788→   788→
+   789→   789→C. Does it return 200?
+   790→   790→
+   791→   791→D. Is the RSC payload valid?
+   792→   792→
+   793→   793→E. Does the browser receive the response?
+   794→   794→
+   795→   795→F. Does the URL change?
+   796→   796→
+   797→   797→G. Does React commit the destination route?
+   798→   798→
+   799→   799→H. Does the destination H1/content appear?
+   800→   800→
+   801→   801→I. Does the navigation state finish?
+   802→   802→
+   803→   803→J. Does the header loader complete?
+   804→   804→
+   805→   805→Do not claim the server is hanging unless the request actually remains pending.
+   806→   806→
+   807→   807→Do not claim Supabase is hanging unless the Supabase request actually remains pending.
+   808→   808→
+   809→   809→Do not claim Cache Components is the root cause unless the evidence establishes that.
+   810→   810→
+   811→   811→Find the exact failure.
+   812→   812→
+   813→   813→
+   814→   814→============================================================
+   815→   815→13. CACHE/PPR NAVIGATION INTERACTION
+   816→   816→============================================================
+   817→   817→
+   818→   818→Because Cache Components is enabled, specifically inspect whether any nondeterministic/dynamic computation is creating a dynamic hole or otherwise interfering with the first RSC navigation.
+   819→   819→
+   820→   820→Pay special attention to:
+   821→   821→
+   822→   822→- Date.now()
+   823→   823→- new Date()
+   824→   824→- random values
+   825→   825→- request APIs
+   826→   826→- Suspense boundaries
+   827→   827→- cached functions
+   828→   828→- uncached dependencies
+   829→   829→- promises that do not resolve
+   830→   830→- dynamic portions inside cached trees
+   831→   831→
+   832→   832→If a dynamic value is actually required, use the current official Next.js mechanism to make that runtime dependency explicit.
+   833→   833→
+   834→   834→Do NOT force the entire route static.
+   835→   835→
+   836→   836→Do NOT make the entire route dynamic just to eliminate the error.
+   837→   837→
+   838→   838→Do NOT add a loading fallback to hide the issue.
+   839→   839→
+   840→   840→The actual navigation must complete.
+   841→   841→
+   842→   842→
+   843→   843→============================================================
+   844→   844→14. HEADER NAVIGATION LOADER — STRICT UX REQUIREMENT
+   845→   845→============================================================
+   846→   846→
+   847→   847→The existing header loader UI MUST NOT CHANGE.
+   848→   848→
+   849→   849→DO NOT change:
+   850→   850→
+   851→   851→- appearance
+   852→   852→- color
+   853→   853→- position
+   854→   854→- thickness
+   855→   855→- dimensions
+   856→   856→- animation
+   857→   857→- easing
+   858→   858→- duration
+   859→   859→- styling
+   860→   860→- visual behavior
+   861→   861→
+   862→   862→Only change the underlying lifecycle/state logic if required.
+   863→   863→
+   864→   864→The loader must behave like a high-quality dashboard navigation progress indicator.
+   865→   865→
+   866→   866→DESIRED BEHAVIOR:
+   867→   867→
+   868→   868→Every USER-INITIATED client-side navigation:
+   869→   869→
+   870→   870→    click
+   871→   871→      ↓
+   872→   872→    navigation starts
+   873→   873→      ↓
+   874→   874→    existing header loader lifecycle starts immediately
+   875→   875→      ↓
+   876→   876→    actual navigation/RSC work
+   877→   877→      ↓
+   878→   878→    destination commits
+   879→   879→      ↓
+   880→   880→    existing header loader completes
+   881→   881→
+   882→   882→IMPORTANT:
+   883→   883→
+   884→   884→The loader should NOT only appear for slow pages.
+   885→   885→
+   886→   886→It should start for EVERY actual navigation.
+   887→   887→
+   888→   888→However, for an instant navigation, it should complete so quickly that the user may barely see it or not see a visible flash.
+   889→   889→
+   890→   890→For a slow navigation, it should remain visible until the real navigation completes.
+   891→   891→
+   892→   892→Example:
+   893→   893→
+   894→   894→    click
+   895→   895→      ↓
+   896→   896→    start progress
+   897→   897→      ↓
+   898→   898→    page commits in 10ms
+   899→   899→      ↓
+   900→   900→    complete progress
+   901→   901→
+   902→   902→versus:
+   903→   903→
+   904→   904→    click
+   905→   905→      ↓
+   906→   906→    start progress
+   907→   907→      ↓
+   908→   908→    page still loading after visual threshold
+   909→   909→      ↓
+   910→   910→    existing loader becomes visibly active
+   911→   911→      ↓
+   912→   912→    page commits
+   913→   913→      ↓
+   914→   914→    complete progress
+   915→   915→
+   916→   916→A small reveal threshold is allowed ONLY to prevent an ugly visual flash.
+   917→   917→
+   918→   918→The threshold MUST NOT be used as fake navigation completion.
+   919→   919→
+   920→   920→NEVER:
+   921→   921→
+   922→   922→    start()
+   923→   923→    setTimeout(complete, 500)
+   924→   924→
+   925→   925→Navigation completion MUST be tied to the actual navigation lifecycle.
+   926→   926→
+   927→   927→
+   928→   928→============================================================
+   929→   929→15. PREFETCH VS ACTUAL NAVIGATION
+   930→   930→============================================================
+   931→   931→
+   932→   932→Background prefetch is NOT the same thing as user navigation.
+   933→   933→
+   934→   934→The header loader MUST NOT appear simply because Next.js is prefetching links in the background.
+   935→   935→
+   936→   936→Desired:
+   937→   937→
+   938→   938→    background Link prefetch
+   939→   939→       ↓
+   940→   940→    no header loader
+   941→   941→
+   942→   942→Actual click:
+   943→   943→
+   944→   944→    user click
+   945→   945→       ↓
+   946→   946→    navigation
+   947→   947→       ↓
+   948→   948→    header loader
+   949→   949→
+   950→   950→
+   951→   951→Inspect the current custom Link/useLinkStatus implementation.
+   952→   952→
+   953→   953→Determine whether `useLinkStatus()` is being used in a way that incorrectly turns background prefetch activity into global navigation loading.
+   954→   954→
+   955→   955→Use the current official Next.js navigation APIs appropriately.
+   956→   956→
+   957→   957→Do not disable prefetch globally.
+   958→   958→
+   959→   959→
+   960→   960→============================================================
+   961→   961→16. CONCURRENT NAVIGATION STATE
+   962→   962→============================================================
+   963→   963→
+   964→   964→If the existing implementation uses a global boolean:
+   965→   965→
+   966→   966→    pending: boolean
+   967→   967→
+   968→   968→and multiple link/navigation reporters can overlap, replace it with the simplest correct reference-counted model if required.
+   969→   969→
+   970→   970→Conceptually:
+   971→   971→
+   972→   972→    start:
+   973→   973→        pendingCount += 1
+   974→   974→
+   975→   975→    complete:
+   976→   976→        pendingCount = Math.max(0, pendingCount - 1)
+   977→   977→
+   978→   978→    pending:
+   979→   979→        pendingCount > 0
+   980→   980→
+   981→   981→The exact implementation must be based on the current repository.
+   982→   982→
+   983→   983→Do not blindly introduce a counter if the current Next.js API provides a more accurate lifecycle mechanism.
+   984→   984→
+   985→   985→The requirement is:
+   986→   986→
+   987→   987→- concurrent operations must not race
+   988→   988→- one completion must not cancel another active navigation
+   989→   989→- stale/unmounted reporters must not permanently leave the loader active
+   990→   990→- actual navigation completion must always be able to clear the loader
+   991→   991→
+   992→   992→If pathname change is useful as a safety signal, use it carefully.
+   993→   993→
+   994→   994→Do NOT blindly reset all navigation state on every pathname change if that can break legitimate concurrent state.
+   995→   995→
+   996→   996→
+   997→   997→============================================================
+   998→   998→17. SEO — INTERNAL LINKS
+   999→   999→============================================================
+  1000→  1000→
+  1001→  1001→Audit all important internal navigation.
+  1002→  1002→
+  1003→  1003→Google must be able to discover important pages from normal server-rendered HTML.
+  1004→  1004→
+  1005→  1005→Important links MUST render as actual crawlable anchors:
+  1006→  1006→
+  1007→  1007→    <a href="/product/...">
+  1008→  1008→
+  1009→  1009→Do NOT make important navigation depend exclusively on:
+  1010→  1010→
+  1011→  1011→    onClick
+  1012→  1012→    router.push()
+  1013→  1013→    router.replace()
+  1014→  1014→    div click handlers
+  1015→  1015→    JavaScript-only navigation
+  1016→  1016→
+  1017→  1017→The server-rendered HTML must contain actual href destinations.
+  1018→  1018→
+  1019→  1019→This applies to:
+  1020→  1020→
+  1021→  1021→- home → products
+  1022→  1022→- shop → products
+  1023→  1023→- category → products
+  1024→  1024→- category → subcategory
+  1025→  1025→- product → category
+  1026→  1026→- product → related products
+  1027→  1027→- other important internal pages
+  1028→  1028→
+  1029→  1029→The custom Link component may enhance the anchor for client-side navigation, but the resulting HTML MUST remain a proper crawlable `<a href>`.
+  1030→  1030→
+  1031→  1031→Do not replace a working custom Link architecture unnecessarily.
+  1032→  1032→
+  1033→  1033→Inspect its actual rendered HTML.
+  1034→  1034→
+  1035→  1035→
+  1036→  1036→============================================================
+  1037→  1037→18. PRODUCT CARD SEO
+  1038→  1038→============================================================
+  1039→  1039→
+  1040→  1040→Product cards MUST server-render crawlable product links.
+  1041→  1041→
+  1042→  1042→Conceptually:
+  1043→  1043→
+  1044→  1044→    <a href="/product/product-slug">
+  1045→  1045→        ...
+  1046→  1046→    </a>
+  1047→  1047→
+  1048→  1048→The product name/anchor context should be descriptive.
+  1049→  1049→
+  1050→  1050→The product URL must be present in initial HTML.
+  1051→  1051→
+  1052→  1052→Do not require JavaScript execution for Google to discover product URLs.
+  1053→  1053→
+  1054→  1054→
+  1055→  1055→============================================================
+  1056→  1056→19. IMAGES — CLOUDFLARE R2
+  1057→  1057→============================================================
+  1058→  1058→
+  1059→  1059→The application already stores/serves product images through Cloudflare R2/custom CDN.
+  1060→  1060→
+  1061→  1061→KEEP THIS.
+  1062→  1062→
+  1063→  1063→Do NOT move images through the Next.js server.
+  1064→  1064→
+  1065→  1065→Do NOT migrate to `next/image` merely for SEO.
+  1066→  1066→
+  1067→  1067→Do NOT add Next.js image proxying unless a concrete current requirement proves it necessary.
+  1068→  1068→
+  1069→  1069→The images are already optimized and small.
+  1070→  1070→
+  1071→  1071→Use actual HTML image elements:
+  1072→  1072→
+  1073→  1073→    <img
+  1074→  1074→      src="https://your-cdn-domain/..."
+  1075→  1075→      alt="..."
+  1076→  1076→      width="..."
+  1077→  1077→      height="..."
+  1078→  1078→    >
+  1079→  1079→
+  1080→  1080→Images must be present in server-rendered HTML when they are part of important product content.
+  1081→  1081→
+  1082→  1082→Verify:
+  1083→  1083→
+  1084→  1084→- public URL
+  1085→  1085→- HTTP 200
+  1086→  1086→- correct Content-Type
+  1087→  1087→- stable URL
+  1088→  1088→- no authentication requirement
+  1089→  1089→- no accidental robots blocking
+  1090→  1090→- appropriate CDN/cache headers
+  1091→  1091→- correct alt text
+  1092→  1092→- width/height where appropriate
+  1093→  1093→- actual `<img src>`
+  1094→  1094→- not only CSS background images
+  1095→  1095→
+  1096→  1096→Cloudflare R2/custom CDN remains the image origin/delivery architecture.
+  1097→  1097→
+  1098→  1098→
+  1099→  1099→============================================================
+  1100→  1100→20. IMAGE SEO
+  1101→  1101→============================================================
+  1102→  1102→
+  1103→  1103→For meaningful product images:
+  1104→  1104→
+  1105→  1105→Use descriptive alt text.
+  1106→  1106→
+  1107→  1107→Bad:
+  1108→  1108→
+  1109→  1109→    alt="image"
+  1110→  1110→    alt="product"
+  1111→  1111→    alt="img"
+  1112→  1112→
+  1113→  1113→Good:
+  1114→  1114→
+  1115→  1115→    alt="T10 Bluetooth Calling Smartwatch"
+  1116→  1116→
+  1117→  1117→For an image that is itself inside a product link, ensure the image and surrounding anchor provide useful product context.
+  1118→  1118→
+  1119→  1119→Do not keyword-stuff alt text.
+  1120→  1120→
+  1121→  1121→Do not generate unnatural descriptions.
+  1122→  1122→
+  1123→  1123→
+  1124→  1124→============================================================
+  1125→  1125→21. PRODUCT STRUCTURED DATA
+  1126→  1126→============================================================
+  1127→  1127→
+  1128→  1128→Audit Product JSON-LD.
+  1129→  1129→
+  1130→  1130→The product page should server-render valid Product structured data where applicable.
+  1131→  1131→
+  1132→  1132→Verify:
+  1133→  1133→
+  1134→  1134→- name
+  1135→  1135→- image
+  1136→  1136→- description
+  1137→  1137→- brand
+  1138→  1138→- offers
+  1139→  1139→- price
+  1140→  1140→- availability
+  1141→  1141→- canonical product URL
+  1142→  1142→- other existing valid properties
+  1143→  1143→
+  1144→  1144→Use the PUBLIC Cloudflare R2/CDN image URLs in structured data.
+  1145→  1145→
+  1146→  1146→Do not use internal R2 object identifiers.
+  1147→  1147→
+  1148→  1148→Do not introduce fake data.
+  1149→  1149→
+  1150→  1150→Do not change existing product structured-data semantics unless required to correct an actual issue.
+  1151→  1151→
+  1152→  1152→Validate the final JSON-LD in production output.
+  1153→  1153→
+  1154→  1154→
+  1155→  1155→============================================================
+  1156→  1156→22. SEO METADATA
+  1157→  1157→============================================================
+  1158→  1158→
+  1159→  1159→Audit current metadata implementation.
+  1160→  1160→
+  1161→  1161→Verify server-rendered:
+  1162→  1162→
+  1163→  1163→- title
+  1164→  1164→- description
+  1165→  1165→- canonical
+  1166→  1166→- robots directives
+  1167→  1167→- Open Graph where applicable
+  1168→  1168→- Twitter metadata where applicable
+  1169→  1169→- product-specific metadata
+  1170→  1170→- category metadata
+  1171→  1171→- home metadata
+  1172→  1172→
+  1173→  1173→Use the current Next.js Metadata API.
+  1174→  1174→
+  1175→  1175→Do not create duplicate metadata systems.
+  1176→  1176→
+  1177→  1177→Do not change existing SEO copy/content unless there is a concrete bug.
+  1178→  1178→
+  1179→  1179→Do not alter canonical URL behavior without evidence.
+  1180→  1180→
+  1181→  1181→
+  1182→  1182→============================================================
+  1183→  1183→23. SERVER-RENDERED HTML REQUIREMENT
+  1184→  1184→============================================================
+  1185→  1185→
+  1186→  1186→For important indexable pages, the initial production response MUST contain the important content.
+  1187→  1187→
+  1188→  1188→At minimum verify:
+  1189→  1189→
+  1190→  1190→HOME:
+  1191→  1191→- important internal links
+  1192→  1192→- important images
+  1193→  1193→- relevant content
+  1194→  1194→
+  1195→  1195→SHOP:
+  1196→  1196→- product links
+  1197→  1197→- product names
+  1198→  1198→- product images
+  1199→  1199→
+  1200→  1200→CATEGORY:
+  1201→  1201→- category links
+  1202→  1202→- product links where applicable
+  1203→  1203→
+  1204→  1204→PRODUCT:
+  1205→  1205→- H1/product name
+  1206→  1206→- product description/content
+  1207→  1207→- product links
+  1208→  1208→- product images
+  1209→  1209→- Product JSON-LD
+  1210→  1210→- metadata/canonical
+  1211→  1211→
+  1212→  1212→Google must not need client-side fetching to discover the primary product content or product URLs.
+  1213→  1213→
+  1214→  1214→
+  1215→  1215→============================================================
+  1216→  1216→24. DO NOT OVERENGINEER
+  1217→  1217→============================================================
+  1218→  1218→
+  1219→  1219→This is a critical instruction.
+  1220→  1220→
+  1221→  1221→GLM MUST NOT create unnecessary logic.
+  1222→  1222→
+  1223→  1223→The NEW badge is the primary example.
+  1224→  1224→
+  1225→  1225→If a requirement can be implemented with:
+  1226→  1226→
+  1227→  1227→    one existing calculation
+  1228→  1228→    one small helper
+  1229→  1229→    one current Next.js boundary
+  1230→  1230→
+  1231→  1231→do not create:
+  1232→  1232→
+  1233→  1233→    multiple hooks
+  1234→  1234→    multiple providers
+  1235→  1235→    multiple cache layers
+  1236→  1236→    multiple APIs
+  1237→  1237→    additional state machines
+  1238→  1238→    duplicated data fetching
+  1239→  1239→    unnecessary repositories
+  1240→  1240→    unnecessary abstractions
+  1241→  1241→
+  1242→  1242→Before adding code, ask:
+  1243→  1243→
+  1244→  1244→    Is this required?
+  1245→  1245→
+  1246→  1246→If not, do not add it.
+  1247→  1247→
+  1248→  1248→Before adding an abstraction, ask:
+  1249→  1249→
+  1250→  1250→    Does this solve a real repeated problem in this repository?
+  1251→  1251→
+  1252→  1252→If not, do not add it.
+  1253→  1253→
+  1254→  1254→Before rewriting code, ask:
+  1255→  1255→
+  1256→  1256→    Is the current implementation actually incorrect/outdated?
+  1257→  1257→
+  1258→  1258→If not, preserve it.
+  1259→  1259→
+  1260→  1260→The goal is NOT maximum abstraction.
+  1261→  1261→
+  1262→  1262→The goal is NOT maximum modernization.
+  1263→  1263→
+  1264→  1264→The goal is:
+  1265→  1265→
+  1266→  1266→    simplest correct production implementation
+  1267→  1267→    using current official practices.
+  1268→  1268→
+  1269→  1269→
+  1270→  1270→============================================================
+  1271→  1271→25. PRESERVE EXISTING FEATURES
+  1272→  1272→============================================================
+  1273→  1273→
+  1274→  1274→Except for fixing bugs and modernizing implementation, preserve every feature.
+  1275→  1275→
+  1276→  1276→Do NOT remove:
+  1277→  1277→
+  1278→  1278→- product functionality
+  1279→  1279→- product variations
+  1280→  1280→- reviews
+  1281→  1281→- offers
+  1282→  1282→- categories
+  1283→  1283→- related products
+  1284→  1284→- search
+  1285→  1285→- navigation
+  1286→  1286→- footer functionality
+  1287→  1287→- existing filters
+  1288→  1288→- sorting
+  1289→  1289→- pagination/infinite behavior
+  1290→  1290→- analytics
+  1291→  1291→- structured data
+  1292→  1292→- metadata
+  1293→  1293→- product badge behavior
+  1294→  1294→- any existing business logic
+  1295→  1295→
+  1296→  1296→The NEW badge MUST remain.
+  1297→  1297→
+  1298→  1298→Its duration MUST be exactly 7 days.
+  1299→  1299→
+  1300→  1300→
+  1301→  1301→============================================================
+  1302→  1302→26. PRESERVE UI/UX
+  1303→  1303→============================================================
+  1304→  1304→
+  1305→  1305→Do NOT redesign.
+  1306→  1306→
+  1307→  1307→Do NOT change:
+  1308→  1308→
+  1309→  1309→- colors
+  1310→  1310→- typography
+  1311→  1311→- spacing
+  1312→  1312→- cards
+  1313→  1313→- buttons
+  1314→  1314→- header
+  1315→  1315→- footer
+  1316→  1316→- product layout
+  1317→  1317→- navigation layout
+  1318→  1318→- responsive behavior
+  1319→  1319→- image layout
+  1320→  1320→- animations
+  1321→  1321→- hover behavior
+  1322→  1322→- interactions
+  1323→  1323→- existing loader appearance
+  1324→  1324→
+  1325→  1325→Only make the minimum functional changes necessary.
+  1326→  1326→
+  1327→  1327→The only intended UX change is that navigation/loading behavior becomes correct:
+  1328→  1328→
+  1329→  1329→    every actual navigation starts the existing loader
+  1330→  1330→    instant navigation completes instantly
+  1331→  1331→    slow navigation stays visible until completion
+  1332→  1332→    no stuck loader
+  1333→  1333→    no second click
+  1334→  1334→
+  1335→  1335→
+  1336→  1336→============================================================
+  1337→  1337→27. OUTDATED PRACTICES AUDIT
+  1338→  1338→============================================================
+  1339→  1339→
+  1340→  1340→Research and identify old/deprecated patterns in the MAIN project.
+  1341→  1341→
+  1342→  1342→Examples to inspect:
+  1343→  1343→
+  1344→  1344→- legacy Next.js cache APIs
+  1345→  1345→- obsolete route segment caching
+  1346→  1346→- outdated navigation patterns
+  1347→  1347→- outdated image patterns
+  1348→  1348→- outdated metadata APIs
+  1349→  1349→- outdated Supabase integration patterns
+  1350→  1350→- unnecessary client components
+  1351→  1351→- unnecessary client-side fetching
+  1352→  1352→- obsolete request APIs
+  1353→  1353→- duplicated caching systems
+  1354→  1354→
+  1355→  1355→BUT:
+  1356→  1356→
+  1357→  1357→Do NOT modernize something merely because it is old.
+  1358→  1358→
+  1359→  1359→Only update it if:
+  1360→  1360→
+  1361→  1361→1. current official documentation establishes a better supported approach,
+  1362→  1362→2. it is actually relevant to this application,
+  1363→  1363→3. the migration can preserve existing behavior,
+  1364→  1364→4. the change is necessary or materially beneficial.
+  1365→  1365→
+  1366→  1366→Do not perform a broad rewrite.
+  1367→  1367→
+  1368→  1368→
+  1369→  1369→============================================================
+  1370→  1370→28. IMPLEMENTATION ORDER
+  1371→  1371→============================================================
+  1372→  1372→
+  1373→  1373→Execute in this order.
+  1374→  1374→
+  1375→  1375→PHASE 1:
+  1376→  1376→Research current official documentation.
+  1377→  1377→
+  1378→  1378→PHASE 2:
+  1379→  1379→Inspect repository and establish architecture.
+  1380→  1380→
+  1381→  1381→PHASE 3:
+  1382→  1382→Establish production baseline and reproduce navigation bug.
+  1383→  1383→
+  1384→  1384→PHASE 4:
+  1385→  1385→Identify all obsolete/incompatible caching patterns.
+  1386→  1386→
+  1387→  1387→PHASE 5:
+  1388→  1388→Implement Next.js 16 Cache Components architecture.
+  1389→  1389→
+  1390→  1390→PHASE 6:
+  1391→  1391→Implement named PAGE-LEVEL cache profiles.
+  1392→  1392→
+  1393→  1393→PHASE 7:
+  1394→  1394→Make cached/PPR computations deterministic where required.
+  1395→  1395→
+  1396→  1396→PHASE 8:
+  1397→  1397→Preserve and correctly implement the 7-day NEW badge.
+  1398→  1398→
+  1399→  1399→PHASE 9:
+  1400→  1400→Verify public Supabase/RLS architecture remains correct.
+  1401→  1401→
+  1402→  1402→PHASE 10:
+  1403→  1403→Diagnose and fix first-click navigation root cause.
+  1404→  1404→
+  1405→  1405→PHASE 11:
+  1406→  1406→Correct header navigation loader lifecycle while keeping its UI unchanged.
+  1407→  1407→
+  1408→  1408→PHASE 12:
+  1409→  1409→Separate prefetch state from actual navigation state.
+  1410→  1410→
+  1411→  1411→PHASE 13:
+  1412→  1412→Audit internal crawlable links.
+  1413→  1413→
+  1414→  1414→PHASE 14:
+  1415→  1415→Audit Cloudflare R2 server-rendered images and image SEO.
+  1416→  1416→
+  1417→  1417→PHASE 15:
+  1418→  1418→Audit Product JSON-LD and metadata.
+  1419→  1419→
+  1420→  1420→PHASE 16:
+  1421→  1421→Audit other outdated practices.
+  1422→  1422→
+  1423→  1423→PHASE 17:
+  1424→  1424→Run production build.
+  1425→  1425→
+  1426→  1426→PHASE 18:
+  1427→  1427→Run production browser/RSC/network tests.
+  1428→  1428→
+  1429→  1429→PHASE 19:
+  1430→  1430→Run SEO/HTML verification.
+  1431→  1431→
+  1432→  1432→PHASE 20:
+  1433→  1433→Add or update regression tests for the bugs fixed.
+  1434→  1434→
+  1435→  1435→Do not skip phases.
+  1436→  1436→
+  1437→  1437→
+  1438→  1438→============================================================
+  1439→  1439→29. TESTING — NAVIGATION
+  1440→  1440→============================================================
+  1441→  1441→
+  1442→  1442→Production mode:
+  1443→  1443→
+  1444→  1444→    rm -rf .next
+  1445→  1445→    npm run build
+  1446→  1446→    npm start
+  1447→  1447→
+  1448→  1448→Use Playwright/browser automation or equivalent real browser testing.
+  1449→  1449→
+  1450→  1450→Test:
+  1451→  1451→
+  1452→  1452→1. Open /shop.
+  1453→  1453→
+  1454→  1454→2. Click Product A ONCE.
+  1455→  1455→
+  1456→  1456→3. DO NOT click again.
+  1457→  1457→
+  1458→  1458→4. Verify URL changes to /product/[slug].
+  1459→  1459→
+  1460→  1460→5. Verify product H1/content appears.
+  1461→  1461→
+  1462→  1462→6. Verify header loader completes.
+  1463→  1463→
+  1464→  1464→7. Verify no additional loader appears.
+  1465→  1465→
+  1466→  1466→8. Navigate back to /shop.
+  1467→  1467→
+  1468→  1468→9. Click Product B ONCE.
+  1469→  1469→
+  1470→  1470→10. Verify it works.
+  1471→  1471→
+  1472→  1472→11. Click Product C ONCE.
+  1473→  1473→
+  1474→  1474→12. Verify it works.
+  1475→  1475→
+  1476→  1476→13. Navigate product → shop → product.
+  1477→  1477→
+  1478→  1478→14. Navigate shop → category → product.
+  1479→  1479→
+  1480→  1480→15. Open direct product URL.
+  1481→  1481→
+  1482→  1482→All must work.
+  1483→  1483→
+  1484→  1484→
+  1485→  1485→============================================================
+  1486→  1486→30. TESTING — HEADER LOADER
+  1487→  1487→============================================================
+  1488→  1488→
+  1489→  1489→Test both instant and slow navigations.
+  1490→  1490→
+  1491→  1491→INSTANT:
+  1492→  1492→
+  1493→  1493→    click
+  1494→  1494→    navigation completes immediately
+  1495→  1495→    loader lifecycle starts and completes immediately
+  1496→  1496→
+  1497→  1497→SLOW:
+  1498→  1498→
+  1499→  1499→    click
+  1500→  1500→    loader lifecycle starts
+  1501→  1501→    navigation remains pending
+  1502→  1502→    existing loader remains active
+  1503→  1503→    destination commits
+  1504→  1504→    loader completes
+  1505→  1505→
+  1506→  1506→Verify:
+  1507→  1507→
+  1508→  1508→- no stuck loader
+  1509→  1509→- no second click
+  1510→  1510→- no visual redesign
+  1511→  1511→- no fake timeout completion
+  1512→  1512→- no prefetch-triggered loader
+  1513→  1513→- no race between concurrent link states
+  1514→  1514→
+  1515→  1515→
+  1516→  1516→============================================================
+  1517→  1517→31. TESTING — CACHE
+  1518→  1518→============================================================
+  1519→  1519→
+  1520→  1520→HOME:
+  1521→  1521→
+  1522→  1522→    cold request
+  1523→  1523→    warm request
+  1524→  1524→    client-side reuse
+  1525→  1525→    server revalidation policy
+  1526→  1526→
+  1527→  1527→PRODUCT:
+  1528→  1528→
+  1529→  1529→    cold request
+  1530→  1530→    warm request
+  1531→  1531→    client-side reuse
+  1532→  1532→    server revalidation policy
+  1533→  1533→
+  1534→  1534→Verify intended values:
+  1535→  1535→
+  1536→  1536→HOME:
+  1537→  1537→    stale = 300
+  1538→  1538→    revalidate = 300
+  1539→  1539→    expire = 3600
+  1540→  1540→
+  1541→  1541→PRODUCT:
+  1542→  1542→    stale = 300
+  1543→  1543→    revalidate = 900
+  1544→  1544→    expire = 3600
+  1545→  1545→
+  1546→  1546→Do not merely inspect build output.
+  1547→  1547→
+  1548→  1548→Verify actual runtime behavior.
+  1549→  1549→
+  1550→  1550→
+  1551→  1551→============================================================
+  1552→  1552→32. TESTING — INITIAL HTML
+  1553→  1553→============================================================
+  1554→  1554→
+  1555→  1555→For production URLs, inspect actual HTML.
+  1556→  1556→
+  1557→  1557→Verify product page HTML contains:
+  1558→  1558→
+  1559→  1559→- product name/H1
+  1560→  1560→- product content
+  1561→  1561→- product image `<img>`
+  1562→  1562→- product image URL
+  1563→  1563→- product links
+  1564→  1564→- Product JSON-LD
+  1565→  1565→- metadata/canonical
+  1566→  1566→
+  1567→  1567→Verify shop/category HTML contains crawlable product links.
+  1568→  1568→
+  1569→  1569→Verify important links are actual:
+  1570→  1570→
+  1571→  1571→    <a href="...">
+  1572→  1572→
+  1573→  1573→not merely client event handlers.
+  1574→  1574→
+  1575→  1575→
+  1576→  1576→============================================================
+  1577→  1577→33. TESTING — IMAGES
+  1578→  1578→============================================================
+  1579→  1579→
+  1580→  1580→Verify actual production image URLs.
+  1581→  1581→
+  1582→  1582→For representative images:
+  1583→  1583→
+  1584→  1584→- HTTP 200
+  1585→  1585→- correct Content-Type
+  1586→  1586→- public
+  1587→  1587→- stable
+  1588→  1588→- accessible without authentication
+  1589→  1589→- correct alt text
+  1590→  1590→- correct width/height where used
+  1591→  1591→- appears in initial HTML
+  1592→  1592→
+  1593→  1593→Do not move the image through Next.js.
+  1594→  1594→
+  1595→  1595→
+  1596→  1596→============================================================
+  1597→  1597→34. TESTING — SUPABASE
+  1598→  1598→============================================================
+  1599→  1599→
+  1600→  1600→Verify public product reads still work using the existing anon/public key.
+  1601→  1601→
+  1602→  1602→Verify RLS still protects data correctly.
+  1603→  1603→
+  1604→  1604→Verify no secret/service-role key was introduced.
+  1605→  1605→
+  1606→  1606→Search the repository for:
+  1607→  1607→
+  1608→  1608→    SUPABASE_SERVICE_ROLE_KEY
+  1609→  1609→    SUPABASE_SECRET_KEY
+  1610→  1610→
+  1611→  1611→If either appears as a newly introduced catalog credential, STOP and remove it unless there is an explicit existing unrelated legitimate use that must remain.
+  1612→  1612→
+  1613→  1613→The product catalog must remain public + low privilege + RLS.
+  1614→  1614→
+  1615→  1615→
+  1616→  1616→============================================================
+  1617→  1617→35. TESTING — NEW BADGE
+  1618→  1618→============================================================
+  1619→  1619→
+  1620→  1620→Test the exact 7-day rule.
+  1621→  1621→
+  1622→  1622→Use controlled product timestamps or appropriate test fixtures.
+  1623→  1623→
+  1624→  1624→Verify:
+  1625→  1625→
+  1626→  1626→    addedAt = now - 1 hour
+  1627→  1627→    → NEW
+  1628→  1628→
+  1629→  1629→    addedAt = now - 6 days
+  1630→  1630→    → NEW
+  1631→  1631→
+  1632→  1632→    addedAt = now - 6 days 23 hours 59 minutes
+  1633→  1633→    → NEW
+  1634→  1634→
+  1635→  1635→    addedAt = now - 7 days exactly
+  1636→  1636→    → NOT NEW
+  1637→  1637→
+  1638→  1638→    addedAt = now - 8 days
+  1639→  1639→    → NOT NEW
+  1640→  1640→
+  1641→  1641→Do not change the feature.
+  1642→  1642→
+  1643→  1643→Do not change the UI.
+  1644→  1644→
+  1645→  1645→Do not make the duration approximate.
+  1646→  1646→
+  1647→  1647→
+  1648→  1648→============================================================
+  1649→  1649→36. REGRESSION TESTS
+  1650→  1650→============================================================
+  1651→  1651→
+  1652→  1652→Add/update tests for the actual bugs fixed.
+  1653→  1653→
+  1654→  1654→At minimum:
+  1655→  1655→
+  1656→  1656→NAVIGATION:
+  1657→  1657→- first product click succeeds
+  1658→  1658→- second click is not required
+  1659→  1659→- different product first click succeeds
+  1660→  1660→- direct product navigation succeeds
+  1661→  1661→
+  1662→  1662→LOADER:
+  1663→  1663→- navigation starts progress
+  1664→  1664→- navigation completion clears progress
+  1665→  1665→- concurrent state does not race
+  1666→  1666→- prefetch does not incorrectly activate global navigation loader
+  1667→  1667→
+  1668→  1668→NEW BADGE:
+  1669→  1669→- 7-day boundary behavior
+  1670→  1670→
+  1671→  1671→CACHE:
+  1672→  1672→- home profile
+  1673→  1673→- product profile
+  1674→  1674→- cold/warm behavior where testable
+  1675→  1675→
+  1676→  1676→SEO:
+  1677→  1677→- crawlable product anchor
+  1678→  1678→- server-rendered product image
+  1679→  1679→- metadata/structured data where practical
+  1680→  1680→
+  1681→  1681→
+  1682→  1682→============================================================
+  1683→  1683→37. FAILURE HANDLING
+  1684→  1684→============================================================
+  1685→  1685→
+  1686→  1686→If a test fails:
+  1687→  1687→
+  1688→  1688→DO NOT patch the symptom.
+  1689→  1689→
+  1690→  1690→Determine:
+  1691→  1691→
+  1692→  1692→- exact failing request
+  1693→  1693→- exact component
+  1694→  1694→- exact cache boundary
+  1695→  1695→- exact navigation state
+  1696→  1696→- exact RSC behavior
+  1697→  1697→- exact browser behavior
+  1698→  1698→
+  1699→  1699→Then fix the root cause.
+  1700→  1700→
+  1701→  1701→Do not add:
+  1702→  1702→
+  1703→  1703→- timeout hacks
+  1704→  1704→- retry loops without cause
+  1705→  1705→- second-click logic
+  1706→  1706→- forced browser reloads
+  1707→  1707→- disabled prefetch
+  1708→  1708→- extra loaders
+  1709→  1709→- arbitrary client-side fetching
+  1710→  1710→
+  1711→  1711→
+  1712→  1712→============================================================
+  1713→  1713→38. FINAL VERIFICATION
+  1714→  1714→============================================================
+  1715→  1715→
+  1716→  1716→Before declaring completion, verify ALL of the following.
+  1717→  1717→
+  1718→  1718→ARCHITECTURE:
+  1719→  1719→[ ] Current Next.js 16 Cache Components architecture
+  1720→  1720→[ ] `cacheComponents: true`
+  1721→  1721→[ ] `use cache`
+  1722→  1722→[ ] `cacheLife`
+  1723→  1723→[ ] no unnecessary legacy caching APIs
+  1724→  1724→[ ] page-level cache policies
+  1725→  1725→
+  1726→  1726→HOME:
+  1727→  1727→[ ] 5-minute server revalidation
+  1728→  1728→[ ] 5-minute client stale/reuse
+  1729→  1729→[ ] 1-hour expire
+  1730→  1730→
+  1731→  1731→PRODUCT:
+  1732→  1732→[ ] 15-minute server revalidation
+  1733→  1733→[ ] 5-minute client stale/reuse
+  1734→  1734→[ ] 1-hour expire
+  1735→  1735→[ ] Server Component
+  1736→  1736→[ ] initial HTML contains product content
+  1737→  1737→
+  1738→  1738→NEW BADGE:
+  1739→  1739→[ ] preserved
+  1740→  1740→[ ] visually unchanged
+  1741→  1741→[ ] behavior preserved
+  1742→  1742→[ ] exactly 7 days
+  1743→  1743→[ ] no unnecessary complexity
+  1744→  1744→
+  1745→  1745→SUPABASE:
+  1746→  1746→[ ] public catalog
+  1747→  1747→[ ] existing anon/public key
+  1748→  1748→[ ] RLS intact
+  1749→  1749→[ ] no service-role key
+  1750→  1750→[ ] no secret key
+  1751→  1751→[ ] no user-specific data in public cache
+  1752→  1752→
+  1753→  1753→NAVIGATION:
+  1754→  1754→[ ] first click works
+  1755→  1755→[ ] second click not required
+  1756→  1756→[ ] different products work
+  1757→  1757→[ ] direct URLs work
+  1758→  1758→[ ] RSC completes
+  1759→  1759→[ ] router commits
+  1760→  1760→
+  1761→  1761→HEADER LOADER:
+  1762→  1762→[ ] existing UI unchanged
+  1763→  1763→[ ] starts on actual navigation
+  1764→  1764→[ ] instant navigation completes immediately
+  1765→  1765→[ ] slow navigation remains active until completion
+  1766→  1766→[ ] no fake timeout completion
+  1767→  1767→[ ] prefetch does not trigger it
+  1768→  1768→[ ] never permanently stuck
+  1769→  1769→
+  1770→  1770→SEO:
+  1771→  1771→[ ] important links are `<a href>`
+  1772→  1772→[ ] product links in initial HTML
+  1773→  1773→[ ] category links in initial HTML
+  1774→  1774→[ ] related-product links in initial HTML
+  1775→  1775→[ ] product images use `<img src>`
+  1776→  1776→[ ] Cloudflare R2/custom CDN retained
+  1777→  1777→[ ] image URLs are crawlable
+  1778→  1778→[ ] descriptive alt text
+  1779→  1779→[ ] Product JSON-LD
+  1780→  1780→[ ] canonical metadata
+  1781→  1781→[ ] server-rendered metadata
+  1782→  1782→
+  1783→  1783→UI/UX:
+  1784→  1784→[ ] no redesign
+  1785→  1785→[ ] no feature removal
+  1786→  1786→[ ] no new loader
+  1787→  1787→[ ] no skeleton
+  1788→  1788→[ ] no spinner
+  1789→  1789→[ ] no loading.tsx introduced for this issue
+  1790→  1790→[ ] existing loader visual UI unchanged
+  1791→  1791→
+  1792→  1792→PRODUCTION:
+  1793→  1793→[ ] clean production build
+  1794→  1794→[ ] production server works
+  1795→  1795→[ ] Playwright/browser tests pass
+  1796→  1796→[ ] cold navigation passes
+  1797→  1797→[ ] warm navigation passes
+  1798→  1798→[ ] initial HTML verified
+  1799→  1799→[ ] RSC verified
+  1800→  1800→
+  1801→  1801→
+  1802→  1802→============================================================
+  1803→  1803→39. FINAL REPORT FORMAT
+  1804→  1804→============================================================
+  1805→  1805→
+  1806→  1806→When finished, provide a concise but technically precise report.
+  1807→  1807→
+  1808→  1808→Include:
+  1809→  1809→
+  1810→  1810→1. CURRENT OFFICIAL DOCS RESEARCH
+  1811→  1811→   - which official Next.js/Supabase/Google practices were relevant
+  1812→  1812→   - what outdated practices were found
+  1813→  1813→
+  1814→  1814→2. ARCHITECTURE
+  1815→  1815→   - final Cache Components architecture
+  1816→  1816→   - page-level cache profiles
+  1817→  1817→   - why each cache boundary exists
+  1818→  1818→
+  1819→  1819→3. NAVIGATION ROOT CAUSE
+  1820→  1820→   - exact root cause found in the MAIN project
+  1821→  1821→   - exact files responsible
+  1822→  1822→   - why first click failed
+  1823→  1823→   - why second click worked
+  1824→  1824→   - exact root-cause fix
+  1825→  1825→
+  1826→  1826→4. HEADER LOADER
+  1827→  1827→   - how lifecycle now works
+  1828→  1828→   - confirmation that visual UI was not changed
+  1829→  1829→   - how instant vs slow navigation behaves
+  1830→  1830→   - how prefetch is separated from actual navigation
+  1831→  1831→
+  1832→  1832→5. NEW BADGE
+  1833→  1833→   - confirmation it remains
+  1834→  1834→   - exact 7-day rule
+  1835→  1835→   - exact implementation approach
+  1836→  1836→   - confirmation that unnecessary complexity was avoided
+  1837→  1837→
+  1838→  1838→6. SUPABASE
+  1839→  1839→   - confirmation public catalog remains low privilege/RLS
+  1840→  1840→   - confirmation no secret/service-role key was introduced
+  1841→  1841→
+  1842→  1842→7. SEO
+  1843→  1843→   - internal links
+  1844→  1844→   - server-rendered HTML
+  1845→  1845→   - images
+  1846→  1846→   - Cloudflare R2
+  1847→  1847→   - structured data
+  1848→  1848→   - metadata
+  1849→  1849→
+  1850→  1850→8. FILES CHANGED
+  1851→  1851→   - exact list
+  1852→  1852→   - one-line reason for each
+  1853→  1853→
+  1854→  1854→9. TEST RESULTS
+  1855→  1855→   - build
+  1856→  1856→   - cold navigation
+  1857→  1857→   - warm navigation
+  1858→  1858→   - different product
+  1859→  1859→   - direct URL
+  1860→  1860→   - loader
+  1861→  1861→   - NEW badge
+  1862→  1862→   - HTML
+  1863→  1863→   - RSC
+  1864→  1864→   - SEO
+  1865→  1865→
+  1866→  1866→10. REMAINING ISSUES
+  1867→  1867→    - only actual remaining issues
+  1868→  1868→    - do not invent hypothetical issues
+  1869→  1869→
+  1870→  1870→DO NOT claim something is tested if it was not actually tested.
+  1871→  1871→
+  1872→  1872→DO NOT claim something is production-ready merely because `next build` succeeds.
+  1873→  1873→
+  1874→  1874→The final standard is:
+  1875→  1875→
+  1876→  1876→CURRENT OFFICIAL PRACTICES
+  1877→  1877→+
+  1878→  1878→CORRECT BEHAVIOR
+  1879→  1879→+
+  1880→  1880→MINIMAL COMPLEXITY
+  1881→  1881→+
+  1882→  1882→PRESERVED FEATURES
+  1883→  1883→+
+  1884→  1884→PRESERVED UI/UX
+  1885→  1885→+
+  1886→  1886→VERIFIED PRODUCTION RUNTIME

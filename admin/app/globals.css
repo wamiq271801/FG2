@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #f7f7f5;
+  --color-surface: #ffffff;
+  --color-foreground: #191919;
+  --color-muted: #6f6f6a;
+  --color-line: #e6e6e2;
+  --color-accent: #a84e2a;
+  --color-accent-soft: #f5e9e2;
+  --color-danger: #b3261e;
+  --color-danger-soft: #fbeae8;
+  --color-ok: #1d6b3f;
+  --color-ok-soft: #e7f3ec;
+  --color-warn: #8a5a00;
+  --color-warn-soft: #faf0d9;
+  --color-sidebar: #1c1b19;
+  --color-sidebar-foreground: #d8d5d0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Subtle custom scrollbar for long lists/tables */
+.scroll-area {
+  scrollbar-width: thin;
+  scrollbar-color: #c9c7c2 transparent;
+}
+.scroll-area::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-area::-webkit-scrollbar-thumb {
+  background: #c9c7c2;
+  border-radius: 4px;
+}

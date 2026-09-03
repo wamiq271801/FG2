@@ -21,6 +21,20 @@ export const storeInfo = {
   email: "contact@fusiongadgets.in",
   supportEmail: "contact@fusiongadgets.in",
   hours: "Mon–Fri 9 AM–8 PM, Sat 10 AM–6 PM, Sun closed",
+  /** Same hours as the string above / the Contact page table, structured for
+   *  reuse (e.g. schema.org openingHoursSpecification). Sunday is closed and
+   *  intentionally has no entry. */
+  openingHours: [
+    {
+      days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+      opens: "09:00",
+      closes: "20:00",
+    },
+    { days: ["Saturday"], opens: "10:00", closes: "18:00" },
+  ],
+  /** Store coordinates — same marker position as mapEmbed and the Contact
+   *  page's OpenStreetMap link (27.5744, 81.5989). */
+  geo: { latitude: "27.5744", longitude: "81.5989" },
   gst: "",
   social: {
     instagram: "https://instagram.com/fusiongadgets",

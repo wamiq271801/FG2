@@ -8,7 +8,7 @@
  * (revalidate) independently per batch.
  */
 
-import { cacheLife } from "next/cache";
+import { cacheLife, cacheTag } from "next/cache";
 import { getProductSitemapBatch } from "@/modules/catalog/products";
 import {
   PRODUCT_SITEMAP_BATCH_SIZE,
@@ -18,7 +18,9 @@ import {
 } from "@/lib/sitemap";
 
 // Cache Components: the previous `export const revalidate = 3600` segment
-// config is replaced by the cached helper below ('sitemap' profile).
+// config is replaced by the cached helper below. Phase 2: each batch scope
+// carries `sitemap:products` — product events drop every batch; no
+// time-based revalidation (indefinite).
 
 export async function GET(
   _request: Request,
@@ -38,7 +40,8 @@ export async function GET(
 
 async function getProductSitemapRows(batch: number) {
   "use cache";
-  cacheLife("sitemap");
+  cacheLife("indefinite");
+  cacheTag("sitemap:products");
 
   return getProductSitemapBatch(batch, PRODUCT_SITEMAP_BATCH_SIZE);
 }

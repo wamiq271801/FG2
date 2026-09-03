@@ -21,6 +21,8 @@ CREATE INDEX order_items_product_idx ON order_items (product_id) WHERE product_i
 CREATE INDEX order_events_order_created_idx ON order_events (order_id, created_at);
 CREATE INDEX product_reviews_product_created_idx ON product_reviews (product_id, created_at DESC);
 CREATE INDEX product_reviews_user_product_idx ON product_reviews (user_id, product_id);
+CREATE INDEX product_reviews_published_idx ON product_reviews (product_id, created_at DESC) WHERE status = 'approved';
+CREATE INDEX product_reviews_moderation_queue_idx ON product_reviews (status, created_at DESC) WHERE status <> 'approved';
 CREATE UNIQUE INDEX signup_authorizations_unconsumed_token_idx ON signup_authorizations (token_hash) WHERE consumed_at IS NULL;
 CREATE INDEX signup_authorizations_token_email_idx ON signup_authorizations (token_hash, email_hash);
 CREATE INDEX signup_authorizations_expiry_idx ON signup_authorizations (expires_at);

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Bell, Check, Truck, ShieldCheck, RotateCcw } from "lucide-react";
 import { QuantityStepper } from "./QuantityStepper";
 import { AddToCart } from "./AddToCart";
+import { useStock } from "@/modules/catalog/use-stock";
 import type { Product, Promotion } from "@/types";
 
 type Props = {
@@ -15,8 +16,17 @@ export function PurchaseControls({ product, offers = [] }: Props) {
   const [quantity, setQuantity] = useState(1);
   const [notify, setNotify] = useState({ sent: false });
 
-  const isSoldOut = product.availability === "out-of-stock";
-  const isPreorder = product.availability === "preorder";
+  // The hydration-time stock refresh: reuses the page's single batched
+  // /api/stock request (shared with LiveAvailabilityBadge). Until it
+  // resolves — and permanently if it fails — the server-rendered live
+  // values on `product` (merged from getStocks at request time) apply.
+  const stocks = useStock([product.id]);
+  const live = stocks[product.id];
+  const stock = live?.stock ?? product.stock ?? 0;
+  const availability = live?.availability ?? product.availability;
+
+  const isSoldOut = availability === "out-of-stock";
+  const isPreorder = availability === "preorder";
 
   function handleNotify(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -89,15 +99,15 @@ export function PurchaseControls({ product, offers = [] }: Props) {
             value={quantity}
             onChange={setQuantity}
             min={1}
-            max={Math.max(1, product.stock)}
-            disabled={product.stock <= 0}
+            max={Math.max(1, stock)}
+            disabled={stock <= 0}
             label="Quantity"
           />
           <AddToCart
             product={product}
             productId={product.id}
             quantity={quantity}
-            disabled={product.stock <= 0}
+            disabled={stock <= 0}
             className="h-9 min-w-[12rem] flex-1"
           />
         </div>

@@ -4,6 +4,14 @@ import { ArrowRight } from "lucide-react";
 import { getAllCategories, getCategoryProductCounts } from "@/modules/catalog/categories";
 import { ProductVisual } from "@/components/shared/ProductVisual";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
+import { JsonLd } from "@/components/shared/JsonLd";
+import {
+  breadcrumbRef,
+  buildBreadcrumbList,
+  buildItemList,
+  buildJsonLdGraph,
+  collectionPageEntity,
+} from "@/lib/schema";
 import type { ProductVisualKey } from "@/types";
 
 export const metadata: Metadata = {
@@ -31,14 +39,40 @@ const visualForCategory: Record<string, ProductVisualKey> = {
   "gaming-carry": "controller",
 };
 
-export const revalidate = 300;
-
+// COMPLETE server-rendered page (request → render → response): the page
+// resolves the cached category scope + dataset-derived counts up front and
+// returns the fully rendered categories index (the root layout's above-body
+// Suspense boundary is the official fully-dynamic opt-in).
 export default async function CategoriesPage() {
   const [categories, countMap] = await Promise.all([
     getAllCategories(),
     getCategoryProductCounts(),
   ]);
   const counts = categories.map((c) => countMap.get(c.id) ?? 0);
+
+  // ONE JSON-LD graph: CollectionPage (the categories index) →
+  // BreadcrumbList + ItemList of category pages, all from loaded data.
+  const categoriesList = buildItemList(
+    "/categories",
+    categories.map((c) => ({ url: `/categories/${c.slug}`, name: c.name }))
+  );
+  const categoriesGraph = buildJsonLdGraph(
+    collectionPageEntity({
+      path: "/categories",
+      name: "All categories",
+      description:
+        "Browse every Fusion Gadgets category — audio, keyboards, computing, wearables, cameras, power, desks, and gaming & carry.",
+      breadcrumb: breadcrumbRef("/categories"),
+      ...(categoriesList
+        ? { mainEntity: { "@id": categoriesList["@id"] } }
+        : {}),
+    }),
+    buildBreadcrumbList("/categories", [
+      { name: "Home", path: "/" },
+      { name: "Categories", path: "/categories" },
+    ]),
+    categoriesList
+  );
 
   return (
     <div className="container-edge py-8 lg:py-12">
@@ -61,6 +95,7 @@ export default async function CategoriesPage() {
         </p>
       </header>
 
+      <JsonLd data={categoriesGraph} />
       <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-5">
         {categories.map((c, idx) => (
           <Link

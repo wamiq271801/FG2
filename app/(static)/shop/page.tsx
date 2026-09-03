@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Link } from "@/components/shared/Link";
-import { Suspense } from "react";
 import { ArrowRight, PackageOpen, SlidersHorizontal } from "lucide-react";
-import { getAllProducts } from "@/modules/catalog/products";
+import { getAllProductCards } from "@/modules/catalog/products";
+import { getStocks, overlayStock } from "@/modules/catalog/stock";
 import { getAllCategories } from "@/modules/catalog/categories";
 import { getAllBrands } from "@/modules/catalog/brands";
 import {
@@ -23,6 +23,14 @@ import { MobileFilters } from "@/components/shop/MobileFilters";
 import { ActiveFilters } from "@/components/shop/ActiveFilters";
 import { Pagination } from "@/components/shop/Pagination";
 import { Button } from "@/components/ui/button";
+import { JsonLd } from "@/components/shared/JsonLd";
+import {
+  breadcrumbRef,
+  buildBreadcrumbList,
+  buildItemList,
+  buildJsonLdGraph,
+  collectionPageEntity,
+} from "@/lib/schema";
 
 const BASE_PATH = "/shop";
 
@@ -42,38 +50,13 @@ export const metadata: Metadata = {
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-export default function ShopPage({
-  searchParams,
-}: {
-  searchParams: SearchParams;
-}) {
-  // Next 16 requires pages reading `searchParams` to be wrapped in a Suspense
-  // boundary. The fallback renders a lightweight skeleton while the dynamic
-  // filtered results resolve server-side.
-  return (
-    <Suspense fallback={<ShopFallback />}>
-      <ShopInner searchParams={searchParams} />
-    </Suspense>
-  );
-}
-
-function ShopFallback() {
-  return (
-    <div className="container-edge py-8 lg:py-12">
-      <div className="h-3 w-24 animate-pulse rounded bg-muted" />
-      <div className="mt-6 h-12 w-72 animate-pulse rounded bg-muted" />
-      <div className="mt-4 h-4 w-full max-w-md animate-pulse rounded bg-muted" />
-      <div className="mt-8 h-10 w-full animate-pulse rounded bg-muted" />
-      <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4 lg:gap-x-6">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="aspect-square animate-pulse rounded-xl bg-muted" />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-async function ShopInner({
+// COMPLETE server-rendered page: searchParams are awaited directly in the
+// page and the filtered results resolve server-side before anything is
+// returned (the root layout's above-body Suspense boundary is the official
+// fully-dynamic opt-in — no shell-first streaming, no skeleton swap during
+// navigation; the current page stays visible until the new one is fully
+// rendered).
+export default async function ShopPage({
   searchParams,
 }: {
   searchParams: SearchParams;
@@ -81,11 +64,16 @@ async function ShopInner({
   const sp = await searchParams;
   const filters = parseFilters(sp);
 
-  const [allProducts, allCategories, allBrands] = await Promise.all([
-    getAllProducts(),
+  // UNcached page render assembling the cached card dataset + one LIVE
+  // batched stock overlay — availability filtering operates on live
+  // values (Phase 2 architecture).
+  const [cards, allCategories, allBrands] = await Promise.all([
+    getAllProductCards(),
     getAllCategories(),
     getAllBrands(),
   ]);
+  const stockMap = await getStocks(cards.map((p) => p.id));
+  const allProducts = overlayStock(cards, stockMap);
 
   // Filtered + sorted product list (server-side).
   const filtered = applyFilters(allProducts, filters);
@@ -130,8 +118,31 @@ async function ShopInner({
     sort: filters.sort,
   });
 
+  // ONE JSON-LD graph: CollectionPage (the shop) → BreadcrumbList + ItemList
+  // of the collection, built from the products already loaded above.
+  const shopList = buildItemList(
+    "/shop",
+    allProducts.map((p) => ({ url: `/product/${p.slug}` }))
+  );
+  const shopGraph = buildJsonLdGraph(
+    collectionPageEntity({
+      path: "/shop",
+      name: "Shop all gadgets",
+      description:
+        "Every product on the shelf — picked by people who actually use the gear and shipped across India.",
+      breadcrumb: breadcrumbRef("/shop"),
+      ...(shopList ? { mainEntity: { "@id": shopList["@id"] } } : {}),
+    }),
+    buildBreadcrumbList("/shop", [
+      { name: "Home", path: "/" },
+      { name: "Shop", path: "/shop" },
+    ]),
+    shopList
+  );
+
   return (
     <div className="container-edge py-8 lg:py-12">
+      <JsonLd data={shopGraph} />
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Shop" }]} />
 
       {/* Page identity */}

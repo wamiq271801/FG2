@@ -1,86 +1,84 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { Suspense, useEffect } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useNavProgress } from "@/hooks/use-nav-progress";
 
 /**
- * Delay (ms) before showing the indicator. If navigation completes within
- * this window, the timer is cancelled and the bar is never shown — so fast
- * navigations produce no visible flash. Tuned to ~120ms: long enough to hide
- * the bar on fast navigations, short enough to feel responsive on slow ones.
- *
- * IMPORTANT: this measures ONLY client navigation pending state
- * (`useLinkStatus`). It does NOT detect server rendering, ISR, cache state, or
- * dynamic data fetching — those are intentionally not tracked here. Dynamic
- * data loading belongs to local component state, not this indicator.
- */
-const SHOW_DELAY = 120;
-
-/**
  * NavigationProgress — a globally integrated, indeterminate navigation
- * progress indicator.
+ * activity indicator.
  *
- * Two visual states: HIDDEN and VISIBLE.
+ * ONE NAVIGATION = ONE LOADER = ONE ELEMENT.
  *
- * - Navigation starts → `pending` becomes true → a `SHOW_DELAY` timer starts.
- *   If navigation finishes before the timer fires, the timer is cancelled and
- *   the indicator is never shown.
- * - If the timer fires, the indicator becomes VISIBLE.
- * - Navigation completes (pathname changes, or `useLinkStatus` reports no
- *   longer pending) → `pending` becomes false → the timer is cancelled and the
- *   indicator is hidden immediately.
+ *   NAVIGATION START   — a real link navigation begins (the `Link` onClick
+ *   → loader appears     observer called `start()`): the comet appears
+ *                        immediately. There is no threshold, no delayed
+ *                        reveal, and no suppression for fast navigations —
+ *                        even a cache-hit navigation shows the same loader.
  *
- * Completion is detected via two independent paths, either of which is
- * sufficient: the `Link` reporter calling `complete()`, and this component
- * watching `usePathname()`. This guarantees the indicator can never remain
- * stuck on screen.
+ *   NAVIGATION PENDING — the comet keeps running its existing animation
+ *   → loader active     for the ENTIRE pending period. Nothing can end the
+ *                        cycle early — no timeout, no threshold, no
+ *                        intermediate signal.
+ *
+ *   NAVIGATION COMMIT  — the router committed a new URL (pathname or
+ *   → loader hides      search params changed): the SAME loader element
+ *                        hides. Completion is the commit itself: the loader
+ *                        never morphs into a full-width bar, is never
+ *                        replaced by a second element, and is never
+ *                        remounted — the single comet element simply
+ *                        unmounts. No timer can decide this.
+ *
+ * The loader only OBSERVES navigation — it renders in parallel with the
+ * router's own transition work and never blocks or delays it. Next.js owns
+ * the navigation entirely.
+ *
+ * This is NOT a determinate progress bar: the pending phase shows the
+ * indeterminate comet (no percentage stages), and there is no fill-to-100%
+ * completion state — completion is just "hide".
  *
  * The indicator is decorative — `aria-hidden`, no focus, no interaction.
- * Reduced-motion is respected via the CSS `@media (prefers-reduced-motion)`
- * rule that disables the comet animation.
  */
-export function NavigationProgress() {
-  const pending = useNavProgress((s) => s.pending);
-  const complete = useNavProgress((s) => s.complete);
+function CommitWatcher() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const end = useNavProgress((s) => s.end);
+  const route = pathname + (searchParams.size ? `?${searchParams}` : "");
 
-  const [visible, setVisible] = useState(false);
-
-  // When `pending` is true, wait SHOW_DELAY before showing the bar.
-  // Cleanup cancels the timer if `pending` returns to false before it fires
-  // (i.e. navigation was fast) — so the bar is never shown for fast navs.
   useEffect(() => {
-    if (!pending) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setVisible(false);
-      return;
-    }
-    const t = setTimeout(() => setVisible(true), SHOW_DELAY);
-    return () => clearTimeout(t);
-  }, [pending]);
+    end();
+  }, [route, end]);
 
-  // Route changed → navigation completed. Clear `pending` as a safety net
-  // (the Link reporter also clears it, but this guarantees completion is
-  // never missed even if the reporter unmounts first).
-  useEffect(() => {
-    complete();
-  }, [pathname, complete]);
+  return null;
+}
 
-  if (!visible) return null;
+export function NavigationProgress() {
+  const active = useNavProgress((s) => s.active);
+
+  // The single visual loader: the comet track, mounted while a navigation
+  // is pending and unmounted when it commits. One element for the whole
+  // lifecycle — nothing is swapped in, recreated, or filled on completion.
+  const cometGradient = {
+    background:
+      "linear-gradient(90deg, transparent, var(--copper), transparent)",
+  };
 
   return (
-    <div
-      className="pointer-events-none fixed inset-x-0 top-0 z-[200] h-[2px] overflow-hidden"
-      aria-hidden="true"
-    >
-      <div
-        className="h-full w-1/3 animate-nav-progress"
-        style={{
-          background:
-            "linear-gradient(90deg, transparent, var(--copper), transparent)",
-        }}
-      />
-    </div>
+    <>
+      {/* The watcher stays mounted for the entire session: it mounts once
+          at hydration with the initial route, so every subsequent effect
+          run is a real committed route change — never a remount. */}
+      <Suspense fallback={null}>
+        <CommitWatcher />
+      </Suspense>
+      {active && (
+        <div
+          className="pointer-events-none fixed inset-x-0 top-0 z-[200] h-[2px] max-md:h-[2.4px] overflow-hidden"
+          aria-hidden="true"
+        >
+          <div className="h-full w-1/3 animate-nav-progress" style={cometGradient} />
+        </div>
+      )}
+    </>
   );
 }

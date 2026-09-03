@@ -1,0 +1,1522 @@
+You are GLM 5.2 acting as the primary implementation engineer.
+
+You are implementing PHASE 1 of an existing production website.
+
+READ THIS ENTIRE PROMPT BEFORE TOUCHING ANYTHING.
+
+This is NOT a greenfield project.
+
+The existing storefront, review eligibility system, product system, category system, order system, Supabase integration, RLS, Worker/backend, UI, SEO, caching, navigation, and other functionality already exist and work.
+
+Your job is to make the narrowly defined Phase 1 changes below WITHOUT unnecessarily rewriting, refactoring, replacing, or "improving" working code.
+
+============================================================
+ABSOLUTE OPERATING RULES
+============================================================
+
+1. DO NOT DRIFT FROM THIS SPECIFICATION.
+
+2. DO NOT invent requirements.
+
+3. DO NOT redesign working systems merely because you prefer another architecture.
+
+4. DO NOT treat existing correct code as buggy just because you would have implemented it differently.
+
+5. DO NOT rewrite working code without a concrete requirement in this prompt.
+
+6. DO NOT replace existing architecture simply because a newer pattern exists if the current implementation is correct and compatible with this task.
+
+7. DO NOT remove existing features.
+
+8. DO NOT change existing UI/UX except where explicitly required by this prompt.
+
+9. DO NOT modify existing review eligibility logic.
+
+10. DO NOT modify authentication.
+
+11. DO NOT modify purchase verification.
+
+12. DO NOT modify delivered-order verification.
+
+13. DO NOT modify the existing one-review-per-user/product rule.
+
+14. DO NOT modify the existing order system.
+
+15. DO NOT modify the existing stock system.
+
+16. DO NOT redesign Next.js caching/revalidation.
+
+17. DO NOT implement Phase 2.
+
+18. DO NOT introduce periodic revalidation.
+
+19. DO NOT introduce a new caching architecture.
+
+20. DO NOT change the existing navigation loader.
+
+21. DO NOT change SEO architecture.
+
+22. DO NOT change the existing R2 image architecture.
+
+23. DO NOT create a second physical review table.
+
+24. DO NOT expose Supabase secret/service-role credentials to the browser.
+
+25. DO NOT put privileged Supabase credentials into NEXT_PUBLIC_* variables.
+
+26. DO NOT create unnecessary abstractions.
+
+27. DO NOT create a shared monorepo package merely to share code between storefront and admin.
+
+28. DO NOT turn /admin into a route inside the storefront application.
+
+29. /admin MUST be a separate Next.js application.
+
+30. DO NOT create subagents merely to read files or obtain file contents.
+
+31. YOU must directly inspect and read the relevant files yourself.
+
+32. If web research is needed, use official documentation first.
+
+33. If current framework/library behavior is uncertain, verify it against current official documentation rather than guessing.
+
+34. Do not blindly follow older tutorials or legacy patterns.
+
+35. Do not upgrade dependencies unless there is a concrete requirement and the upgrade is verified as safe for this project.
+
+36. Do not "fix" unrelated problems discovered during implementation.
+
+37. If you discover an unrelated issue, document it separately and leave it untouched unless it directly blocks Phase 1.
+
+38. Never claim something works without actually testing it.
+
+39. Prefer the simplest tested implementation that satisfies the requirement.
+
+40. Correct existing code is NOT a reason to refactor it.
+
+============================================================
+PHASE 1 OBJECTIVE
+============================================================
+
+Phase 1 has TWO primary goals:
+
+A. Make the existing review system moderation-ready with the smallest possible change.
+
+B. Build a completely separate private admin application under /admin for:
+
+   - Product management
+   - Category management
+   - Review management
+
+That is the scope.
+
+Nothing else.
+
+============================================================
+CURRENT REVIEW SYSTEM — PRESERVE IT
+============================================================
+
+The existing review system already contains the following functionality:
+
+- user authentication
+- review eligibility checking
+- purchase verification
+- delivered-order verification
+- existing review form
+- existing review submission
+- existing ownership checks
+- existing one-review-per-user/product constraint
+- existing review editing
+- existing RLS
+- existing database trigger/function enforcement
+
+These are ALREADY IMPLEMENTED.
+
+DO NOT redesign them.
+
+DO NOT replace them.
+
+DO NOT simplify them.
+
+DO NOT move them to a different architecture.
+
+DO NOT "improve" them.
+
+DO NOT change their behavior.
+
+Treat them as established working functionality.
+
+The Phase 1 review change is intentionally small.
+
+============================================================
+REVIEW CHANGE #1 — ADD STATUS
+============================================================
+
+Add a moderation/publication status to the EXISTING review table.
+
+The existing physical review table is:
+
+product_reviews
+
+DO NOT create another physical review table.
+
+Add the required status field to product_reviews.
+
+The status model must support:
+
+- pending
+- approved
+- rejected
+
+Use an appropriately constrained database representation.
+
+Do NOT use arbitrary unrestricted strings if the existing database conventions allow a proper constraint/enum.
+
+Before choosing the exact database representation:
+
+- inspect the existing schema conventions
+- inspect existing migrations
+- inspect current PostgreSQL/Supabase capabilities
+- use the simplest robust implementation
+
+Do not introduce unnecessary complexity.
+
+============================================================
+NEW REVIEW DEFAULT STATUS
+============================================================
+
+A newly submitted review must become:
+
+status = pending
+
+The customer MUST NOT be able to submit:
+
+status = approved
+
+The customer MUST NOT control the moderation state.
+
+The existing review submission flow remains the same except for assigning the initial status.
+
+Do NOT rewrite the eligibility logic.
+
+Do NOT rewrite authentication.
+
+Do NOT rewrite purchase verification.
+
+Do NOT rewrite delivery verification.
+
+Do NOT rewrite the review form unnecessarily.
+
+============================================================
+PUBLIC REVIEW VISIBILITY
+============================================================
+
+The website must display ONLY approved reviews.
+
+The rule is:
+
+status = approved
+    → publicly visible
+
+status = pending
+    → NOT publicly visible
+
+status = rejected
+    → NOT publicly visible
+
+This rule must be enforced at the public review data boundary.
+
+Do not rely only on hiding reviews in React/UI.
+
+The public data query itself must only expose approved reviews.
+
+============================================================
+PUBLIC REVIEW VIEW
+============================================================
+
+Use ONE physical review table:
+
+product_reviews
+
+and, if appropriate after verifying Supabase/PostgreSQL security behavior, create a PostgreSQL VIEW representing publicly publishable reviews.
+
+Conceptually:
+
+product_reviews
+      |
+      | status = 'approved'
+      v
+published_reviews
+
+IMPORTANT:
+
+published_reviews MUST be a VIEW, NOT another physical table.
+
+DO NOT duplicate review data.
+
+DO NOT create:
+
+product_reviews
+published_reviews TABLE
+
+That is forbidden.
+
+The desired architecture is:
+
+product_reviews TABLE
++
+published_reviews VIEW
+
+The view must expose ONLY fields required for public review rendering.
+
+It must NOT expose internal fields unnecessarily.
+
+At minimum, public review data may need:
+
+- review id
+- product id
+- customer name
+- rating
+- title
+- body
+- created_at
+- any other field the CURRENT public UI genuinely requires
+
+Do NOT blindly copy every column.
+
+Inspect the current public review UI and query requirements first.
+
+============================================================
+IMPORTANT: VIEW SECURITY
+============================================================
+
+Do not assume a PostgreSQL view automatically solves security.
+
+Before implementing the public view:
+
+1. Research current official Supabase/PostgreSQL documentation if needed.
+2. Verify how RLS interacts with views in the project's current Supabase/PostgreSQL environment.
+3. Choose the safest supported implementation.
+4. Ensure public access cannot expose:
+   - user_id
+   - moderation fields
+   - private profile information
+   - rejected reviews
+   - pending reviews
+
+Do NOT weaken profile RLS just to make reviewer names available.
+
+Do NOT make the profiles table publicly readable.
+
+============================================================
+REVIEW CHANGE #2 — CUSTOMER NAME SNAPSHOT
+============================================================
+
+The current review stores user_id but does not store the reviewer's name.
+
+The website currently needs to use the protected profile/user relationship to obtain the reviewer's name.
+
+That is unnecessary and is causing the current public review name problem.
+
+Add:
+
+customer_name
+
+to product_reviews.
+
+This field is the reviewer's public-name snapshot at the time the review is submitted.
+
+The existing user_id MUST remain.
+
+Do NOT remove user_id.
+
+user_id remains necessary for existing ownership/relationship logic.
+
+============================================================
+DO NOT ADD A NAME INPUT FIELD
+============================================================
+
+Do NOT redesign the review form to ask the customer to manually type their name.
+
+That is NOT the requirement.
+
+The existing authenticated user's current profile/display name should be captured during the existing review submission flow and stored in:
+
+product_reviews.customer_name
+
+The client must not be trusted to impersonate another person by submitting an arbitrary customer_name.
+
+Use the existing authenticated identity/profile information already available to the current submission flow.
+
+FIRST inspect the current implementation to determine where the user's name is already available.
+
+Do not add an unnecessary extra profile query if the existing submission path already has the information.
+
+Do not create a second identity system.
+
+============================================================
+EXISTING REVIEW OWNERSHIP / EDITING
+============================================================
+
+IMPORTANT:
+
+The current review system uses user_id for ownership/editing.
+
+DO NOT break this.
+
+Do not remove user_id from the underlying product_reviews table.
+
+Do not remove user_id from queries that genuinely require it for authenticated ownership/editing.
+
+Separate:
+
+PUBLIC REVIEW DATA
+
+from:
+
+AUTHENTICATED OWNER/EDIT DATA
+
+Do NOT blindly replace every review query with the public view.
+
+Inspect the current ReviewItem / ReviewOwnerActions / edit flow and preserve it.
+
+The existing edit functionality must continue to work.
+
+Do not invent new edit behavior unless absolutely required by the status implementation.
+
+============================================================
+STATUS + EXISTING EDITING
+============================================================
+
+Do NOT invent complicated moderation behavior around editing.
+
+The prompt only requires:
+
+new review
+→ pending
+
+admin:
+pending → approved
+pending → rejected
+
+Do not automatically introduce:
+
+approved → pending after edit
+
+unless the existing product requirements explicitly require it and the current codebase makes it necessary.
+
+If the current editing behavior creates an interaction with the new status field, inspect it carefully and preserve existing behavior unless a change is strictly required for correctness.
+
+If a decision is genuinely required and cannot be determined from the current codebase, document it instead of inventing behavior.
+
+============================================================
+ADMIN APPLICATION
+============================================================
+
+Build a completely separate admin application.
+
+Location:
+
+/admin
+
+This MUST NOT be a route inside the existing storefront Next.js app.
+
+The repository should conceptually become:
+
+project/
+    existing storefront
+    ...
+    admin/
+        package.json
+        next.config.*
+        tsconfig.*
+        app/
+        components/
+        lib/
+        ...
+
+The exact existing project structure must be inspected before modifying it.
+
+============================================================
+ADMIN MUST HAVE ITS OWN DEPENDENCIES
+============================================================
+
+The admin application MUST have its own:
+
+- package.json
+- dependency tree
+- Next.js installation
+- TypeScript configuration
+- Next.js configuration
+- source tree
+- environment configuration
+
+Do NOT convert the repository into a monorepo.
+
+Do NOT create shared workspace dependencies.
+
+Do NOT add Turborepo.
+
+Do NOT add pnpm workspaces.
+
+Do NOT add npm workspaces.
+
+Do NOT create packages/shared.
+
+Do NOT create a shared component package.
+
+Do NOT create unnecessary cross-application infrastructure.
+
+The storefront and admin are two separate applications that happen to live in the same repository.
+
+============================================================
+ADMIN FRAMEWORK
+============================================================
+
+Use Next.js App Router for the admin application unless the existing sandbox imposes a concrete technical limitation that makes it impossible.
+
+Reason:
+
+The admin requires privileged server-side Supabase access.
+
+The admin should therefore have:
+
+- Server Components where appropriate
+- Server Actions and/or Route Handlers for mutations
+- server-only Supabase client
+- Client Components only where interactivity requires them
+
+Do not build a pure browser-only React SPA that exposes privileged credentials.
+
+The admin may behave like a modern SPA from the user's perspective, but privileged database operations must remain server-side.
+
+============================================================
+ADMIN SUPABASE ACCESS
+============================================================
+
+The admin is a private local tool.
+
+The admin will use a Supabase privileged server credential.
+
+The user will provide a TEST Supabase project's secret key.
+
+The test project contains temporary/test data.
+
+It is acceptable to configure that test secret in the admin application's environment for this implementation.
+
+However:
+
+THE SECRET MUST NEVER REACH THE BROWSER.
+
+THE SECRET MUST NEVER BE:
+
+- NEXT_PUBLIC_*
+- hardcoded in source
+- embedded in client JavaScript
+- sent to client components
+- included in HTML
+- included in URLs
+- logged
+- committed to git
+- copied into the storefront environment
+
+Use a server-only environment variable.
+
+Current Supabase terminology:
+
+- sb_secret_* = current secret key
+- service_role = legacy privileged key
+
+If the provided test credential is a current sb_secret_* key, use it.
+
+If the provided credential is a legacy service_role key, it may be used server-side for this test project, but do not migrate unrelated existing credentials.
+
+Research the current official Supabase documentation if the exact SDK/key handling is uncertain.
+
+Current official guidance explicitly says secret/service-role keys are backend-only and bypass RLS.
+
+Use the current recommended server-side initialization pattern for the installed Supabase SDK.
+
+For a server-only privileged client, do not enable unnecessary auth session persistence/refresh behavior.
+
+============================================================
+ADMIN SECURITY BOUNDARY
+============================================================
+
+Even though the admin runs locally, do not create privileged endpoints that blindly trust arbitrary browser requests.
+
+The architecture must be:
+
+Admin browser UI
+    ↓
+Admin server
+    ↓
+Privileged Supabase client
+    ↓
+Supabase
+
+NOT:
+
+Admin browser
+    ↓
+secret key
+    ↓
+Supabase
+
+The secret is a server credential.
+
+============================================================
+ADMIN AUTHENTICATION / ACCESS
+============================================================
+
+The admin is intended to be private and local.
+
+Do NOT build a giant multi-tenant admin authentication system.
+
+Do NOT build unnecessary RBAC.
+
+Do NOT build teams/roles/permissions unless the current project explicitly requires them.
+
+However, do not expose privileged operations without an access boundary.
+
+Inspect the current development environment and determine the simplest secure local-only approach consistent with how this admin will actually run.
+
+The admin must not become publicly accessible merely because it is reachable through the development URL.
+
+Keep this simple.
+
+Do not overengineer it.
+
+============================================================
+ADMIN DEVELOPMENT URL / SANDBOX INTEGRATION
+============================================================
+
+THIS IS A CRITICAL REQUIREMENT.
+
+The coding-agent sandbox currently has its own development server/orchestration mechanism.
+
+The admin application must be accessible through the SAME development environment URL.
+
+Simply running:
+
+storefront → localhost:3000
+admin → localhost:3001
+
+is NOT sufficient if the sandbox only exposes the storefront URL.
+
+You MUST inspect the existing sandbox/dev-server scripts and understand how the development URL is created/exposed.
+
+Then modify the ACTUAL development orchestration so that:
+
+- storefront continues to work
+- admin starts automatically
+- admin is reachable through /admin
+- both processes are managed by the existing sandbox lifecycle
+- the development environment remains usable
+- stopping/restarting the environment correctly manages both applications
+
+The desired public development structure is conceptually:
+
+development URL
+    /
+    → storefront
+
+development URL
+    /admin
+    → admin application
+
+Do NOT assume a solution.
+
+Inspect the existing sandbox first.
+
+Determine whether the current environment uses:
+
+- dev.sh
+- proxy
+- reverse proxy
+- nginx
+- Caddy
+- Node proxy
+- Next.js rewrites
+- another orchestration layer
+
+Then integrate the admin using the mechanism that actually controls the sandbox.
+
+DO NOT create a parallel server that the sandbox cannot expose.
+
+DO NOT leave the admin running on an inaccessible localhost port.
+
+DO NOT break the existing development URL.
+
+============================================================
+ADMIN BASE PATH / SUBPATH
+============================================================
+
+The admin is a separate Next.js application but must be accessible under:
+
+/admin
+
+Configure the admin application and the development routing/proxy correctly.
+
+Do not hack around the problem with client-side redirects.
+
+Do not make the storefront own the admin route.
+
+Do not rewrite all storefront routes.
+
+The routing should cleanly map:
+
+/admin
+/admin/...
+    → admin application
+
+and:
+
+/
+...
+    → storefront application
+
+If Next.js basePath is appropriate for the admin application, use it.
+
+If the sandbox reverse proxy handles the prefix, configure it there.
+
+Choose the simplest tested architecture after inspecting the current environment.
+
+============================================================
+ADMIN ENVIRONMENT SETUP
+============================================================
+
+The user will provide the TEST Supabase project's:
+
+- Supabase URL
+- secret/service-role credential
+
+Configure the admin environment accordingly.
+
+The environment must be:
+
+- local
+- ignored by git
+- server-only
+- used only by admin server code
+
+Do not put the secret in the root storefront environment unless the storefront genuinely needs it.
+
+The storefront must continue using its existing public/anon access model.
+
+============================================================
+ADMIN DOMAIN #1 — PRODUCTS
+============================================================
+
+Build product management using the EXISTING product schema.
+
+Do NOT create an admin-specific product table.
+
+Admin must be able to:
+
+- list products
+- search products
+- view product details
+- create products
+- edit products
+- manage the existing product fields
+- manage existing product/category relationships
+- manage product images where the existing product model requires it
+- perform the appropriate existing deletion/archive operation if one is already supported
+
+Do not invent fields that do not exist.
+
+Before building the editor:
+
+READ the actual product schema.
+
+READ the existing product types.
+
+READ the existing product data functions.
+
+READ relevant Supabase migrations/schema.
+
+READ existing storefront product forms/components if available.
+
+Reuse the existing domain model.
+
+Do not duplicate product logic unnecessarily.
+
+============================================================
+ADMIN DOMAIN #2 — CATEGORIES
+============================================================
+
+Build category management using the EXISTING category schema.
+
+Admin must be able to:
+
+- list categories
+- view category details
+- create categories
+- edit categories
+- perform safe deletion/archive where the existing schema permits it
+- manage existing category fields
+- manage existing product/category relationships where required
+
+Do not invent category behavior.
+
+Do not allow destructive operations that violate existing foreign-key relationships.
+
+Inspect the real database constraints first.
+
+============================================================
+ADMIN DOMAIN #3 — REVIEWS
+============================================================
+
+Build review moderation.
+
+Admin must be able to see:
+
+- pending reviews
+- approved reviews
+- rejected reviews
+
+Each review should provide the context necessary to moderate it:
+
+- customer name
+- product
+- rating
+- title
+- body
+- submitted date
+- status
+
+The admin may access internal fields server-side where necessary.
+
+The admin must NOT expose internal fields through the public storefront.
+
+Actions:
+
+- Approve
+- Reject
+
+Approval:
+
+pending
+    ↓
+approved
+
+Rejection:
+
+pending
+    ↓
+rejected
+
+Do not add unnecessary moderation workflows.
+
+Do not invent complex moderation states.
+
+============================================================
+ADMIN UI
+============================================================
+
+Build a clean, practical admin interface.
+
+It must be functional before it is decorative.
+
+Do NOT redesign the storefront.
+
+Do NOT modify storefront UI.
+
+Admin UI should have:
+
+- navigation
+- Products
+- Categories
+- Reviews
+- clear loading states where necessary
+- clear error states
+- confirmation for destructive operations
+- success/error feedback for mutations
+
+Do not build a huge dashboard with fake analytics.
+
+Do not create meaningless KPI cards.
+
+Do not create features that were not requested.
+
+The admin is a management tool.
+
+============================================================
+PRODUCT / CATEGORY / REVIEW MUTATIONS
+============================================================
+
+All privileged mutations must execute server-side.
+
+Use the simplest appropriate mechanism:
+
+- Server Actions
+OR
+- Route Handlers
+
+Do not create an API layer solely because "admin apps should have APIs."
+
+If Server Actions are appropriate, use them.
+
+If Route Handlers are clearly more appropriate for the existing architecture, use them.
+
+Do not create duplicate mutation paths.
+
+============================================================
+DO NOT TOUCH PHASE 2
+============================================================
+
+Phase 2 is the future cache/revalidation redesign.
+
+DO NOT implement:
+
+- revalidatePath architecture
+- revalidateTag architecture
+- updateTag architecture
+- cache invalidation endpoints
+- event-driven invalidation
+- cache dependency graphs
+- catalog invalidation
+- product invalidation
+- stock invalidation
+- review cache invalidation
+- category cache invalidation
+- lazy cache regeneration redesign
+- periodic cache removal
+
+Those are Phase 2.
+
+For Phase 1:
+
+Admin mutation
+    ↓
+Supabase mutation
+    ↓
+done
+
+Do not add cache behavior.
+
+============================================================
+DO NOT MODIFY WORKER
+============================================================
+
+The Worker/backend currently does not need review functionality for Phase 1.
+
+Do not add review functionality to the Worker.
+
+Do not modify stock mutation behavior.
+
+Do not modify order processing.
+
+Do not modify inventory.
+
+============================================================
+DO NOT MODIFY STOREFRONT CACHING
+============================================================
+
+The existing storefront cache architecture is out of scope.
+
+Do not modify:
+
+- cacheComponents
+- cacheLife
+- cacheTag
+- use cache
+- route caching
+- PPR
+- ISR
+- revalidation
+- dynamic rendering
+
+unless a tiny review-query change is strictly necessary to make approved-review filtering work.
+
+If such a change is necessary, make the smallest possible change.
+
+============================================================
+DO NOT MODIFY STOREFRONT UI
+============================================================
+
+The public review UI must remain visually unchanged.
+
+Do not redesign:
+
+- review cards
+- rating stars
+- review form
+- product page
+- review page
+- buttons
+- typography
+- spacing
+- colors
+- layouts
+
+The only functional public change is:
+
+unapproved reviews no longer appear.
+
+The reviewer name should now come from:
+
+customer_name
+
+instead of querying the protected profile table.
+
+============================================================
+DATABASE MIGRATION DISCIPLINE
+============================================================
+
+Create proper database migration(s) for Phase 1.
+
+Do not manually mutate production-like schema without migration history.
+
+The migration must be deterministic and reviewable.
+
+Before writing it:
+
+- inspect existing migrations
+- inspect current live/test schema through Supabase MCP if available
+- determine exact current state
+- avoid duplicate columns/constraints
+- follow existing migration conventions
+
+The migration should:
+
+1. add status
+2. establish a safe default for existing/new rows
+3. add customer_name
+4. establish any required constraints
+5. create the public view if that is the selected implementation
+6. update required policies only where necessary
+7. preserve existing policies and behavior unless explicitly required
+
+============================================================
+EXISTING REVIEWS — IMPORTANT MIGRATION DECISION
+============================================================
+
+There will already be existing review rows.
+
+Do NOT arbitrarily mark them rejected.
+
+Do NOT delete them.
+
+Do NOT silently change their public meaning.
+
+Determine the safest migration behavior for existing rows based on the intended publication model and actual current data.
+
+The desired production state is:
+
+only approved reviews are public.
+
+If existing reviews are currently public and there is no historical moderation information, do not invent a fake moderation history.
+
+Research/inspect the current test data and project requirements and choose a deterministic migration strategy.
+
+If this decision cannot be safely inferred, STOP before making destructive assumptions and report the exact ambiguity.
+
+Do not silently invent moderation decisions for real reviews.
+
+============================================================
+RLS / DATABASE SECURITY
+============================================================
+
+Preserve the existing review eligibility and ownership RLS.
+
+Only change policies required to implement:
+
+- status-based public visibility
+- safe public review representation
+- admin privileged access
+
+Do not weaken existing security.
+
+Do not make profiles public.
+
+Do not make user_id public merely to solve the reviewer-name issue.
+
+Do not replace RLS with application-only checks.
+
+The admin uses a privileged server credential and therefore can perform management operations without weakening public RLS.
+
+============================================================
+SUPABASE MCP
+============================================================
+
+The Supabase MCP is connected.
+
+USE IT.
+
+Before making database changes:
+
+- inspect the current schema
+- inspect current tables
+- inspect columns
+- inspect constraints
+- inspect RLS
+- inspect policies
+- inspect triggers
+- inspect functions/RPCs
+- inspect views
+- inspect relationships
+
+Use the MCP as a source of truth for the current test project.
+
+Do not guess database state from local files.
+
+Do not make destructive changes.
+
+Do not modify unrelated database objects.
+
+============================================================
+CURRENT CODEBASE ANALYSIS
+============================================================
+
+Before implementation, directly inspect:
+
+- repository structure
+- package files
+- existing dev scripts
+- sandbox/server orchestration
+- review modules
+- product modules
+- category modules
+- Supabase clients
+- environment files
+- migrations
+- RLS policies
+- database functions
+- Worker/backend
+- existing tests
+
+Follow imports.
+
+Read the actual files.
+
+Do NOT use subagents to fetch file contents.
+
+Do not start implementing after reading only a summary.
+
+The existing code is the source of truth.
+
+============================================================
+WEB RESEARCH
+============================================================
+
+You MAY research the web when necessary.
+
+When researching:
+
+PRIORITY ORDER:
+
+1. Official Next.js documentation
+2. Official Supabase documentation
+3. Official PostgreSQL documentation
+4. Official documentation for installed libraries
+5. High-quality technical sources only if official docs do not answer the question
+
+Do not copy outdated patterns.
+
+Do not use random tutorials as architectural authority.
+
+Pay particular attention to current documentation for:
+
+- Next.js separate app/basePath/proxy behavior
+- current Supabase secret keys
+- server-only Supabase clients
+- RLS
+- PostgreSQL views
+- Supabase/PostgreSQL view security
+- current Next.js Server Actions/Route Handlers
+
+Do not upgrade dependencies simply because documentation is newer.
+
+The installed project's versions remain authoritative unless a concrete incompatibility requires an upgrade.
+
+============================================================
+TEST PROJECT CREDENTIALS
+============================================================
+
+The user may provide a TEST Supabase project's secret key.
+
+This is allowed for this implementation because the project is explicitly temporary/test data.
+
+Still:
+
+- never commit it
+- never print it
+- never log it
+- never expose it to browser code
+- never place it in source code
+- never place it in NEXT_PUBLIC_*
+- never place it in client-side configuration
+- never return it in your final report
+- never include it in screenshots
+- never include it in test output
+
+If you need to verify that it works, test the configuration without printing the credential.
+
+============================================================
+NO UNNECESSARY REFACTORING
+============================================================
+
+This rule is extremely important.
+
+If you encounter code like:
+
+const x = existingCorrectImplementation()
+
+DO NOT rewrite it simply because you prefer:
+
+const x = anotherImplementation()
+
+If the current code is:
+
+- correct
+- tested
+- compatible
+- understandable
+- not blocking Phase 1
+
+LEAVE IT ALONE.
+
+Do not turn a small feature change into a codebase rewrite.
+
+Do not introduce:
+
+- repositories
+- service layers
+- domain abstractions
+- generic CRUD frameworks
+- generic admin engines
+- event buses
+- state-management libraries
+- API clients
+- shared packages
+
+unless the existing project already uses them or the requirement genuinely requires them.
+
+============================================================
+IMPLEMENTATION ORDER
+============================================================
+
+Follow this order.
+
+PHASE 0 — READ AND UNDERSTAND
+
+1. Inspect repository.
+2. Inspect current storefront architecture.
+3. Inspect review flow.
+4. Inspect review schema through Supabase MCP.
+5. Inspect review RLS.
+6. Inspect profile relationship.
+7. Inspect product/category schema.
+8. Inspect existing development/sandbox scripts.
+9. Inspect installed versions.
+10. Inspect existing tests.
+
+Do not modify anything during this phase.
+
+PHASE 1 — DATABASE REVIEW CHANGES
+
+1. Add status.
+2. Add customer_name.
+3. Establish correct constraints/defaults.
+4. Create public review view if appropriate.
+5. Update public access only as required.
+6. Preserve ownership/eligibility policies.
+7. Verify schema through Supabase MCP.
+
+PHASE 2 — STOREFRONT REVIEW READ CHANGES
+
+1. Public review queries use approved reviews only.
+2. Public reviewer name comes from customer_name.
+3. Remove unnecessary public profile lookup for reviewer name.
+4. Preserve authenticated ownership/edit behavior.
+5. Preserve review UI.
+
+PHASE 3 — STOREFRONT REVIEW SUBMISSION CHANGE
+
+1. Preserve existing submission flow.
+2. Capture current authenticated user's name.
+3. Store customer_name.
+4. Store status = pending.
+5. Do not change eligibility logic.
+
+PHASE 4 — ADMIN APPLICATION
+
+1. Create /admin as independent Next.js app.
+2. Create its own package.json.
+3. Install only required dependencies.
+4. Configure server-only Supabase privileged client.
+5. Configure test environment.
+6. Build admin shell.
+7. Build Products.
+8. Build Categories.
+9. Build Reviews.
+10. Implement privileged server-side mutations.
+
+PHASE 5 — DEV SANDBOX INTEGRATION
+
+1. Inspect current dev orchestration.
+2. Start storefront and admin together.
+3. Route /admin to admin application.
+4. Preserve storefront routing.
+5. Ensure sandbox development URL exposes both.
+6. Ensure restart/stop lifecycle works.
+7. Verify admin is actually reachable through the development URL.
+
+PHASE 6 — TEST
+
+Run real tests.
+
+Do not stop after compilation.
+
+============================================================
+TESTING REQUIREMENTS
+============================================================
+
+You must actually test:
+
+DATABASE:
+
+- migration applies
+- status exists
+- customer_name exists
+- constraints work
+- view exists
+- public representation only exposes intended fields
+
+REVIEW SUBMISSION:
+
+- existing eligible user can submit
+- new review gets pending
+- customer_name is populated
+- existing eligibility still works
+- existing duplicate protection still works
+
+PUBLIC REVIEW:
+
+- approved review appears
+- pending review does not appear
+- rejected review does not appear
+- reviewer name appears correctly
+- public query does not require profiles table
+- user_id is not exposed through the public representation
+
+EXISTING REVIEW EDIT:
+
+- existing owner/edit flow still works
+- ownership remains based on existing user_id mechanism
+
+ADMIN:
+
+- /admin loads
+- products list loads
+- product create works
+- product edit works
+- category list loads
+- category create works
+- category edit works
+- reviews list loads
+- pending reviews appear
+- approve works
+- reject works
+
+SECURITY:
+
+- secret key is not in browser bundle
+- secret key is not in HTML
+- secret key is not in client source
+- secret key is not logged
+- storefront does not receive admin credentials
+- public users cannot approve reviews
+- public users cannot set status
+- public users cannot access private moderation fields
+- profiles remain protected
+
+DEVELOPMENT ENVIRONMENT:
+
+- storefront starts
+- admin starts
+- / works
+- /admin works
+- admin subroutes work
+- storefront routes still work
+- both apps restart correctly
+- no port/orchestration conflict
+
+BUILD:
+
+- storefront build succeeds
+- admin build succeeds
+- TypeScript checks
+- lint/checks where available
+- production/startup test if supported by the sandbox
+
+============================================================
+REGRESSION REQUIREMENTS
+============================================================
+
+Verify that the following remain unchanged:
+
+- login
+- product pages
+- category pages
+- shop
+- review eligibility
+- delivered-order verification
+- review ownership
+- review editing
+- product data
+- category data
+- stock
+- Worker
+- SEO
+- R2 images
+- navigation
+- header loader
+- existing caching
+- existing UI
+
+If a regression occurs, fix ONLY the regression caused by your Phase 1 changes.
+
+Do not use the regression as an excuse to refactor unrelated code.
+
+============================================================
+NO FAKE COMPLETION
+============================================================
+
+Do not say:
+
+"implemented"
+
+unless the implementation actually exists.
+
+Do not say:
+
+"tested"
+
+unless the test was actually run.
+
+Do not say:
+
+"secure"
+
+unless you actually verified the relevant boundary.
+
+Do not say:
+
+"admin works"
+
+unless /admin was actually accessed through the development URL.
+
+Do not say:
+
+"reviews are approved-only"
+
+unless the public query/data boundary was actually tested.
+
+============================================================
+FINAL REPORT
+============================================================
+
+After implementation and testing, provide a concise but complete report.
+
+Use exactly:
+
+# PHASE 1 IMPLEMENTATION COMPLETE
+
+## 1. What Changed
+
+List actual changes.
+
+## 2. Review System
+
+Explain:
+
+- status
+- pending behavior
+- approved-only public visibility
+- customer_name snapshot
+- public review data source
+- preserved existing eligibility/ownership behavior
+
+## 3. Admin Application
+
+Explain:
+
+- location
+- framework
+- independent package/dependencies
+- Products
+- Categories
+- Reviews
+
+## 4. Supabase
+
+List actual database changes.
+
+Do NOT output any secret credentials.
+
+## 5. Development Environment
+
+Explain exactly how /admin is exposed through the sandbox development URL.
+
+## 6. Security
+
+Confirm where the privileged Supabase credential exists and verify it is server-only.
+
+Do NOT print the credential.
+
+## 7. Tests Actually Run
+
+List exact commands/tests and results.
+
+## 8. Files Changed
+
+List actual changed files.
+
+## 9. Unrelated Issues Found
+
+Only list genuine issues discovered but intentionally left untouched.
+
+Do not turn these into extra work.
+
+## 10. Phase 2 Boundary
+
+Explicitly state:
+
+Phase 2 cache/revalidation redesign was NOT implemented.
+
+============================================================
+FINAL ABSOLUTE INSTRUCTION
+============================================================
+
+IMPLEMENT THE SPECIFICATION ABOVE.
+
+DO NOT DRIFT.
+
+DO NOT OVERENGINEER.
+
+DO NOT REBUILD WORKING SYSTEMS.
+
+DO NOT CHANGE OUT-OF-SCOPE SYSTEMS.
+
+DO NOT REMOVE FEATURES.
+
+DO NOT CHANGE UI/UX UNLESS EXPLICITLY REQUIRED.
+
+DO NOT TREAT CORRECT WORKING CODE AS BUGGY.
+
+DO NOT CREATE SUBAGENTS TO READ FILES.
+
+READ THE ACTUAL FILES YOURSELF.
+
+USE THE SUPABASE MCP.
+
+USE OFFICIAL DOCUMENTATION WHEN RESEARCH IS REQUIRED.
+
+TEST EVERYTHING YOU CLAIM TO HAVE IMPLEMENTED.
+
+THE TARGET IS A SMALL, PRODUCTION-GRADE REVIEW MODERATION CHANGE PLUS A CLEAN, SEPARATE PRIVATE ADMIN APPLICATION.
+
+NOT A CODEBASE REWRITE.

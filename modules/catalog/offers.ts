@@ -1,10 +1,14 @@
 /**
  * Promotion/offer queries (server-side).
  *
- * Offer→product relationships use offer_products.product_id only. Product
- * records are resolved by the consuming page via products.getProductsByIds.
+ * Phase 2: offers are cached scopes tagged for future invalidation — no
+ * admin mutation path exists for offers in this phase, so no event ever
+ * resolves the `offers` / `offer:{slug}` tags. Offer→product relationships
+ * use offer_products.product_id only; product records are resolved by the
+ * consuming page from the product-card dataset.
  */
 
+import { cacheLife, cacheTag } from "next/cache";
 import { createCatalogClient } from "@/lib/supabase/catalog";
 import { asRows, asSingle } from "./types";
 import type { Promotion } from "@/types";
@@ -39,7 +43,12 @@ function mapPromotion(row: OfferRow): Promotion {
   };
 }
 
+/** The offers list scope — tags: `offers`. */
 export async function getAllPromotions(): Promise<Promotion[]> {
+  "use cache";
+  cacheLife("indefinite");
+  cacheTag("offers");
+
   const supabase = createCatalogClient();
   const { data, error } = await supabase
     .from("offers")
@@ -50,9 +59,14 @@ export async function getAllPromotions(): Promise<Promotion[]> {
   return asRows<OfferRow>(data).map(mapPromotion);
 }
 
+/** Offer-by-slug scope — tags: `offers`, `offer:{slug}`. */
 export async function getPromotionBySlug(
   slug: string
 ): Promise<Promotion | undefined> {
+  "use cache";
+  cacheLife("indefinite");
+  cacheTag("offers", `offer:${slug}`);
+
   const supabase = createCatalogClient();
   const { data, error } = await supabase
     .from("offers")
@@ -65,10 +79,16 @@ export async function getPromotionBySlug(
   return row ? mapPromotion(row) : undefined;
 }
 
-/** Active promotions containing a given product — resolved by product.id. */
+/**
+ * Active promotions containing a given product — tags: `offers` plus
+ * `offer:{slug}` for every promotion found (filled at cache time).
+ */
 export async function getActiveOffersForProduct(
   productId: string
 ): Promise<Promotion[]> {
+  "use cache";
+  cacheLife("indefinite");
+
   const supabase = createCatalogClient();
   const { data, error } = await supabase
     .from("offers")
@@ -77,7 +97,9 @@ export async function getActiveOffersForProduct(
     .eq("status", "active")
     .order("ends_at", { ascending: true, nullsFirst: false });
   if (error) throw error;
-  return asRows<OfferRow>(data).map(mapPromotion);
+  const promos = asRows<OfferRow>(data).map(mapPromotion);
+  cacheTag("offers", ...promos.map((p) => `offer:${p.slug}`));
+  return promos;
 }
 
 export function isPromotionActive(promo: Promotion): boolean {

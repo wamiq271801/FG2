@@ -11,6 +11,13 @@ import {
 } from "lucide-react";
 import { storeInfo } from "@/lib/store-info";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
+import { JsonLd } from "@/components/shared/JsonLd";
+import {
+  buildJsonLdGraph,
+  merchantReturnPolicyEntity,
+  merchantReturnPolicyRef,
+  webPageEntity,
+} from "@/lib/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -59,6 +66,22 @@ const WARRANTY_NOT_COVERED = [
 export default function ReturnsPage() {
   return (
     <div className="container-edge py-8 lg:py-12">
+      {/* WebPage + the canonical MerchantReturnPolicy. Only the fields the
+          authoritative policy states are emitted (7-day window from the
+          courier's delivered-timestamp, India); return fees/method are not
+          specified by the policy and are therefore omitted. */}
+      <JsonLd
+        data={buildJsonLdGraph(
+          merchantReturnPolicyEntity(),
+          webPageEntity({
+            path: "/returns",
+            name: "Returns & warranty",
+            description:
+              "Fusion Gadgets returns and warranty policy: 7-day returns on unused items in original packaging, manufacturer warranties of 1–5 years, 48-hour damage reporting, and exchanges.",
+            mainEntity: merchantReturnPolicyRef(),
+          })
+        )}
+      />
       <Breadcrumbs
         items={[{ label: "Home", href: "/" }, { label: "Returns & warranty" }]}
       />

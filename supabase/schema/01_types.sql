@@ -13,3 +13,4 @@ CREATE TYPE payment_status_enum AS ENUM ('pending', 'paid', 'failed', 'refunded'
 CREATE TYPE offer_status_enum AS ENUM ('draft', 'scheduled', 'active', 'expired');
 CREATE TYPE onboarding_state_enum AS ENUM ('incomplete', 'address_optional', 'complete');
 CREATE TYPE rate_limit_dimension_enum AS ENUM ('ip', 'email', 'user');
+CREATE TYPE review_status_enum AS ENUM ('pending', 'approved', 'rejected');

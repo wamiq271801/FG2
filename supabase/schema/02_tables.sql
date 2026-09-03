@@ -204,11 +204,13 @@ CREATE TABLE order_events (
 
 CREATE TABLE product_reviews (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
+  user_id uuid NOT NULL DEFAULT auth.uid(),
   product_id uuid NOT NULL,
   rating integer NOT NULL,
   title text NOT NULL,
   body text NOT NULL,
+  status review_status_enum NOT NULL DEFAULT 'pending',
+  customer_name text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );

@@ -23,7 +23,11 @@ export type ProductImageRow = {
   is_primary: boolean;
 };
 
-/** Card-level product row — lists, grids, cards. */
+/**
+ * Card-level product row — lists, grids, cards. Live (per-request) queries
+ * select this shape INCLUDING stock; cached scopes use the sans-stock
+ * variant below (volatile stock never enters a shared cache).
+ */
 export type ProductRow = {
   id: string;
   sku: string;
@@ -43,10 +47,22 @@ export type ProductRow = {
   rating: number;
   review_count: number;
   added_at: string;
-  brands: { slug: string; name: string } | null;
-  categories: { id: string; slug: string } | null;
+  brands: { slug: string; name: string; country?: string } | null;
+  categories: { id: string; slug: string; name?: string } | null;
   product_images: ProductImageRow[] | null;
 };
+
+/**
+ * Card-level row WITHOUT stock — the row shape every cached select uses.
+ * Mapped products carry stock/availability as undefined until a live
+ * stock overlay (getStocks) or useStock fills them in.
+ */
+export type CachedProductRow = Omit<ProductRow, "stock">;
+
+/**
+ * Detail-level row without stock — cached product-detail scope shape.
+ */
+export type CachedFullProductRow = Omit<FullProductRow, "stock">;
 
 /** Detail rows add the editorial/content fields. */
 export type FullProductRow = ProductRow & {
@@ -56,7 +72,8 @@ export type FullProductRow = ProductRow & {
   warranty: string | null;
   highlights: string[];
   includes: string[];
-  specs: { label: string; value: string }[];
+  /** products.specs JSONB rows — actual wire shape is { key, value }. */
+  specs: { key: string; value: string }[];
 };
 
 /**
@@ -85,6 +102,7 @@ export type VariationItemRow = {
 
 // ── Selects ───────────────────────────────────────────────────────────
 
+/** Live card select — includes stock (never used inside a cached scope). */
 export const PRODUCT_CARD_SELECT = `
   id, sku, slug, name, subtitle, subcategory, tagline,
   price, compare_at_price, currency, visual_key, accent,
@@ -95,14 +113,42 @@ export const PRODUCT_CARD_SELECT = `
   product_images(url, position, is_primary)
 `;
 
+/** Live detail select — includes stock (never used inside a cached scope). */
 export const PRODUCT_DETAIL_SELECT = `
   id, sku, slug, name, subtitle, subcategory, tagline,
   description, story, price, compare_at_price, currency, visual_key, accent,
   is_preorder, stock, is_active,
   rating, review_count, shipping, warranty, added_at,
   highlights, includes, specs,
+  brands!inner(slug, name, country),
+  categories!inner(id, slug, name),
+  product_images(url, position, is_primary)
+`;
+
+/**
+ * Cached card select — PRODUCT_CARD_SELECT minus `stock`. The Phase 2
+ * stock architecture: availability is never part of shared cache entries;
+ * it is re-derived per request from a live stock read.
+ */
+export const PRODUCT_CARD_SELECT_NOSTOCK = `
+  id, sku, slug, name, subtitle, subcategory, tagline,
+  price, compare_at_price, currency, visual_key, accent,
+  is_preorder, is_active,
+  rating, review_count, added_at,
   brands!inner(slug, name),
   categories!inner(id, slug),
+  product_images(url, position, is_primary)
+`;
+
+/** Cached detail select — PRODUCT_DETAIL_SELECT minus `stock`. */
+export const PRODUCT_DETAIL_SELECT_NOSTOCK = `
+  id, sku, slug, name, subtitle, subcategory, tagline,
+  description, story, price, compare_at_price, currency, visual_key, accent,
+  is_preorder, is_active,
+  rating, review_count, shipping, warranty, added_at,
+  highlights, includes, specs,
+  brands!inner(slug, name, country),
+  categories!inner(id, slug, name),
   product_images(url, position, is_primary)
 `;
 
@@ -127,8 +173,14 @@ function sortedImageUrls(images: ProductImageRow[] | null): string[] {
   return [...(images ?? [])].sort((a, b) => a.position - b.position).map((i) => i.url);
 }
 
-/** Map a card- or detail-shaped product row to the domain Product. */
-export function mapProductRow(row: ProductRow): Product {
+/**
+ * Map a card- or detail-shaped product row to the domain Product.
+ *
+ * Accepts both live rows (with `stock` — availability derived here) and
+ * cached rows (sans stock — availability/stock map to undefined and are
+ * filled in later by the live stock overlay / useStock).
+ */
+export function mapProductRow(row: ProductRow | CachedProductRow): Product {
   const full = row as Partial<FullProductRow>;
   return {
     id: row.id,
@@ -138,8 +190,10 @@ export function mapProductRow(row: ProductRow): Product {
     subtitle: row.subtitle,
     brand: row.brands?.slug ?? "",
     brandName: row.brands?.name,
+    brandCountry: row.brands?.country,
     category: row.categories?.slug ?? "",
     categoryId: row.categories?.id,
+    categoryName: row.categories?.name,
     subcategory: row.subcategory ?? undefined,
     tagline: row.tagline,
     description: full.description ?? undefined,
@@ -150,8 +204,11 @@ export function mapProductRow(row: ProductRow): Product {
     images: sortedImageUrls(row.product_images),
     visualKey: row.visual_key,
     accent: row.accent,
-    availability: deriveAvailability(row.stock, row.is_preorder, row.is_active),
-    stock: row.stock,
+    availability:
+      "stock" in row && row.stock !== undefined
+        ? deriveAvailability(row.stock, row.is_preorder, row.is_active)
+        : undefined,
+    stock: "stock" in row ? row.stock : undefined,
     isPreorder: row.is_preorder,
     rating: Number(row.rating),
     reviewCount: row.review_count,

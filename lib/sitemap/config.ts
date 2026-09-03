@@ -5,10 +5,12 @@
  * Child sitemap URL paths follow the Next.js App Router conventions for
  * the installed version (16.x): a `sitemap` segment under the resource
  * segment with a `[id].xml` leaf, e.g. /products/sitemap/0.xml. They are
- * served by route handlers (app/products/sitemap/[id]/route.ts) instead
- * of native generateSitemaps because generateSitemaps enumerates every
- * batch id at build time and materializes all child sitemaps during
- * `next build` — this system generates batches on demand (ISR).
+ * served by route handlers (app/(sitemaps)/products/sitemap/[id]/route.ts)
+ * instead of native generateSitemaps because generateSitemaps enumerates
+ * every batch id at build time and materializes all child sitemaps during
+ * `next build` — this system generates batches on demand (ISR). The
+ * `(sitemaps)` directory is a route group: it organizes the sitemap route
+ * handlers without affecting their public URLs.
  *
  * All URLs are built from the central site origin in lib/site.ts.
  */
@@ -41,8 +43,10 @@ export const CATEGORY_SITEMAP_BATCH_SIZE = 1000;
  * analyzes segment config exports at build time and rejects imported
  * constants ("Invalid segment configuration export detected"). If you
  * change this value, update the literal in each sitemap route handler:
- * app/sitemap.xml/route.ts, app/sitemap-static.xml/route.ts,
- * app/products/sitemap/[id]/route.ts, app/categories/sitemap/[id]/route.ts.
+ * app/(sitemaps)/sitemap.xml/route.ts,
+ * app/(sitemaps)/sitemap-static.xml/route.ts,
+ * app/(sitemaps)/products/sitemap/[id]/route.ts,
+ * app/(sitemaps)/categories/sitemap/[id]/route.ts.
  */
 export const SITEMAP_REVALIDATE_SECONDS = 3600;
 

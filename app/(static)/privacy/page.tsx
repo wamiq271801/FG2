@@ -3,6 +3,8 @@ import { Link } from "@/components/shared/Link";
 import { Mail, ShieldCheck } from "lucide-react";
 import { storeInfo } from "@/lib/store-info";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
+import { JsonLd } from "@/components/shared/JsonLd";
+import { buildJsonLdGraph, webPageEntity } from "@/lib/schema";
 import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = {
@@ -42,6 +44,16 @@ const SECTIONS = [
 export default function PrivacyPage() {
   return (
     <div className="container-edge py-8 lg:py-12">
+      <JsonLd
+        data={buildJsonLdGraph(
+          webPageEntity({
+            path: "/privacy",
+            name: "Privacy policy",
+            description:
+              "How Fusion Gadgets collects, uses, and protects your personal information — what we collect, how we use it, cookies, your rights, data retention, and contact.",
+          })
+        )}
+      />
       <Breadcrumbs
         items={[{ label: "Home", href: "/" }, { label: "Privacy policy" }]}
       />

@@ -51,7 +51,11 @@ CREATE POLICY order_items_owner_read ON order_items FOR SELECT TO authenticated 
 DROP POLICY IF EXISTS order_events_owner_read ON order_events;
 CREATE POLICY order_events_owner_read ON order_events FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM orders o WHERE o.id = order_events.order_id AND o.user_id = (select auth.uid())));
 DROP POLICY IF EXISTS product_reviews_public_read ON product_reviews;
-CREATE POLICY product_reviews_public_read ON product_reviews FOR SELECT USING (true);
+-- Approved reviews are publicly readable; a user can additionally read
+-- their OWN review in any status (the authenticated ownership/edit flow
+-- needs to find pending rows). anon never touches the base table — it
+-- reads published_reviews (see 09_views.sql / 08_grants.sql).
+CREATE POLICY product_reviews_public_read ON product_reviews FOR SELECT USING (status = 'approved' OR user_id = (select auth.uid()));
 DROP POLICY IF EXISTS product_reviews_owner_insert ON product_reviews;
 CREATE POLICY product_reviews_owner_insert ON product_reviews FOR INSERT TO authenticated WITH CHECK ((select auth.uid()) = user_id AND can_review_product(product_id));
 DROP POLICY IF EXISTS product_reviews_owner_update ON product_reviews;

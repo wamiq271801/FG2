@@ -7,12 +7,12 @@ import {
   getRelatedProducts,
   getProductVariation,
 } from "@/modules/catalog/products";
-import { getCategoryBySlug } from "@/modules/catalog/categories";
-import { getBrandBySlug } from "@/modules/catalog/brands";
 import { getActiveOffersForProduct } from "@/modules/catalog/offers";
-import { getLatestReviews, getReviewSummary } from "@/modules/review/data";
+import { getReviewData } from "@/modules/review/data";
+import { getStocks } from "@/modules/catalog/stock";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { ProductCard } from "@/components/shared/ProductCard";
+import { LiveAvailabilityBadge } from "@/components/shared/LiveAvailabilityBadge";
 import { ProductViewTracker } from "@/components/shared/ProductViewTracker";
 import { Gallery } from "@/components/product/Gallery";
 import { VariationSelector } from "@/components/product/VariationSelector";
@@ -24,12 +24,16 @@ import { ReviewList } from "@/components/review/ReviewList";
 import { ReviewActions } from "@/components/review/ReviewActions";
 import { Button } from "@/components/ui/button";
 import { Price } from "@/components/shared/Price";
-import { AvailabilityBadge } from "@/components/shared/AvailabilityBadge";
-import type { Availability, Product } from "@/types";
-
-const SITE_URL = "https://fusiongadgets.in";
-
-export const revalidate = 300;
+import { JsonLd } from "@/components/shared/JsonLd";
+import {
+  breadcrumbRef,
+  buildBreadcrumbList,
+  buildJsonLdGraph,
+  buildProduct,
+  productRef,
+  webPageEntity,
+} from "@/lib/schema";
+import type { Product } from "@/types";
 
 type Params = Promise<{ slug: string }>;
 
@@ -39,6 +43,8 @@ export async function generateMetadata({
   params: Params;
 }): Promise<Metadata> {
   const { slug } = await params;
+  // Reads through the same cached product-detail scope as the page — one
+  // cache entry per slug serves both the metadata and the page render.
   const product = await getProductBySlug(slug);
   if (!product) return {};
 
@@ -67,141 +73,94 @@ export async function generateMetadata({
   };
 }
 
-function availabilitySchema(a: Availability): string {
-  switch (a) {
-    case "out-of-stock":
-      return "https://schema.org/OutOfStock";
-    case "preorder":
-      return "https://schema.org/PreOrder";
-    case "low-stock":
-      return "https://schema.org/LimitedAvailability";
-    default:
-      return "https://schema.org/InStock";
-  }
-}
-
-function productJsonLd(
-  product: Product,
-  brandName: string,
-  reviewSummary?: { average: number; count: number }
-) {
-  return {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: product.name,
-    image: product.images.length
-      ? product.images
-      : [`${SITE_URL}/images/hero-flatlay.jpg`],
-    description: product.description ?? product.tagline,
-    sku: product.sku,
-    mpn: product.sku,
-    brand: {
-      "@type": "Brand",
-      name: brandName,
-    },
-    category: product.subcategory ?? product.category,
-    aggregateRating:
-      reviewSummary && reviewSummary.count > 0
-        ? {
-            "@type": "AggregateRating",
-            ratingValue: reviewSummary.average,
-            reviewCount: reviewSummary.count,
-            bestRating: 5,
-            worstRating: 1,
-          }
-        : undefined,
-    offers: {
-      "@type": "Offer",
-      url: `${SITE_URL}/product/${product.slug}`,
-      price: String(product.price),
-      priceCurrency: product.currency,
-      availability: availabilitySchema(product.availability),
-      priceValidUntil: "2026-12-31",
-      itemCondition: "https://schema.org/NewCondition",
-      seller: {
-        "@type": "Organization",
-        name: "Fusion Gadgets",
-      },
-    },
-  };
-}
-
-function breadcrumbJsonLd(
-  name: string,
-  categoryName: string,
-  categorySlug: string,
-  productSlug: string
-) {
-  return {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
-      { "@type": "ListItem", position: 2, name: "Shop", item: `${SITE_URL}/shop` },
-      {
-        "@type": "ListItem",
-        position: 3,
-        name: categoryName,
-        item: `${SITE_URL}/categories/${categorySlug}`,
-      },
-      {
-        "@type": "ListItem",
-        position: 4,
-        name,
-        item: `${SITE_URL}/product/${productSlug}`,
-      },
-    ],
-  };
-}
-
 export default async function ProductPage({ params }: { params: Params }) {
+  // COMPLETE server-rendered page: params are awaited directly in the page
+  // and every scope (cached product detail, reviews, offers + LIVE variation
+  // membership and stock) is resolved before the page renders. The route
+  // renders per request in full — with the root layout's above-body Suspense
+  // boundary as the official fully-dynamic opt-in — so the response contains
+  // the complete product page and client navigation commits the new page
+  // only once it is fully rendered (the previous page stays visible until
+  // then).
   const { slug } = await params;
 
+  // UNcached page render assembling the cached scopes (Phase 2): the
+  // product-detail scope, the review scope, the offers scope, plus LIVE
+  // variation membership (never cached — it selects stock) and one LIVE
+  // batched stock read for the product and its variation siblings.
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
-  const [brand, category, related, reviewSummary, latestReviews, variation, offers] =
-    await Promise.all([
-      getBrandBySlug(product.brand),
-      getCategoryBySlug(product.category),
-      getRelatedProducts(product, 4),
-      getReviewSummary(product.id),
-      getLatestReviews(product.id, 4),
-      getProductVariation(product.id),
-      getActiveOffersForProduct(product.id),
-    ]);
-
+  const variation = await getProductVariation(product.id);
   const variationItems = variation?.items ?? [];
+  const siblingIds = variationItems
+    .map((i) => i.productId)
+    .filter((id) => id !== product.id);
+
+  const [related, reviewData, offers, stockMap] = await Promise.all([
+    getRelatedProducts(product, 4),
+    getReviewData(product.id),
+    getActiveOffersForProduct(product.id),
+    getStocks([product.id, ...siblingIds]),
+  ]);
+  const { summary: reviewSummary, latest: latestReviews } = reviewData;
+
+  // Live availability overlay — the server-rendered initial state for the
+  // badge, purchase controls and JSON-LD offers.availability (SEO).
+  const stockInfo = stockMap.get(product.id);
+  const liveProduct: Product = stockInfo
+    ? { ...product, stock: stockInfo.stock, availability: stockInfo.availability }
+    : product;
+
   const hasVariation = variationItems.length >= 2;
 
-  const productLd = productJsonLd(product, brand?.name ?? "Fusion Gadgets", reviewSummary);
-  const breadcrumbLd = breadcrumbJsonLd(
-    product.name,
-    category?.name ?? "Shop",
-    product.category,
-    product.slug
+  const productPath = `/product/${product.slug}`;
+  const description = product.tagline ?? product.description?.slice(0, 155) ?? "";
+
+  // ONE JSON-LD graph: WebPage → BreadcrumbList + Product (main entity).
+  // Built entirely from data this page has already loaded — no additional
+  // queries. Brand/category names come from the product relation above; a
+  // missing brand is omitted, never replaced with the store name.
+  const productGraph = buildJsonLdGraph(
+    webPageEntity({
+      path: productPath,
+      name: product.name,
+      description,
+      mainEntity: productRef(product.slug),
+      breadcrumb: breadcrumbRef(productPath),
+    }),
+    buildBreadcrumbList(productPath, [
+      { name: "Home", path: "/" },
+      { name: "Shop", path: "/shop" },
+      ...(product.categoryName
+        ? [{ name: product.categoryName, path: `/categories/${product.category}` }]
+        : []),
+      { name: product.name },
+    ]),
+    buildProduct({
+      product: liveProduct,
+      brandName: product.brandName,
+      categoryName: product.categoryName,
+      reviewSummary,
+      reviews: latestReviews,
+    })
   );
 
   const primaryImage = product.images[0];
 
   return (
     <article className="container-edge py-6 lg:py-10">
-      <ProductViewTracker slug={slug} />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(productLd) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
-      />
-
+      {/* Structural note: the article opens with pure server-rendered content.
+          The two zero-visual-output nodes (ProductViewTracker client island
+          and the server-owned JSON-LD script) live at the TAIL of the article
+          so the server tree and the first client tree are identical,
+          deterministic siblings — content first, hidden/tracking nodes last. */}
       <Breadcrumbs
         items={[
           { label: "Home", href: "/" },
           { label: "Shop", href: "/shop" },
           {
-            label: category?.name ?? "Category",
+            label: product.categoryName ?? "Category",
             href: `/categories/${product.category}`,
           },
           { label: product.name },
@@ -235,12 +194,12 @@ export default async function ProductPage({ params }: { params: Params }) {
         </div>
 
         <div className="flex flex-col min-w-0">
-          {brand && (
+          {product.brandName && (
             <p className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
               <span className="h-px w-6 bg-copper" />
-              {brand.name}
+              {product.brandName}
               <span className="text-muted-foreground/50">·</span>
-              <span>{brand.country}</span>
+              <span>{product.brandCountry}</span>
             </p>
           )}
 
@@ -263,7 +222,12 @@ export default async function ProductPage({ params }: { params: Params }) {
 
           <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
             <Price price={product.price} compareAt={product.compareAt} size="lg" />
-            <AvailabilityBadge availability={product.availability} stock={product.stock} />
+            <LiveAvailabilityBadge
+              productId={product.id}
+              siblingIds={siblingIds}
+              initialAvailability={liveProduct.availability}
+              initialStock={liveProduct.stock}
+            />
           </div>
 
           <p className="mt-5 max-w-xl text-pretty text-[15px] leading-relaxed text-muted-foreground">
@@ -278,7 +242,7 @@ export default async function ProductPage({ params }: { params: Params }) {
             />
           )}
 
-          <PurchaseControls product={product} offers={offers} />
+          <PurchaseControls product={liveProduct} offers={offers} />
 
           {product.highlights && product.highlights.length > 0 && (
             <ul className="mt-7 space-y-2.5 border-t border-border pt-6">
@@ -361,13 +325,15 @@ export default async function ProductPage({ params }: { params: Params }) {
             Technical details
           </h2>
           <dl className="mt-5 divide-y divide-border overflow-hidden rounded-lg border border-border">
+            {/* key = each spec row's own `key` field (its stable identity in
+                the products.specs JSONB data — unique within a product). */}
             {(product.specs ?? []).map((s) => (
               <div
-                key={s.label}
+                key={s.key}
                 className="grid grid-cols-[10rem_minmax(0,1fr)] gap-2 bg-card px-4 py-2.5 odd:bg-card/60"
               >
                 <dt className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
-                  {s.label}
+                  {s.key}
                 </dt>
                 <dd className="text-sm text-foreground">{s.value}</dd>
               </div>
@@ -514,16 +480,27 @@ export default async function ProductPage({ params }: { params: Params }) {
               href={`/categories/${product.category}`}
               className="hidden shrink-0 items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground sm:flex"
             >
-              More in {category?.name} <ArrowRight className="h-4 w-4" />
+              More in {product.categoryName} <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
           <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4 lg:gap-x-6">
+            {/* Related cards render inside the page's request-time Suspense
+                tree — the NEW badge's current-time read is a request-time
+                value (no cached scope wraps it). */}
             {related.map((p) => (
               <ProductCard key={p.slug} product={p} />
             ))}
           </div>
         </section>
       )}
+
+      {/* Tracking island — renders nothing on server and on first client
+          render; its effect fires on mount regardless of tree position. */}
+      <ProductViewTracker slug={slug} />
+
+      {/* Server-rendered JSON-LD — the final node of the article. It is
+          owned entirely by the server component tree and never moves. */}
+      <JsonLd data={productGraph} />
     </article>
   );
 }

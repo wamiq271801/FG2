@@ -1,4 +1,5 @@
 import { Link } from "@/components/shared/Link";
+import { cacheLife, cacheTag } from "next/cache";
 import { Instagram, Twitter, Youtube, MapPin, Phone, Mail } from "lucide-react";
 import { getAllCategories } from "@/modules/catalog/categories";
 import { storeInfo } from "@/lib/store-info";
@@ -15,7 +16,19 @@ const legalLinks = [
   { href: "/terms", label: "Terms of sale" },
 ];
 
+/**
+ * Cache Component (the footer data scope): renders public catalog data
+ * (its category links) plus the copyright year. Tagged `categories`
+ * (explicitly and via the nested getAllCategories scope) — every
+ * category.* domain event drops this single shared footer entry; product
+ * events never touch it. The current-time read (copyright year) is
+ * computed at cache-fill time.
+ */
 export async function SiteFooter() {
+  "use cache";
+  cacheLife("indefinite");
+  cacheTag("categories");
+
   const categories = (await getAllCategories()).slice(0, 6);
   return (
     <footer className="mt-auto border-t border-border bg-muted/40">

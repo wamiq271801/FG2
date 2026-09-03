@@ -112,6 +112,37 @@ AS $$
      );
 $$;
 
+-- Moderation stamp for product_reviews (Phase 1 review moderation).
+--   customer INSERT:  status := 'pending', customer_name := author's
+--                     profiles.full_name (never client-supplied)
+--   customer UPDATE:  status and customer_name pass through unchanged
+--                     (edits never change the moderation state)
+--   privileged session (auth.uid() IS NULL — service/secret key):
+--                     values pass through (admin approve/reject path)
+CREATE OR REPLACE FUNCTION stamp_review_moderation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF auth.uid() IS NOT NULL THEN
+      NEW.status := 'pending';
+      NEW.customer_name := (
+        SELECT p.full_name FROM profiles p WHERE p.id = auth.uid()
+      );
+    END IF;
+  ELSE
+    IF auth.uid() IS NOT NULL THEN
+      NEW.status := OLD.status;
+      NEW.customer_name := OLD.customer_name;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION is_legal_order_transition(p_from order_status_enum, p_to order_status_enum)
 RETURNS boolean
 LANGUAGE sql

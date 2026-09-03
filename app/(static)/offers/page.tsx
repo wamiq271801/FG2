@@ -8,7 +8,8 @@ import {
   Info,
   PackageOpen,
 } from "lucide-react";
-import { getOnSaleProducts, getProductsByIds } from "@/modules/catalog/products";
+import { getProductsByIdsCard, resolveFeedProducts } from "@/modules/catalog/products";
+import { getStocks, overlayStock } from "@/modules/catalog/stock";
 import { getAllCategories } from "@/modules/catalog/categories";
 import { getAllPromotions } from "@/modules/catalog/offers";
 import { ProductCard } from "@/components/shared/ProductCard";
@@ -16,8 +17,16 @@ import { ProductVisual } from "@/components/shared/ProductVisual";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { Price } from "@/components/shared/Price";
 import { Button } from "@/components/ui/button";
+import { JsonLd } from "@/components/shared/JsonLd";
+import {
+  breadcrumbRef,
+  buildBreadcrumbList,
+  buildItemList,
+  buildJsonLdGraph,
+  collectionPageEntity,
+} from "@/lib/schema";
 import { formatDate } from "@/lib/format";
-import type { Promotion } from "@/types";
+import type { Product, Promotion } from "@/types";
 
 export const metadata: Metadata = {
   title: "Offers",
@@ -41,31 +50,12 @@ export const metadata: Metadata = {
 
 const FEATURED_PROMO_SLUG = "festive-edit";
 
-export const revalidate = 300;
-
-export default async function OffersPage() {
-  const [promotions, onSale, allCategories] = await Promise.all([
-    getAllPromotions(),
-    getOnSaleProducts(),
-    getAllCategories(),
-  ]);
-  // The featured promo is part of the promotions list already fetched above
-  // (same status filter) — derive it instead of re-querying by slug.
-  const featured =
-    promotions.find((p) => p.slug === FEATURED_PROMO_SLUG) ?? undefined;
-  const featuredProducts = featured
-    ? await getProductsByIds(featured.productIds)
-    : [];
-  const otherPromotions = promotions.filter(
-    (p) => p.slug !== FEATURED_PROMO_SLUG
-  );
-
-  // Categories that contain at least one sale product.
-  const saleCategorySlugs = new Set(onSale.map((p) => p.category));
-  const saleCategories = allCategories.filter((c) =>
-    saleCategorySlugs.has(c.slug)
-  );
-
+// COMPLETE server-rendered page: the page shell renders together with the
+// offers content — OffersContent is an async server component awaited as
+// part of the page tree WITHOUT a per-page Suspense boundary, so its
+// resolution suspends at the root layout's above-body boundary (the official
+// fully-dynamic opt-in) and the whole page is returned complete.
+export default function OffersPage() {
   return (
     <div className="container-edge py-8 lg:py-12">
       <Breadcrumbs
@@ -93,6 +83,87 @@ export default async function OffersPage() {
         </p>
       </header>
 
+      <OffersContent />
+
+      {/* ── Terms / conditions ───────────────────────────────── */}
+      <TermsSection />
+    </div>
+  );
+}
+
+async function OffersContent() {
+  const [promotions, onSaleCards, allCategories] = await Promise.all([
+    getAllPromotions(),
+    resolveFeedProducts("on-sale", 8),
+    getAllCategories(),
+  ]);
+
+  // The featured promo is part of the promotions list already fetched above
+  // (same status filter) — derive it instead of re-querying by slug.
+  const featured =
+    promotions.find((p) => p.slug === FEATURED_PROMO_SLUG) ?? undefined;
+  const otherPromotions = promotions.filter(
+    (p) => p.slug !== FEATURED_PROMO_SLUG
+  );
+
+  // ONE batched card-level query for every promotion's products (featured
+  // included). Each section is then rebuilt from its own productIds order via
+  // the in-memory lookup — same membership, same ordering, same
+  // missing/inactive-product filtering as the previous per-promotion queries.
+  const promoProductIds = [
+    ...new Set(
+      (featured ? featured.productIds : []).concat(
+        ...otherPromotions.map((p) => p.productIds)
+      )
+    ),
+  ];
+  const promoProducts = await getProductsByIdsCard(promoProductIds);
+  const productById = new Map(promoProducts.map((p) => [p.id, p]));
+  const resolvePromoProducts = (promo: Promotion): Product[] =>
+    promo.productIds
+      .map((id) => productById.get(id))
+      .filter((p): p is Product => Boolean(p));
+
+  const featuredProducts = featured ? resolvePromoProducts(featured) : [];
+
+  // ONE live batched stock overlay for the on-sale feed products (the
+  // promo products already carry stock from their live per-request read).
+  const stockMap = await getStocks(onSaleCards.map((p) => p.id));
+  const onSale = overlayStock(onSaleCards, stockMap);
+
+  // Categories that contain at least one sale product.
+  const saleCategorySlugs = new Set(onSale.map((p) => p.category));
+  const saleCategories = allCategories.filter((c) =>
+    saleCategorySlugs.has(c.slug)
+  );
+
+  // ONE JSON-LD graph: CollectionPage semantics for the offers page, with
+  // an ItemList of the visible on-sale product collection. Promotions are
+  // store promotions, not product Offers — no Product/Offer graph is
+  // fabricated for them.
+  const saleList = buildItemList(
+    "/offers",
+    onSale.map((p) => ({ url: `/product/${p.slug}` }))
+  );
+  const offersGraph = buildJsonLdGraph(
+    collectionPageEntity({
+      path: "/offers",
+      name: "Offers",
+      description:
+        "Current promotions, bundles and sale items at Fusion Gadgets.",
+      breadcrumb: breadcrumbRef("/offers"),
+      ...(saleList ? { mainEntity: { "@id": saleList["@id"] } } : {}),
+    }),
+    buildBreadcrumbList("/offers", [
+      { name: "Home", path: "/" },
+      { name: "Offers", path: "/offers" },
+    ]),
+    saleList
+  );
+
+  return (
+    <>
+      <JsonLd data={offersGraph} />
       {/* ── Featured promotion ───────────────────────────────────── */}
       {featured && featuredProducts.length > 0 && (
         <section
@@ -187,7 +258,11 @@ export default async function OffersPage() {
 
           <div className="mt-8 flex flex-col gap-8">
             {otherPromotions.map((promo) => (
-              <PromotionSection key={promo.slug} promo={promo} />
+              <PromotionSection
+                key={promo.slug}
+                promo={promo}
+                products={resolvePromoProducts(promo)}
+              />
             ))}
           </div>
         </section>
@@ -266,8 +341,12 @@ export default async function OffersPage() {
           </div>
         )}
       </section>
+    </>
+  );
+}
 
-      {/* ── Terms / conditions ───────────────────────────────────── */}
+function TermsSection() {
+  return (
       <section
         aria-labelledby="terms-heading"
         className="mt-16 border-t border-border pt-12 lg:mt-20"
@@ -331,12 +410,17 @@ export default async function OffersPage() {
           </ul>
         </div>
       </section>
-    </div>
   );
 }
 
-async function PromotionSection({ promo }: { promo: Promotion }) {
-  const products = await getProductsByIds(promo.productIds);
+function PromotionSection({
+  promo,
+  products,
+}: {
+  promo: Promotion;
+  /** Pre-resolved card-level products, in the promotion's productIds order. */
+  products: Product[];
+}) {
   if (products.length === 0) return null;
 
   return (

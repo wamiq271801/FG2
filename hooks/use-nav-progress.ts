@@ -3,30 +3,37 @@
 import { create } from "zustand";
 
 /**
- * Navigation progress store.
+ * Navigation progress store — the single global source of truth for the
+ * navigation loader lifecycle.
  *
- * Two-state model: `pending` is true while a `<Link>` navigation is in
- * flight, false otherwise.
+ * ONE navigation = ONE lifecycle:
  *
- * - `start()`    — called by the `Link` wrapper when `useLinkStatus` reports
- *                  the link is pending.
- * - `complete()` — called both by the `Link` wrapper when `useLinkStatus`
- *                  reports the link is no longer pending, AND by
- *                  `NavigationProgress` when the route changes. Either path
- *                  is sufficient to clear `pending` and hide the indicator,
- *                  so completion is never missed.
+ *   START  — `Link`'s onClick observer sees a real router navigation begin
+ *            (a user click that next/link will dispatch) → `start()`.
+ *   COMMIT — the router committed a new URL (pathname or search params
+ *            changed) → `end()`.
  *
- * Both methods mutate state (unlike the previous "only set true" design which
- * left `pending` stuck on after the first navigation).
+ * Between START and COMMIT the loader stays active — no intermediate signal
+ * can complete it, and nothing needs to: overlapping starts collapse into
+ * the same `active` flag (a superseded navigation is replaced by its
+ * successor, whose commit ends the cycle), and every started navigation
+ * ends in a commit, a superseding commit, or a full page unload (Next's
+ * hard-navigation fallback on fetch failure).
+ *
+ * There is intentionally NO reference counting, NO per-link pending
+ * mirroring, and NO timer: a boolean with exactly two transitions.
  */
 type NavProgressState = {
-  pending: boolean;
+  /** True between a navigation start and its commit. */
+  active: boolean;
+  /** A real link navigation is starting. */
   start: () => void;
-  complete: () => void;
+  /** A navigation committed (the URL changed). */
+  end: () => void;
 };
 
 export const useNavProgress = create<NavProgressState>((set) => ({
-  pending: false,
-  start: () => set({ pending: true }),
-  complete: () => set({ pending: false }),
+  active: false,
+  start: () => set((s) => (s.active ? s : { active: true })),
+  end: () => set((s) => (s.active ? { active: false } : s)),
 }));

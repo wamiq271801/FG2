@@ -85,8 +85,8 @@ export function CartItems({ suggestedProducts = [] }: Props) {
           price: product.price,
           visualKey: product.visualKey,
           accent: product.accent,
-          availability: product.availability,
-          stock: product.stock,
+          availability: product.availability ?? "in-stock",
+          stock: product.stock ?? 0,
         },
       };
     })

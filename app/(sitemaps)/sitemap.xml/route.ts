@@ -13,7 +13,7 @@
  * request and cached independently (ISR).
  */
 
-import { cacheLife } from "next/cache";
+import { cacheLife, cacheTag } from "next/cache";
 import { getCategorySitemapCount } from "@/modules/catalog/categories";
 import { getProductSitemapCount } from "@/modules/catalog/products";
 import {
@@ -27,9 +27,9 @@ import {
 } from "@/lib/sitemap";
 
 // Cache Components: the previous `export const revalidate = 3600` segment
-// config is replaced by the cached helper below ('sitemap' profile: 1 h
-// stale / 1 h server revalidation / 1 day expiration — same cadence as
-// SITEMAP_REVALIDATE_SECONDS in lib/sitemap/config.ts).
+// config is replaced by the cached helper below. Phase 2: the counts scope
+// carries `sitemap:products` + `sitemap:categories` — product/category
+// events drop it; there is no time-based revalidation (indefinite).
 export async function GET() {
   const { productCount, categoryCount } = await getSitemapIndexCounts();
 
@@ -59,7 +59,8 @@ export async function GET() {
 
 async function getSitemapIndexCounts() {
   "use cache";
-  cacheLife("sitemap");
+  cacheLife("indefinite");
+  cacheTag("sitemap:products", "sitemap:categories");
 
   const [productCount, categoryCount] = await Promise.all([
     getProductSitemapCount(),
