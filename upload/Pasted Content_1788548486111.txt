@@ -1,0 +1,1799 @@
+You are GLM 5.3 acting as a senior implementation engineer.
+
+Your task is to implement a COMPLETE, PLUGGABLE RENDERING / CACHE OBSERVABILITY AND LOGGING SYSTEM in the existing Fusion Gadgets Next.js application.
+
+This is an implementation task.
+
+The logging system must be implemented exactly according to the specification below.
+
+==================================================
+ABSOLUTE PRIORITY
+==================================================
+
+The MAIN APPLICATION FUNCTIONALITY MUST STAY AS-IS.
+
+This is a logging/observability addition only.
+
+DO NOT modify, refactor, redesign, optimize, simplify, replace, or remove existing application functionality merely to implement logging.
+
+The existing application must continue behaving exactly as it does now.
+
+Preserve:
+
+- all pages
+- all routes
+- all components
+- all UI
+- all UX
+- all navigation
+- all Search behavior
+- all PDP behavior
+- all homepage/feed behavior
+- all caching behavior
+- all invalidation behavior
+- all stock handling
+- all authentication
+- all account behavior
+- all cart behavior
+- all wishlist behavior
+- all orders behavior
+- all admin integration
+- all TrackingServer integration
+- all ProcessingServer integration
+- all SEO
+- all metadata
+- all structured data
+- all accessibility
+- all responsive behavior
+- all animations
+- all navigation loader behavior
+- all existing cache tags
+- all existing cache invalidation semantics
+
+DO NOT remove any existing code simply because you personally consider it redundant.
+
+DO NOT use this task as an opportunity for cleanup.
+
+DO NOT change the current rendering architecture.
+
+DO NOT change the current caching architecture.
+
+DO NOT change the current page/component boundaries.
+
+The logger must OBSERVE the application, not CONTROL it.
+
+
+==================================================
+CURRENT APPLICATION CONTEXT
+==================================================
+
+The application is:
+
+- Next.js 16.3.4
+- React 19
+- App Router
+- Cache Components enabled
+- existing rendered-output caching for selected public pages
+- existing data/component cache scopes
+- existing cacheTag-based invalidation
+- existing /api/revalidate invalidation endpoint
+- existing domain-event invalidation system
+- existing homepage feed
+- existing hybrid user-specific pages
+- existing live stock behavior
+
+Current public caching has already been implemented and verified.
+
+Public routes currently include rendered-output caching where appropriate.
+
+The existing system already verifies:
+
+- first-fill behavior
+- repeated cache hits
+- regeneration after invalidation
+- cross-page invalidation
+- cache isolation
+- navigation behavior
+
+DO NOT disturb any of that.
+
+This logging system exists specifically so we can observe and diagnose these behaviors in the future.
+
+
+==================================================
+PRIMARY OBJECTIVE
+==================================================
+
+Build a comprehensive but SIMPLE logging/observability system that allows us to answer:
+
+1. How many requests does each page receive?
+2. What kind of request was it?
+3. Did the page actually execute/render?
+4. Was cached rendered output reused?
+5. Was the page being filled for the first time?
+6. Was the page regenerated after invalidation?
+7. Why did regeneration happen?
+8. When did rendering happen?
+9. How long did it take?
+10. When was a tag invalidated?
+11. Which domain event caused invalidation?
+12. Which tags were resolved?
+13. Which routes/pages subsequently regenerated?
+14. How many cache hits/fills/regenerations does each route have?
+15. Are routes behaving according to their intended cache mode?
+16. Are unexpected renders happening?
+17. Are cache misses occurring unexpectedly?
+18. Are there errors during render/fill/regeneration?
+19. What happened during a specific navigation sequence?
+20. Can the entire logging system be disabled cleanly?
+
+
+==================================================
+CORE PRINCIPLE
+==================================================
+
+THE LOGGER OBSERVES THE APPLICATION.
+
+THE APPLICATION MUST NEVER DEPEND ON THE LOGGER.
+
+Logging failures MUST NEVER:
+
+- block rendering
+- delay rendering
+- change navigation
+- change cache behavior
+- change response behavior
+- throw into application code
+- alter business logic
+- cause a page to fail
+
+If logging itself fails, the application must continue normally.
+
+The logger must fail safely.
+
+
+==================================================
+EASILY PLUGGABLE / REMOVABLE
+==================================================
+
+The logging system must be controlled by a single configuration switch.
+
+Use an environment variable following the project's existing environment-variable conventions.
+
+Recommended conceptual configuration:
+
+    NEXT_RENDER_LOGGING=off
+    NEXT_RENDER_LOGGING=error
+    NEXT_RENDER_LOGGING=normal
+    NEXT_RENDER_LOGGING=verbose
+
+Use the actual project naming conventions if another equivalent name is more appropriate.
+
+When:
+
+    off
+
+the custom logging layer becomes effectively a no-op.
+
+There must be no meaningful logging overhead or branching scattered throughout the application.
+
+DO NOT put dozens of:
+
+    if (process.env...)
+
+checks throughout the codebase.
+
+Centralize logging activation.
+
+The application must remain fully functional with logging completely disabled.
+
+
+==================================================
+DO NOT BUILD A LOGGING FRAMEWORK
+==================================================
+
+Do NOT create an unnecessarily complex logging platform.
+
+Do NOT create:
+
+- logging microservices
+- logging databases
+- Kafka
+- queues
+- workers
+- Redis logging infrastructure
+- telemetry backends
+- external observability platforms
+- custom distributed tracing infrastructure
+- custom cache implementations
+- custom route caching
+- custom rendering engines
+
+unless an existing project capability absolutely requires a tiny integration.
+
+The initial implementation should be lightweight and local.
+
+
+==================================================
+LOG SINK
+==================================================
+
+Use a simple pluggable sink architecture.
+
+Conceptually:
+
+    RenderLogger
+        |
+        +-- NoopSink
+        |
+        +-- ConsoleSink
+
+A tiny interface is sufficient.
+
+DO NOT build a plugin framework.
+
+The purpose is simply to make future replacement/addition of a sink easy.
+
+For example:
+
+    Logger -> console
+
+Later, another sink could be connected without rewriting instrumentation.
+
+Do not implement additional sinks unless actually needed now.
+
+
+==================================================
+NO BUSINESS DATABASE LOGGING
+==================================================
+
+DO NOT store render logs in:
+
+- Supabase
+- TiDB
+- product tables
+- tracking event tables
+- cache tables
+- new render-event tables
+
+Render logs are infrastructure diagnostics.
+
+They must remain separate from:
+
+- user behavior analytics
+- product tracking
+- business data
+
+Do not contaminate TrackingServer events with render diagnostics.
+
+
+==================================================
+USE NEXT.JS NATIVE OBSERVABILITY
+==================================================
+
+Use official/stable Next.js instrumentation capabilities where appropriate.
+
+Inspect the actual installed Next.js 16.3.4 APIs.
+
+Use:
+
+    instrumentation.ts
+
+only where it provides a legitimate integration point.
+
+Use:
+
+    onRequestError
+
+for server/request errors if appropriate.
+
+Use Next.js's own cache diagnostics where available.
+
+The framework currently exposes cache debugging support for Cache Components.
+
+Use:
+
+    NEXT_PRIVATE_DEBUG_CACHE=1
+
+during diagnostics when needed.
+
+Do NOT attempt to recreate private Next.js cache internals.
+
+Do NOT claim to know a cache hit/miss unless the evidence actually supports it.
+
+Distinguish framework-confirmed information from application-observed information.
+
+
+==================================================
+CRITICAL: NEVER FAKE CACHE HIT INFORMATION
+==================================================
+
+A cache hit may mean the page function is never executed.
+
+Therefore this is WRONG:
+
+    page function did not execute
+    ->
+    assume cache hit
+
+unless the evidence supports that conclusion.
+
+The system should distinguish:
+
+    confirmed
+    observed
+    inferred
+
+where needed.
+
+Examples:
+
+    CONFIRMED
+    x-nextjs-cache indicates HIT
+
+    OBSERVED
+    render execution counter did not increase
+
+    FRAMEWORK_DEBUG
+    Next.js cache diagnostics indicate a cache hit
+
+Do not fabricate information the framework does not expose.
+
+
+==================================================
+REQUEST CLASSIFICATION
+==================================================
+
+Do NOT treat every HTTP request as a page render.
+
+Classify requests.
+
+At minimum support:
+
+    DOCUMENT
+    RSC_NAVIGATION
+    RSC_PREFETCH
+    API
+    STATIC_ASSET
+    OTHER
+
+Use the actual Next.js/request headers available in this version.
+
+Do not make guesses when classification is uncertain.
+
+Use:
+
+    UNKNOWN
+
+where necessary.
+
+This distinction is mandatory.
+
+Example:
+
+    GET /product/abc
+    DOCUMENT
+
+is different from:
+
+    GET /product/abc
+    RSC_NAVIGATION
+
+and different from:
+
+    GET /api/stock
+    API
+
+
+==================================================
+REQUEST IDENTIFIERS
+==================================================
+
+Each observed request should have a correlation ID:
+
+    request_id
+
+Generate it cheaply and safely.
+
+Do not use user-identifying data.
+
+Never include:
+
+- auth tokens
+- cookies
+- secrets
+- full request bodies
+- private user information
+
+The request ID exists only to correlate logs.
+
+
+==================================================
+NAVIGATION CORRELATION
+==================================================
+
+Where actual browser navigation information can safely be observed, support:
+
+    navigation_id
+
+and:
+
+    from_route
+    to_route
+    navigation_type
+
+Examples:
+
+    PUSH
+    BACK
+    FORWARD
+    UNKNOWN
+
+Do not create custom history handling just to obtain this information.
+
+Do NOT add:
+
+    popstate
+    history.pushState
+    history.replaceState
+
+only for logging.
+
+Observe existing navigation behavior where available.
+
+If exact navigation correlation cannot be reliably established server-side, do NOT fake it.
+
+
+==================================================
+PAGE / ROUTE LOGGING
+==================================================
+
+For cacheable public routes, record events such as:
+
+    PAGE_FILL
+    PAGE_REGENERATE
+    PAGE_HIT
+    PAGE_DYNAMIC
+    PAGE_ERROR
+
+Only emit an event when its semantics are actually known.
+
+Recommended fields:
+
+    route
+    pathname
+    request_id
+    navigation_id (when available)
+    timestamp
+    duration_ms
+    reason
+    cache_status
+    evidence
+    environment
+
+Example:
+
+    [FG][PAGE_FILL]
+    route=/product/[slug]
+    path=/product/abc
+    request=req_812a
+    reason=FIRST_ACCESS
+    duration=381ms
+
+Example:
+
+    [FG][PAGE_REGENERATE]
+    route=/product/[slug]
+    path=/product/abc
+    request=req_98cd
+    reason=TAG_INVALIDATED
+    tag=product:abc
+    duration=394ms
+
+Example:
+
+    [FG][PAGE_HIT]
+    route=/product/[slug]
+    path=/product/abc
+    evidence=framework-debug
+
+
+==================================================
+CACHE EVENT VOCABULARY
+==================================================
+
+Use a consistent vocabulary.
+
+At minimum:
+
+    CACHE_HIT
+    CACHE_MISS
+    CACHE_FILL
+    CACHE_STALE
+    CACHE_REGENERATE
+    CACHE_ERROR
+
+But do not emit all of these if the underlying framework does not expose enough information to distinguish them.
+
+For application-level page events prefer:
+
+    PAGE_FILL
+    PAGE_REGENERATE
+    PAGE_HIT
+    PAGE_DYNAMIC
+    PAGE_ERROR
+
+The names must be unambiguous.
+
+Do not use vague:
+
+    "rendered"
+    "done"
+    "cached"
+
+without context.
+
+
+==================================================
+RENDER REASONS
+==================================================
+
+When known, record why a render occurred.
+
+Supported reasons should include:
+
+    FIRST_ACCESS
+    CACHE_MISS
+    TAG_INVALIDATED
+    REVALIDATION
+    DYNAMIC_REQUEST
+    DEVELOPMENT_REFRESH
+    ERROR_RECOVERY
+    UNKNOWN
+
+Do not invent a reason.
+
+If the reason cannot be established:
+
+    UNKNOWN
+
+
+==================================================
+REQUEST VS RENDER SEPARATION
+==================================================
+
+This is one of the most important requirements.
+
+Track separately:
+
+    request_count
+    render_count
+    fill_count
+    regeneration_count
+    hit_count
+    error_count
+
+Example:
+
+    /product/abc
+
+    requests = 100
+    renders = 2
+    fills = 1
+    regenerations = 1
+    hits = 98
+
+This should let us determine whether the rendered page is actually being reused.
+
+A route can receive 100 requests while only rendering twice.
+
+
+==================================================
+ROUTE POLICY REGISTRY
+==================================================
+
+Create a small centralized route-policy registry only if necessary to support diagnostics.
+
+Conceptually:
+
+    route
+    expected_mode
+
+Modes may include:
+
+    BUILD_STATIC
+    ON_DEMAND_PAGE
+    HYBRID
+    DYNAMIC
+    UNKNOWN
+
+Expected examples:
+
+    /
+        ON_DEMAND_PAGE
+
+    /shop
+        DYNAMIC or actual current mode
+
+    /categories
+        ON_DEMAND_PAGE
+
+    /categories/[slug]
+        ON_DEMAND_PAGE
+
+    /offers
+        ON_DEMAND_PAGE
+
+    /product/[slug]
+        ON_DEMAND_PAGE / hybrid depending on actual implementation
+
+    /search
+        DYNAMIC
+
+    /about
+        BUILD_STATIC
+
+    /privacy
+        BUILD_STATIC
+
+    /cart
+        HYBRID
+
+    /account/*
+        HYBRID
+
+DO NOT invent route policies without inspecting the actual current application.
+
+The registry exists for diagnostics, not to control rendering.
+
+
+==================================================
+CACHE POLICY ANOMALIES
+==================================================
+
+If a route expected to be cached appears to execute repeatedly, emit a diagnostic warning where evidence supports it.
+
+Example:
+
+    [FG][CACHE_POLICY_WARNING]
+    route=/product/[slug]
+    expected=ON_DEMAND_PAGE
+    observed=REPEATED_RENDER
+
+Do not force the route into cache mode.
+
+Do not automatically modify application behavior.
+
+The logger only reports the anomaly.
+
+
+==================================================
+INVALIDATION LOGGING
+==================================================
+
+The existing Main Website owns cache invalidation.
+
+The existing Admin already works with domain events and tags.
+
+Do NOT redesign that.
+
+Observe it.
+
+For invalidation events record:
+
+    event_type
+    event_id if available
+    timestamp
+    resolved_tags
+    request_id if available
+    duration_ms
+    result
+    error if any
+
+Example:
+
+    [FG][INVALIDATE]
+    event=product.updated
+    productId=abc
+    tags=[product:abc]
+    result=SUCCESS
+
+The logger should make the following chain visible:
+
+    domain event
+        ->
+    tag resolution
+        ->
+    invalidation
+        ->
+    later regeneration
+
+
+==================================================
+INVALIDATION EDGE CASES
+==================================================
+
+Log these cases where observable:
+
+1. Tag invalidated before page was ever generated.
+
+Example:
+
+    product:abc
+    matching cached route entries = 0
+
+This is NOT an error.
+
+2. Repeated invalidation.
+
+3. Invalidation failure.
+
+4. Invalid/unauthorized invalidation request.
+
+5. Multiple tags resolved from one event.
+
+6. A page regenerating due to a specific invalidated tag.
+
+7. A page unexpectedly regenerating without a known invalidation.
+
+Do not create a custom cache-index database just to calculate affected entries.
+
+
+==================================================
+NO-OP REGENERATION VISIBILITY
+==================================================
+
+Where the current application already knows that a generated result is unchanged, expose that information if available.
+
+For example:
+
+    FEED_NOOP
+    INVALIDATION_NO_CHANGE
+
+But do not add expensive content hashing merely for logging.
+
+Do not introduce unnecessary computation.
+
+
+==================================================
+TIMING
+==================================================
+
+Record timing for major lifecycle events:
+
+    request_duration_ms
+    render_duration_ms
+    invalidation_duration_ms
+
+Use a monotonic/high-resolution timer where appropriate.
+
+Do not micro-instrument every function.
+
+The initial system should focus on:
+
+    request
+    page/cache lifecycle
+    invalidation
+    errors
+
+
+==================================================
+RECENT EVENT BUFFER
+==================================================
+
+Maintain a bounded in-memory recent-event buffer.
+
+Do NOT persist unlimited logs.
+
+Use a reasonable configurable maximum.
+
+For example:
+
+    last 500 events
+
+or another sensible bounded amount.
+
+The buffer should be safe for the current server environment.
+
+It must not grow indefinitely.
+
+
+==================================================
+ROUTE AGGREGATES
+==================================================
+
+Maintain in-memory statistics by route.
+
+Example:
+
+    HOME
+    requests=143
+    fills=1
+    regenerations=2
+    hits=140
+    errors=0
+
+    PRODUCT /product/abc
+    requests=73
+    fills=1
+    regenerations=3
+    hits=69
+    errors=0
+
+Search:
+
+    SEARCH
+    requests=210
+    dynamic=210
+    cached=0
+
+Do not mistake route patterns for individual path instances when aggregate statistics are meant to be route-level.
+
+Support both where useful:
+
+    /product/[slug]
+
+and optionally:
+
+    /product/abc
+
+but avoid unbounded cardinality.
+
+Do not create a memory leak by retaining unlimited individual URLs.
+
+
+==================================================
+AGGREGATION RULE
+==================================================
+
+Use bounded aggregation.
+
+Do NOT create counters keyed by arbitrary full query strings indefinitely.
+
+For example:
+
+    /search?q=earbuds
+    /search?q=headphones
+    /search?q=...
+
+must not create unlimited permanent memory entries.
+
+Route-level aggregation should generally use normalized route patterns.
+
+
+==================================================
+TIMELINE
+==================================================
+
+Support recent chronological events.
+
+Example:
+
+    /product/abc
+
+    23:41:02.182 PAGE_FILL 382ms
+    23:41:04.013 PAGE_HIT
+    23:41:05.447 PAGE_HIT
+    23:43:17.902 INVALIDATE product:abc
+    23:43:20.116 PAGE_REGENERATE 391ms
+    23:43:21.001 PAGE_HIT
+
+The logger should make this type of lifecycle understandable.
+
+
+==================================================
+ENVIRONMENT
+==================================================
+
+Every log event should identify:
+
+    development
+    production
+
+or another correct environment label.
+
+This is important because Next.js dev and production rendering/cache behavior can differ.
+
+Do not merge statistics from different process lifetimes into a fake persistent history.
+
+
+==================================================
+PROCESS LIFETIME
+==================================================
+
+The initial statistics are intentionally process-local.
+
+When the Node.js process restarts:
+
+    counters reset
+    recent events reset
+
+Do not add persistence unless specifically required later.
+
+Make this explicit in the logger output/diagnostics.
+
+
+==================================================
+ERROR LOGGING
+==================================================
+
+Log:
+
+    PAGE_ERROR
+    CACHE_ERROR
+    INVALIDATION_ERROR
+    REQUEST_ERROR
+
+where appropriate.
+
+Never swallow the original exception.
+
+The logger may record metadata but must not replace normal error handling.
+
+Avoid exposing sensitive error content.
+
+
+==================================================
+SECURITY / PRIVACY
+==================================================
+
+NEVER log:
+
+- passwords
+- Supabase service keys
+- Supabase secrets
+- auth tokens
+- cookies
+- authorization headers
+- session tokens
+- full request bodies
+- payment details
+- private customer data
+- personal addresses
+- email addresses unless the application already intentionally exposes them and they are genuinely required (prefer not to log them)
+- raw user data
+
+For search requests, prefer:
+
+    route=/search
+
+rather than logging the complete query by default.
+
+Verbose mode may include carefully selected diagnostic information only if it is non-sensitive.
+
+
+==================================================
+NORMAL LOG OUTPUT
+==================================================
+
+Use structured, readable logs.
+
+Example:
+
+    [FG][REQUEST]
+    kind=DOCUMENT
+    method=GET
+    path=/product/abc
+    request=req_821a
+
+    [FG][PAGE_FILL]
+    route=/product/[slug]
+    path=/product/abc
+    request=req_821a
+    reason=FIRST_ACCESS
+    duration=386ms
+
+    [FG][INVALIDATE]
+    event=product.updated
+    tags=product:abc
+
+    [FG][PAGE_REGENERATE]
+    route=/product/[slug]
+    path=/product/abc
+    reason=TAG_INVALIDATED
+    tag=product:abc
+    duration=391ms
+
+
+==================================================
+VERBOSE MODE
+==================================================
+
+Verbose mode may additionally expose:
+
+- RSC requests
+- RSC prefetches
+- cache diagnostics
+- dependency tags
+- request correlation
+- navigation correlation
+- selected timings
+- framework cache evidence
+
+Do NOT dump:
+
+- complete RSC payloads
+- complete HTML
+- full request headers
+- full request bodies
+
+
+==================================================
+ERROR MODE
+==================================================
+
+Error mode should produce only meaningful:
+
+- rendering errors
+- cache anomalies
+- invalidation failures
+- request errors
+
+Do not log normal successful requests in error mode.
+
+
+==================================================
+OFF MODE
+==================================================
+
+With:
+
+    NEXT_RENDER_LOGGING=off
+
+the custom logger should do effectively nothing.
+
+No counters need to be maintained.
+
+No event buffer needs to exist.
+
+No expensive serialization should happen.
+
+No diagnostic work should be performed unnecessarily.
+
+
+==================================================
+NEXT.JS CACHE DEBUGGING
+==================================================
+
+Use Next.js's own cache debugging when available.
+
+Support development/testing with:
+
+    NEXT_PRIVATE_DEBUG_CACHE=1
+
+Do not depend on this private debugging variable for normal application behavior.
+
+Use it as an additional diagnostic source.
+
+If Next.js emits cache-debug information, correlate it with your own request/render logs where practical.
+
+Do not attempt to parse undocumented output more deeply than necessary.
+
+
+==================================================
+IMPORTANT: DO NOT CHANGE CACHE BEHAVIOR
+==================================================
+
+This logger MUST NOT alter:
+
+- `use cache`
+- `cacheTag`
+- `cacheLife`
+- `revalidateTag`
+- page cache boundaries
+- component cache boundaries
+- route rendering
+- client router behavior
+- prefetching
+- RSC behavior
+- static generation
+- dynamic rendering
+- live stock
+- feed invalidation
+
+Logging code must be observational.
+
+Do not wrap cache APIs in ways that change semantics.
+
+
+==================================================
+IMPORTANT: DO NOT CHANGE NAVIGATION
+==================================================
+
+Do not modify:
+
+- custom Link behavior
+- NavigationProgress
+- CommitWatcher
+- router.push
+- router.replace
+- browser history
+- Back/Forward handling
+
+unless an actual instrumentation hook requires a zero-behavior-change integration.
+
+Do not add timers.
+
+Do not add loaders.
+
+Do not add delays.
+
+Do not add retries.
+
+
+==================================================
+IMPORTANT: NO NEW API UNLESS JUSTIFIED
+==================================================
+
+Do NOT create a public debug API by default.
+
+Do NOT create:
+
+    /api/debug/cache
+
+or equivalent unless actual implementation proves there is a strong need.
+
+Prefer server logs + in-memory counters.
+
+Do not expose internal render/cache information publicly.
+
+
+==================================================
+OPTIONAL LOCAL STATS COMMAND
+==================================================
+
+If the existing project conventions make it straightforward and genuinely useful, you may add a local-only command for printing current process-local statistics.
+
+For example:
+
+    bun run render:stats
+
+But DO NOT add this if it requires excessive infrastructure.
+
+The core logger must work without it.
+
+
+==================================================
+IMPLEMENTATION PHASES
+==================================================
+
+PHASE 1 — INSPECT
+
+Inspect:
+
+- current Next.js version
+- next.config.ts
+- instrumentation
+- cache architecture
+- route architecture
+- current page cache boundaries
+- current invalidation endpoint
+- current tag resolver
+- existing logging utilities
+- existing server logging
+- package dependencies
+
+Do not edit yet.
+
+PHASE 2 — DESIGN
+
+Map:
+
+    request
+    route
+    page execution
+    cache lifecycle
+    invalidation
+    errors
+
+and determine what can actually be observed using stable APIs.
+
+PHASE 3 — CORE LOGGER
+
+Implement:
+
+- logger
+- levels
+- noop mode
+- console sink
+- event types
+- request IDs
+- timestamps
+- bounded recent-event buffer
+- bounded route aggregates
+
+PHASE 4 — REQUEST INSTRUMENTATION
+
+Add request observation without changing behavior.
+
+Classify:
+
+    DOCUMENT
+    RSC_NAVIGATION
+    RSC_PREFETCH
+    API
+    STATIC_ASSET
+    OTHER
+
+PHASE 5 — PAGE/RENDER OBSERVABILITY
+
+Instrument the actual existing public cache boundaries.
+
+Record first fills/regenerations/errors where they can be proven.
+
+Use framework diagnostics where available.
+
+Do not fake cache hits.
+
+PHASE 6 — INVALIDATION OBSERVABILITY
+
+Instrument the existing `/api/revalidate` flow.
+
+Record:
+
+- domain event
+- resolved tags
+- result
+- timing
+- errors
+
+Do not modify its external behavior.
+
+PHASE 7 — AGGREGATION
+
+Add:
+
+- route request counters
+- render counters
+- fill counters
+- regeneration counters
+- hit counters
+- error counters
+- bounded timeline
+
+PHASE 8 — CACHE POLICY DIAGNOSTICS
+
+Add warnings when observable behavior contradicts the expected route policy.
+
+Do not change behavior automatically.
+
+PHASE 9 — NEXT.JS DEBUG INTEGRATION
+
+Verify compatibility with:
+
+    NEXT_PRIVATE_DEBUG_CACHE=1
+
+and documented Next.js diagnostics.
+
+PHASE 10 — TESTING
+
+Test the logger with actual application requests.
+
+PHASE 11 — DISABLE TEST
+
+Set:
+
+    NEXT_RENDER_LOGGING=off
+
+and verify the application behaves identically.
+
+PHASE 12 — FINAL REVIEW
+
+Review the complete diff and remove anything unnecessary.
+
+
+==================================================
+MANDATORY TESTING
+==================================================
+
+Do not consider this implementation complete without runtime testing.
+
+Test at least:
+
+--------------------------------------------------
+TEST 1 — LOGGER OFF
+--------------------------------------------------
+
+Run with:
+
+    NEXT_RENDER_LOGGING=off
+
+Verify:
+
+- application works
+- pages work
+- navigation works
+- no visible behavior changes
+- no errors introduced
+
+--------------------------------------------------
+TEST 2 — BASIC REQUEST LOGGING
+--------------------------------------------------
+
+Enable normal logging.
+
+Load:
+
+    /
+    /shop
+    /categories
+    /product/[slug]
+    /search
+
+Verify request classification.
+
+--------------------------------------------------
+TEST 3 — FIRST PAGE FILL
+--------------------------------------------------
+
+For a fresh cache entry:
+
+    request page
+
+Verify:
+
+    PAGE_FILL / equivalent confirmed render event
+
+with duration.
+
+--------------------------------------------------
+TEST 4 — REPEATED REQUEST
+--------------------------------------------------
+
+Request the same page multiple times.
+
+Verify:
+
+- request count increases
+- page execution count does not
+- cache reuse is correctly identified where evidence exists
+
+--------------------------------------------------
+TEST 5 — INVALIDATION
+--------------------------------------------------
+
+Cache a page.
+
+Mutate underlying data through the EXISTING mechanism.
+
+Trigger existing invalidation.
+
+Verify logs show:
+
+    domain event
+    ->
+    tag
+    ->
+    affected cache lifecycle
+    ->
+    subsequent regeneration
+
+--------------------------------------------------
+TEST 6 — CROSS-PAGE INVALIDATION
+--------------------------------------------------
+
+Use a product appearing in multiple public places.
+
+Verify invalidation telemetry can show the affected lifecycle.
+
+Do not change invalidation behavior.
+
+--------------------------------------------------
+TEST 7 — UNRELATED PRODUCT
+--------------------------------------------------
+
+Invalidate an unrelated product.
+
+Verify the logger does not falsely report unrelated page regeneration.
+
+--------------------------------------------------
+TEST 8 — SEARCH
+--------------------------------------------------
+
+Run:
+
+    /search?q=...
+
+Verify:
+
+- request counted
+- query-driven behavior remains dynamic
+- no false cache-hit claims
+
+--------------------------------------------------
+TEST 9 — RSC NAVIGATION
+--------------------------------------------------
+
+Perform internal navigation.
+
+Verify RSC requests are distinguished from document requests where observable.
+
+--------------------------------------------------
+TEST 10 — BACK/FORWARD
+--------------------------------------------------
+
+Test:
+
+    Home
+    ->
+    Search
+    ->
+    Search Result
+    ->
+    PDP
+    ->
+    Back
+    ->
+    Search Result
+    ->
+    Back
+    ->
+    Home
+
+Verify the logger observes the sequence without changing it.
+
+The existing UI/UX must remain identical.
+
+--------------------------------------------------
+TEST 11 — ERROR
+--------------------------------------------------
+
+Trigger a controlled development error if practical.
+
+Verify error logging occurs.
+
+Verify original error behavior remains intact.
+
+--------------------------------------------------
+TEST 12 — INVALIDATION BEFORE FIRST FILL
+--------------------------------------------------
+
+Invalidate a page/data tag before the relevant page has been generated.
+
+Verify the logger handles:
+
+    matching cache entries = 0
+
+without treating it as a fatal error.
+
+--------------------------------------------------
+TEST 13 — CONCURRENT REQUESTS
+--------------------------------------------------
+
+Where practical, issue concurrent requests to an uncached route.
+
+Observe whether multiple fills occur.
+
+Do NOT add locking merely for logging.
+
+The logger must report what actually happened.
+
+--------------------------------------------------
+TEST 14 — PRODUCTION
+--------------------------------------------------
+
+Run:
+
+    production build
+    production server
+
+and test:
+
+- first fill
+- repeated hit
+- invalidation
+- route aggregation
+- errors
+
+--------------------------------------------------
+TEST 15 — DEVELOPMENT
+--------------------------------------------------
+
+Run development mode and verify:
+
+- logs
+- cache diagnostics
+- repeated requests
+- navigation
+
+Do not claim dev and production are equivalent.
+
+--------------------------------------------------
+TEST 16 — NEXT.JS CACHE DEBUG
+--------------------------------------------------
+
+Run appropriate testing with:
+
+    NEXT_PRIVATE_DEBUG_CACHE=1
+
+Compare framework cache diagnostics with custom logs.
+
+Do not modify production behavior.
+
+
+==================================================
+PERFORMANCE REQUIREMENTS
+==================================================
+
+The logger must be lightweight.
+
+Avoid:
+
+- synchronous disk writes per request
+- network calls per request
+- database writes per request
+- expensive serialization when disabled
+- large retained objects
+- storing full request/response bodies
+- storing full HTML
+- storing full RSC payloads
+
+Do not create a memory leak.
+
+Use bounded buffers and counters.
+
+
+==================================================
+NO UI CHANGES
+==================================================
+
+The logger must not modify any user-visible UI.
+
+Zero visual changes.
+
+Zero UX changes.
+
+Zero route behavior changes.
+
+Zero timing delays intentionally introduced.
+
+Zero new loader.
+
+Zero new overlay.
+
+Zero new debug panel in the production UI.
+
+
+==================================================
+NO MAIN-APP REFACTOR
+==================================================
+
+Do not modify working application architecture merely to make logging easier.
+
+Do not:
+
+- split components
+- merge components
+- rename unrelated functions
+- reorganize directories
+- rewrite providers
+- rewrite pages
+- rewrite caching
+- rewrite navigation
+- rewrite data fetching
+- rewrite invalidation
+
+Only add the minimum instrumentation required.
+
+
+==================================================
+PACKAGE DEPENDENCIES
+==================================================
+
+Do not add a dependency unless necessary.
+
+Inspect existing packages first.
+
+There must be no new dependency merely because a logging package is convenient.
+
+A small custom logger is preferred.
+
+Do not add:
+
+    pino
+    winston
+    OpenTelemetry
+    Sentry
+    Datadog
+    etc.
+
+unless an existing project requirement already demands it.
+
+This is an observability layer, not a third-party monitoring migration.
+
+
+==================================================
+DOCUMENTATION
+==================================================
+
+Add concise documentation explaining:
+
+- how to enable logging
+- logging levels
+- what each event means
+- how to inspect route statistics
+- how to use Next.js cache debug mode
+- what "confirmed/observed/inferred" means
+- process-local nature of counters
+
+Do not create a huge documentation system.
+
+==================================================
+FINAL AUDIT
+==================================================
+
+After implementation, inspect the complete diff.
+
+Verify:
+
+[ ] No page/component behavior changed.
+
+[ ] No cache behavior changed.
+
+[ ] No invalidation behavior changed.
+
+[ ] No navigation behavior changed.
+
+[ ] No UI changed.
+
+[ ] No UX changed.
+
+[ ] No feed logic changed.
+
+[ ] No stock logic changed.
+
+[ ] No auth logic changed.
+
+[ ] No Admin behavior changed.
+
+[ ] No TrackingServer behavior changed.
+
+[ ] No ProcessingServer behavior changed.
+
+[ ] Logger can be turned completely off.
+
+[ ] Logger failure cannot break the application.
+
+[ ] No unbounded memory growth.
+
+[ ] No sensitive data is logged.
+
+[ ] No public debug API was unnecessarily added.
+
+[ ] No unnecessary dependencies were added.
+
+[ ] No custom cache implementation was created.
+
+[ ] No custom navigation implementation was created.
+
+
+==================================================
+DEFINITION OF DONE
+==================================================
+
+The logging system is complete only when:
+
+[ ] A single environment setting enables/disables it.
+
+[ ] OFF mode is effectively a no-op.
+
+[ ] Request counts are available by route.
+
+[ ] Render counts are available by route.
+
+[ ] Cache-fill events are visible.
+
+[ ] Cache-regeneration events are visible where observable.
+
+[ ] Cache-hit information is reported only when supported by evidence.
+
+[ ] First generation vs later reuse can be diagnosed.
+
+[ ] Invalidation events and resolved tags are visible.
+
+[ ] Regeneration can be correlated with invalidation where observable.
+
+[ ] Render timing is recorded.
+
+[ ] Request timing is recorded where appropriate.
+
+[ ] Errors are recorded without swallowing them.
+
+[ ] Recent events are retained in a bounded buffer.
+
+[ ] Route aggregates are bounded and useful.
+
+[ ] RSC/document/API requests are distinguishable where possible.
+
+[ ] Search does not generate false cache claims.
+
+[ ] Development and production can be diagnosed separately.
+
+[ ] Next.js cache debug output can be used alongside the custom logger.
+
+[ ] No user-visible behavior changed.
+
+[ ] No main application behavior changed.
+
+[ ] No existing feature was removed.
+
+[ ] No existing page was refactored unnecessarily.
+
+[ ] No existing cache architecture was modified unnecessarily.
+
+[ ] Production testing passed.
+
+[ ] Development testing passed.
+
+[ ] Disable-mode testing passed.
+
+[ ] Repeated navigation testing passed.
+
+==================================================
+FINAL REPORT
+==================================================
+
+Provide a concise final report containing:
+
+1. Exact files added/changed.
+2. Exact logging architecture.
+3. Environment variables.
+4. Event types.
+5. Request classification.
+6. Route statistics available.
+7. Cache/render observability available.
+8. Invalidation observability available.
+9. How cache hits/fills/regenerations are established.
+10. Next.js diagnostics used.
+11. Tests actually executed.
+12. Development results.
+13. Production results.
+14. Confirmation that logging can be disabled.
+15. Confirmation that the main application functionality/UI/UX remained unchanged.
+16. Any real limitation where Next.js does not expose enough information.
+
+Do not claim framework-level cache information that you cannot actually observe.
+
+==================================================
+FINAL ABSOLUTE RULE
+==================================================
+
+THIS TASK IS OBSERVABILITY ONLY.
+
+DO NOT CHANGE THE MAIN APPLICATION.
+
+DO NOT CHANGE ITS FEATURES.
+
+DO NOT CHANGE ITS UI.
+
+DO NOT CHANGE ITS UX.
+
+DO NOT CHANGE ITS CACHING SEMANTICS.
+
+DO NOT CHANGE ITS INVALIDATION SEMANTICS.
+
+DO NOT CHANGE ITS NAVIGATION.
+
+DO NOT CHANGE ITS RENDERING ARCHITECTURE.
+
+DO NOT FIX UNRELATED CODE.
+
+DO NOT "IMPROVE" WORKING CODE.
+
+Build a lightweight, reliable, easily unplugable logging layer that watches the application from the outside and tells us:
+
+    what requested
+    what rendered
+    what was cached
+    what regenerated
+    why it regenerated
+    when it happened
+    how long it took
+    what was invalidated
+    what each route is doing over time
+
+The logger must observe.
+
+The application must remain as-is.
+
+Implement exactly that.

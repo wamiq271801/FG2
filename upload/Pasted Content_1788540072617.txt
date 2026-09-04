@@ -1,0 +1,1762 @@
+You are GLM 5.2 acting as a senior Next.js architecture and implementation engineer.
+
+You are modifying an EXISTING production ecommerce website.
+
+Your task is to REFACTOR THE CURRENT WEBSITE'S PUBLIC-PAGE CACHING ARCHITECTURE so that rendered UI/page output is cached and reused, while preserving the existing fine-grained tag-based invalidation system.
+
+This is an implementation task.
+
+You MUST inspect the actual current codebase before changing anything.
+
+You MUST implement the complete change.
+
+You MUST test it properly.
+
+You MUST NOT break existing functionality, data behavior, navigation, UI, UX, SEO, responsiveness, accessibility, authentication, stock behavior, feed behavior, or existing invalidation workflows.
+
+Do not drift from the architecture below.
+
+Do not replace the architecture with a different caching strategy merely because you prefer it.
+
+Do not over-engineer.
+
+Do not add compatibility layers for obsolete architecture.
+
+Do not "improve" unrelated code.
+
+A simple correct implementation is the goal.
+
+
+==================================================
+AUTHORITATIVE GOAL
+==================================================
+
+The current website caches DATA, but public pages still execute/render on each request.
+
+CURRENT:
+
+    request
+      ↓
+    execute page
+      ↓
+    read cached data
+      ↓
+    assemble/render UI
+      ↓
+    response
+
+THIS IS NOT THE TARGET.
+
+
+TARGET:
+
+    first request for a cacheable public route
+      ↓
+    execute page
+      ↓
+    load required data
+      ↓
+    render complete UI
+      ↓
+    cache rendered page/component result
+
+    subsequent requests
+      ↓
+    reuse cached rendered result
+      ↓
+    DO NOT execute/assemble the page again
+
+
+When relevant underlying data changes:
+
+    data mutation
+      ↓
+    existing domain event
+      ↓
+    existing tag mapping
+      ↓
+    specific cache tag invalidation
+      ↓
+    affected cached UI/page output becomes stale
+      ↓
+    next access regenerates affected output
+      ↓
+    fresh rendered result is cached again
+
+
+This is the architecture to implement.
+
+
+==================================================
+VERY IMPORTANT — PRESERVE THE EXISTING TAG SYSTEM
+==================================================
+
+The existing data-level caching and tag system is already working and is architecturally important.
+
+Do NOT remove the tag-based dependency/invalidation model.
+
+Do NOT replace it with:
+
+- page-wide invalidation
+- global cache invalidation
+- manual route lists
+- custom cache registries
+- custom dependency databases
+- cache version tables
+- cache queues
+- background workers
+- polling
+- custom invalidation infrastructure
+
+Existing tags such as these, where actually present and relevant, remain part of the architecture:
+
+    product:{id}
+    category:{id}
+    categories
+    feed:home
+    reviews:{productId}
+    offers
+    etc.
+
+The reason this system exists is that the same product can appear in many places:
+
+    Home
+    Shop
+    Category
+    PDP
+    other catalog surfaces
+
+A product mutation must be able to invalidate the relevant cached UI/page outputs that depend on that product without invalidating unrelated data/pages.
+
+The current tag architecture is therefore NOT obsolete.
+
+
+==================================================
+IMPORTANT: DO NOT ASSUME CHILD DATA CACHE = PAGE CACHE
+==================================================
+
+The current application uses `use cache` on data functions.
+
+That caches the data computation.
+
+It does NOT mean the page itself is cached.
+
+The goal of this refactor is to introduce the appropriate route/component cache boundaries so that the rendered result itself is reusable.
+
+Do NOT merely leave the current implementation unchanged and claim that cached data means cached pages.
+
+It does not.
+
+
+==================================================
+USE THE ACTUAL NEXT.JS 16.3.4 MODEL
+==================================================
+
+The application currently uses:
+
+    Next.js 16.3.4
+    React 19
+    cacheComponents: true
+
+Use the CURRENT Cache Components semantics supported by the installed Next.js version.
+
+Do NOT use outdated Pages Router patterns as the primary architecture.
+
+Do NOT introduce `getStaticProps`.
+
+Do NOT use old ISR configuration as a substitute.
+
+Do NOT introduce `generateStaticParams` merely to simulate the requested behavior.
+
+The desired behavior is:
+
+    generate/cache on first request
+    reuse cached rendered output
+    explicitly invalidate
+    regenerate on subsequent access
+
+Use the actual modern Next.js mechanism that provides this behavior.
+
+`use cache` may be used at route/page/component/function boundaries as appropriate.
+
+
+==================================================
+IMPORTANT: FIRST INSPECT THE CURRENT CODE
+==================================================
+
+Before editing anything:
+
+Inspect the actual codebase.
+
+Inspect:
+
+    package.json
+    next.config.*
+    app/
+    components/
+    hooks/
+    providers/
+    modules/
+    lib/
+    route handlers
+    server actions
+    database helpers
+    cache helpers
+    invalidation helpers
+    tests
+
+Confirm the actual installed Next.js version.
+
+Trace all public page render paths.
+
+Trace all current `use cache` usage.
+
+Trace all current `cacheTag` usage.
+
+Trace `/api/revalidate`.
+
+Trace how domain events become tags.
+
+Trace how Admin already triggers those events.
+
+Do NOT make changes during the inspection phase.
+
+Build an exact understanding of the current dependency graph before modifying it.
+
+
+==================================================
+CURRENT APPLICATION ARCHITECTURE TO PRESERVE
+==================================================
+
+The public/static route group currently contains approximately:
+
+    /
+    /shop
+    /search
+    /product/[slug]
+    /categories
+    /categories/[slug]
+    /offers
+    /products/[slug]/reviews
+    /about
+    /contact
+    /privacy
+    /terms
+    etc.
+
+Verify the actual routes before implementation.
+
+The existing homepage feed is already implemented and working.
+
+DO NOT redesign the feed.
+
+DO NOT alter:
+
+    Most Popular
+    New Arrivals
+    Explore more
+    On Sale
+
+Do not modify TrackingServer or ProcessingServer unless a real cache-integration issue requires it.
+
+Do not modify Admin's existing mutation/tag behavior unless an actual missing event/integration issue is proven.
+
+
+==================================================
+THREE RENDERING CLASSES
+==================================================
+
+Implement/maintain these three classes.
+
+-----------------------------------------------
+CLASS 1 — PUBLIC CATALOG PAGES
+-----------------------------------------------
+
+These should use ON-DEMAND rendered-output caching.
+
+Examples:
+
+    /
+    /shop
+    /categories
+    /categories/[slug]
+    /offers
+    /product/[slug]
+    public product/review pages
+    other genuinely public catalog pages
+
+Target:
+
+    first request
+        →
+    generate/render
+        →
+    cache rendered result
+
+    later requests
+        →
+    serve cached result
+        →
+    no page assembly on every request
+
+
+-----------------------------------------------
+CLASS 2 — LEGAL / INFORMATIONAL PAGES
+-----------------------------------------------
+
+Examples:
+
+    /about
+    /contact
+    /privacy
+    /terms
+    other genuinely build-static informational pages
+
+These should be generated at BUILD TIME.
+
+Target:
+
+    build
+      ↓
+    generate page
+      ↓
+    static output
+
+No runtime feed/data regeneration is needed unless the source is changed and a new build is performed.
+
+
+-----------------------------------------------
+CLASS 3 — USER-SPECIFIC / CLIENT PAGES
+-----------------------------------------------
+
+Examples:
+
+    /cart
+    /wishlist
+    /orders
+    /account/*
+    /addresses
+    other authenticated/user-specific pages
+
+Preserve the current architecture if it already provides a build-generated/static shell with runtime/client user-specific data.
+
+Do NOT turn user-specific pages into globally cached public responses.
+
+Do NOT cache one user's data into a shared public page cache.
+
+Do NOT redesign these pages merely for consistency.
+
+
+==================================================
+PUBLIC PAGE CACHING — EXACT BEHAVIOR
+==================================================
+
+For each eligible public route:
+
+FIRST ACCESS:
+
+    route requested
+      ↓
+    server executes cacheable page
+      ↓
+    current data dependencies resolve
+      ↓
+    complete UI renders
+      ↓
+    rendered route/component result becomes cached
+
+
+SUBSEQUENT ACCESS:
+
+    route requested
+      ↓
+    cached rendered result is reused
+      ↓
+    page code does not execute again merely to assemble the same UI
+
+
+The system MUST NOT fall back to:
+
+    cached data + fresh page render
+
+for a route that has intentionally been migrated to rendered-output caching.
+
+
+==================================================
+TAG-BASED DEPENDENCY REQUIREMENT
+==================================================
+
+The existing tags are the foundation for invalidation.
+
+The implementation must preserve fine-grained dependency behavior.
+
+Example:
+
+    Product A
+
+may appear on:
+
+    Home
+    Shop
+    Category
+    PDP
+
+When Product A changes:
+
+    product:A
+       ↓
+    invalidate relevant cache entries
+       ↓
+    affected rendered UI/page outputs become stale
+       ↓
+    next access regenerates them
+
+
+But:
+
+    Product B changed
+
+must NOT blindly regenerate every product/category/home page unless those outputs genuinely depend on Product B.
+
+Do not create a giant global tag for the entire website merely to simplify implementation.
+
+
+==================================================
+CRITICAL: MAP DEPENDENCIES CORRECTLY
+==================================================
+
+Do NOT assume that:
+
+    cacheTag("product:A")
+
+on one child data function automatically creates every desired parent-page dependency.
+
+Inspect the actual Next.js 16.3.4 cache semantics.
+
+Determine how the cache entries are created and how tags propagate/associate with them.
+
+Then explicitly structure cache boundaries so that the cached UI/page outputs we care about are invalidated by the correct tags.
+
+This is the most important technical part of the refactor.
+
+
+==================================================
+PAGE VS COMPONENT CACHE
+==================================================
+
+Do NOT turn everything into a page-sized cache entry if a smaller UI cache boundary is more correct.
+
+Do NOT turn every tiny component into a cache boundary either.
+
+Use meaningful boundaries.
+
+For example:
+
+    public route
+      ↓
+    cached rendered page
+      +
+    genuinely independent cached UI dependencies
+      +
+    isolated runtime portions where necessary
+
+
+The goal is not "maximum number of cache directives."
+
+The goal is:
+
+    maximum useful rendered-output reuse
+    with correct dependency invalidation
+    and minimum complexity.
+
+
+==================================================
+DO NOT DUPLICATE CACHE LAYERS WITHOUT A REASON
+==================================================
+
+After implementing route/component caching, audit the current data-level `use cache` functions.
+
+For each one determine:
+
+    Is this cache still useful as a shared dependency/data cache?
+
+OR:
+
+    Was it only necessary because the page previously rendered on every request?
+
+If it is genuinely redundant, it MAY be simplified/removed.
+
+If it provides a useful shared dependency or reusable computation, KEEP it.
+
+Do not delete data-level caches blindly.
+
+Do not preserve redundant layers blindly.
+
+Make the decision based on actual usage.
+
+
+==================================================
+HOME PAGE
+==================================================
+
+The homepage is a major target.
+
+Current architecture is approximately:
+
+    HomePage
+      ↓
+    getHomeFeed()       [cached data]
+    getAllCategories()  [cached data]
+    getPromotion()      [cached data]
+      ↓
+    render Home
+      ↓
+    page executes on requests
+
+
+Target:
+
+    HomePage
+      ↓
+    route/page cache
+      ↓
+    complete homepage output cached
+
+
+The homepage feed remains:
+
+    home_feed
+      ↓
+    getHomeFeed()
+      ↓
+    homepage output
+
+
+When:
+
+    feed.published
+
+causes:
+
+    feed:home
+
+to be invalidated, the affected cached homepage output must be revalidated/regenerated according to the correct Next.js semantics.
+
+
+==================================================
+HOMEPAGE SEARCHPARAMS ISSUE
+==================================================
+
+The current Home implementation contains:
+
+    await searchParams
+
+and this has been explicitly identified as load-bearing for the current production navigation behavior.
+
+DO NOT remove it blindly.
+
+Do not assume the current workaround should remain exactly where it is.
+
+Once you understand how route-level `use cache` and request parameters work in Next.js 16.3.4, restructure this dependency correctly.
+
+If the current `await searchParams` is no longer required in the same form after the correct route-cache architecture is implemented, change it only after verifying the actual framework behavior.
+
+Do NOT reintroduce the previously observed empty-shell/blank-RSC problem.
+
+This must be tested.
+
+
+==================================================
+LIVE STOCK / RUNTIME DATA
+==================================================
+
+Some public pages have genuinely volatile data.
+
+The current site uses:
+
+    getStocks()
+
+as live/uncached stock data.
+
+DO NOT freeze live inventory into a cache just because the page is being cached.
+
+Preserve the existing stock-safety architecture.
+
+For routes where live stock cannot belong inside a reusable page cache, isolate the runtime portion correctly according to the current Next.js Cache Components model.
+
+Use the smallest runtime boundary necessary.
+
+Do NOT make the entire page request-time merely because one small part is volatile.
+
+Do NOT add polling.
+
+Do NOT add order-to-homepage invalidation.
+
+Do NOT create a new stock cache.
+
+
+==================================================
+PDP
+==================================================
+
+Product Detail Pages are public catalog pages and should move toward rendered-output caching.
+
+However, they contain live stock and possibly other runtime-sensitive pieces.
+
+Target conceptually:
+
+    cached product/page UI
+        +
+    isolated runtime stock/data where genuinely necessary
+
+The PDP page must not become entirely request-time merely because stock is live.
+
+The exact implementation must follow actual Next.js 16.3.4 Cache Components behavior.
+
+The route parameter must correctly distinguish cached product pages.
+
+Example:
+
+    /product/a
+    /product/b
+
+must not share one incorrect cache entry.
+
+
+==================================================
+SHOP / CATEGORY / OFFERS
+==================================================
+
+These public catalog routes should also become on-demand cached rendered pages where their actual data dependencies allow it.
+
+Examples:
+
+    /shop
+    /categories
+    /categories/[slug]
+    /offers
+
+For each page:
+
+    identify dependencies
+    establish correct cache boundary
+    attach correct tags
+    preserve current behavior
+    test invalidation
+
+
+==================================================
+SEARCH
+==================================================
+
+Do NOT blindly turn Search into a static public page.
+
+The current Search route is query-driven:
+
+    /search?q=...
+
+and SearchResults is a client component using:
+
+    useSearchParams()
+    searchProductsClient()
+
+Preserve the actual query-driven architecture unless there is a clear requirement to redesign it.
+
+Do not generate/cache every possible query.
+
+Do not create an unnecessary search-result cache system.
+
+The Search page may retain a hybrid/static shell + runtime/query-driven result architecture.
+
+Search must continue to work normally.
+
+
+==================================================
+LEGAL / INFORMATIONAL PAGES
+==================================================
+
+Verify which pages are genuinely legal/informational.
+
+These should remain build-generated static pages.
+
+Do not add unnecessary runtime cache tags to them.
+
+Do not add runtime invalidation for them unless the project explicitly requires it.
+
+Do not complicate their architecture.
+
+
+==================================================
+USER-SPECIFIC PAGES
+==================================================
+
+Keep the existing static-shell + client/runtime-data pattern where already correct.
+
+Examples:
+
+    Cart
+    Wishlist
+    Orders
+    Account
+    Addresses
+
+Do NOT put user-specific output into a shared public cache.
+
+Do NOT make authenticated data globally reusable.
+
+Do NOT redesign these pages just because public catalog pages are changing.
+
+
+==================================================
+ROOT LAYOUT
+==================================================
+
+The root layout currently contains shared providers and:
+
+    <Suspense fallback={null}>
+
+above the body.
+
+This is relevant to the existing white-flash navigation issue.
+
+DO NOT change it blindly.
+
+First implement/verify the correct public route cache architecture.
+
+Then test the navigation behavior.
+
+Determine whether the existing root boundary is:
+
+    required
+    redundant
+    incorrectly placed
+    or actively causing a visual blank state
+
+based on actual runtime evidence.
+
+Do not use a loading screen merely to hide the problem.
+
+Do not use fallback UI as a symptom mask.
+
+If the correct fix is to reposition/remove/change that Suspense boundary, do so only when proven necessary.
+
+
+==================================================
+NAVIGATION WHITE-FLASH REGRESSION
+==================================================
+
+The current known reproduction path is:
+
+    Home
+      ↓
+    Search
+      ↓
+    Search Result
+      ↓
+    PDP
+      ↓
+    Browser Back
+      ↓
+    Search Result
+      ↓
+    Browser Back
+      ↓
+    Home
+
+Previously Home could become permanently blank.
+
+After subsequent changes it may become temporarily white and then normal.
+
+The final architecture MUST NOT introduce or preserve a full-page white flash merely because a route is being regenerated.
+
+The correct cached-page architecture should be tested against this exact flow.
+
+Do NOT solve it with:
+
+    router.refresh()
+    router.replace()
+    router.push(currentUrl)
+    window.location.reload()
+    setTimeout()
+    setInterval()
+    sessionStorage
+    localStorage
+    history hacks
+    popstate hacks
+    scroll hacks
+    disabling browser cache
+    disabling Next.js cache
+    disabling prefetch globally
+    fake loading overlays
+
+
+==================================================
+PREFETCHING
+==================================================
+
+Current analysis found:
+
+    no explicit prefetch={true}
+    no prefetchPPR
+    normal Next.js Link prefetching
+
+Keep normal Next.js prefetch behavior.
+
+Do NOT add:
+
+    prefetch={true}
+
+everywhere.
+
+Do NOT add:
+
+    prefetchPPR
+
+as a speculative optimization.
+
+Do NOT build custom prefetch management.
+
+Only change a specific Link if there is concrete evidence it is required.
+
+Do not confuse route caching with link prefetching.
+
+
+==================================================
+NAVIGATION LOADER
+==================================================
+
+The existing NavigationProgress system is intentional.
+
+It:
+
+    starts from custom Link click
+    observes route commit
+    ends after pathname/searchParams changes
+
+It must remain:
+
+    simple
+    non-blocking
+    observational
+
+Do NOT make the loader control navigation.
+
+Do NOT add another loader.
+
+Do NOT change its visuals.
+
+Do NOT use the loader to hide cache regeneration.
+
+
+==================================================
+INVALIDATION SEMANTICS
+==================================================
+
+The existing Main Website owns cache invalidation.
+
+The existing Admin already works with the data-level tag/event system.
+
+DO NOT redesign Admin.
+
+The existing flow should remain conceptually:
+
+    Admin mutation
+      ↓
+    domain event
+      ↓
+    Main Website invalidation
+      ↓
+    specific tag
+
+Examples:
+
+    product.updated
+      ↓
+    product:{id}
+
+    category.updated
+      ↓
+    category:{id}
+
+    review.updated
+      ↓
+    reviews:{productId}
+
+    feed.published
+      ↓
+    feed:home
+
+The Main Website owns the cache-tag mapping.
+
+Admin does NOT need to know UI cache implementation details.
+
+ProcessingServer does NOT need to know Next.js cache internals.
+
+
+==================================================
+REVALIDATION SEMANTICS
+==================================================
+
+The current invalidation endpoint uses:
+
+    revalidateTag(tag, "max")
+
+Understand its actual Next.js 16.3.4 semantics before changing it.
+
+Do NOT change the invalidation API merely to make the terminology fit this prompt.
+
+The desired behavior is:
+
+    tag invalidated
+      ↓
+    affected cached content becomes stale
+      ↓
+    affected output regenerates according to framework semantics
+
+If the current `"max"` stale-while-revalidate behavior is appropriate for the ecommerce site, preserve it.
+
+If a different invalidation primitive is required for a specific requirement, prove that need first.
+
+Do NOT introduce a new invalidation mechanism unnecessarily.
+
+
+==================================================
+CACHE DEPENDENCY / INVALIDATION EXAMPLE
+==================================================
+
+You MUST validate a realistic scenario.
+
+Suppose Product A appears on:
+
+    /
+    /shop
+    /categories/earbuds
+    /product/A
+
+After all those outputs have been cached:
+
+    Product A changes
+
+Then:
+
+    product:A
+
+is invalidated.
+
+Verify that the relevant cached outputs become stale/re-generated according to their actual dependencies.
+
+At the same time:
+
+    Product B
+    unrelated Category
+    unrelated Offer
+
+must not be unnecessarily invalidated merely because Product A changed.
+
+This is the central reason we are preserving tag-based caching.
+
+
+==================================================
+FEED DEPENDENCY EXAMPLE
+==================================================
+
+Suppose Home currently contains:
+
+    Most Popular
+    New Arrivals
+    Explore more
+    On Sale
+
+and the feed changes.
+
+Then:
+
+    feed.published
+      ↓
+    feed:home
+      ↓
+    homepage cached output
+
+must become stale/revalidated according to the correct Next.js semantics.
+
+A normal product detail change must NOT automatically regenerate the homepage solely because the product exists somewhere in the catalog unless the cached homepage output genuinely carries that product dependency.
+
+Respect actual dependency boundaries.
+
+
+==================================================
+PAGE CACHE vs DATA CACHE DESIGN
+==================================================
+
+The final architecture should NOT blindly become:
+
+    PAGE CACHE
+      ↓
+    CACHE DATA
+      ↓
+    CACHE COMPONENT
+      ↓
+    CACHE COMPONENT
+      ↓
+    CACHE FUNCTION
+      ↓
+    CACHE FUNCTION
+
+This would be unnecessary complexity.
+
+Use the smallest number of cache layers that provides:
+
+    rendered-output reuse
+    +
+    correct shared dependency invalidation
+    +
+    correct runtime behavior
+
+Keep the existing data-level cache only when it provides a useful reusable dependency or computation.
+
+
+==================================================
+DO NOT BUILD A CUSTOM ISR SYSTEM
+==================================================
+
+Do NOT create:
+
+    custom page cache tables
+    page cache database
+    HTML storage tables
+    route version tables
+    regeneration queue
+    cache worker
+    cache manager
+    cache registry
+    page snapshot database
+    custom stale flags
+    cron-based page regeneration
+
+Next.js already provides the caching/prerendering mechanism.
+
+Use the framework.
+
+
+==================================================
+NO BACKWARD COMPATIBILITY FOR OLD CACHE ARCHITECTURE
+==================================================
+
+This is a clean architecture refactor.
+
+Do not preserve an obsolete request-time data-only path solely "in case".
+
+Do not create:
+
+    oldCache
+    legacyCache
+    fallbackCache
+    compatibilityCache
+
+Once a public route is migrated to rendered-output caching, it should use the new architecture.
+
+
+==================================================
+IMPLEMENTATION STRATEGY
+==================================================
+
+Execute the work in controlled phases.
+
+-----------------------------------------------
+PHASE 1 — FORENSIC INSPECTION
+-----------------------------------------------
+
+Inspect the actual current codebase.
+
+Map:
+
+    route
+    current render behavior
+    current data caches
+    current tags
+    runtime data
+    client components
+    page dependencies
+    invalidation paths
+
+Do not edit yet.
+
+
+-----------------------------------------------
+PHASE 2 — VERIFY FRAMEWORK BEHAVIOR
+-----------------------------------------------
+
+Using the installed Next.js 16.3.4 implementation and official current documentation where necessary, verify:
+
+- route-level `use cache`
+- component-level `use cache`
+- cache keys
+- cacheTag behavior
+- nested cache behavior
+- invalidation behavior
+- runtime data inside cached scopes
+- searchParams/request data behavior
+- Cache Components/prerendering behavior
+- client router/cache interaction
+
+Do not guess.
+
+Build a minimal understanding of the exact framework behavior before applying it broadly.
+
+
+-----------------------------------------------
+PHASE 3 — PILOT THE PATTERN
+-----------------------------------------------
+
+Choose one representative public route.
+
+Prefer:
+
+    Home
+
+because it exercises:
+
+    feed
+    categories
+    promotion
+    product UI
+    server rendering
+    navigation
+
+Implement the new rendered-output cache architecture there first.
+
+Prove:
+
+    first request → render
+    second request → cached rendered result
+    invalidation → stale result
+    next access → regeneration
+
+
+-----------------------------------------------
+PHASE 4 — DEPENDENCY / TAG VERIFICATION
+-----------------------------------------------
+
+Verify that the pilot route participates correctly in the existing tag model.
+
+Test:
+
+    feed:home
+    relevant category tags
+    relevant product dependencies
+
+Ensure that invalidation behaves as intended.
+
+Do not proceed to broad migration until this is understood.
+
+
+-----------------------------------------------
+PHASE 5 — PUBLIC CATALOG MIGRATION
+-----------------------------------------------
+
+Migrate the appropriate routes:
+
+    /
+    /shop
+    /categories
+    /categories/[slug]
+    /offers
+    /product/[slug]
+    public review routes
+
+one class at a time.
+
+Preserve current functionality and UI exactly.
+
+
+-----------------------------------------------
+PHASE 6 — RUNTIME ISOLATION
+-----------------------------------------------
+
+For pages with live stock or other genuinely runtime data:
+
+    isolate runtime content
+
+rather than making the entire page request-time.
+
+Do not freeze volatile data.
+
+Do not destroy server rendering.
+
+
+-----------------------------------------------
+PHASE 7 — DATA CACHE SIMPLIFICATION
+-----------------------------------------------
+
+Now review existing lower-level `use cache` functions.
+
+For each:
+
+    keep if genuinely reusable/useful
+    remove only if clearly redundant
+
+Do not perform a blanket deletion.
+
+
+-----------------------------------------------
+PHASE 8 — LEGAL / BUILD STATIC VERIFICATION
+-----------------------------------------------
+
+Verify legal/informational pages remain build-generated static output.
+
+No unnecessary runtime cache architecture.
+
+
+-----------------------------------------------
+PHASE 9 — USER PAGE VERIFICATION
+-----------------------------------------------
+
+Verify:
+
+    Cart
+    Wishlist
+    Orders
+    Account
+    Addresses
+
+still use their existing safe user-specific architecture.
+
+No public shared caching of user data.
+
+
+-----------------------------------------------
+PHASE 10 — NAVIGATION REGRESSION
+-----------------------------------------------
+
+Re-test:
+
+    Home
+      ↓
+    Search
+      ↓
+    Search Result
+      ↓
+    PDP
+      ↓
+    Back
+      ↓
+    Search Result
+      ↓
+    Back
+      ↓
+    Home
+
+Repeat many times.
+
+Verify no:
+
+    permanent blank
+    transient white flash
+    broken route
+    stuck loader
+    duplicate loader
+    route-state corruption
+    search-state corruption
+
+
+-----------------------------------------------
+PHASE 11 — FULL INVALIDATION TEST
+-----------------------------------------------
+
+For each relevant domain:
+
+    Product
+    Category
+    Review
+    Feed
+    Offer/Promotion
+
+perform:
+
+    cache page
+    mutate data
+    trigger existing invalidation
+    request page
+    verify fresh result
+
+Also verify unrelated pages remain unaffected where appropriate.
+
+
+-----------------------------------------------
+PHASE 12 — CLEANUP
+-----------------------------------------------
+
+Remove only:
+
+- redundant data-cache layers
+- obsolete cache helpers
+- obsolete request-time workarounds
+- dead comments describing the old architecture
+- obsolete tests
+
+Do NOT remove useful tags.
+
+Do NOT remove working invalidation infrastructure.
+
+Do NOT perform unrelated cleanup.
+
+
+==================================================
+TESTING REQUIREMENTS
+==================================================
+
+Testing is mandatory.
+
+Do not claim the refactor is complete based only on:
+
+    TypeScript compilation
+    lint
+    unit tests
+
+You MUST verify actual runtime caching behavior.
+
+Use temporary instrumentation where useful.
+
+For example, temporarily log page execution:
+
+    HomePage rendered
+
+Then make repeated requests.
+
+The expected result is:
+
+    first request:
+        log appears
+
+    subsequent cache-hit requests:
+        page execution log does not appear
+
+Remove diagnostic instrumentation afterward unless there is a genuine reason to keep it.
+
+
+==================================================
+PROVE FIRST REQUEST CACHE GENERATION
+==================================================
+
+For a fresh public route:
+
+    clear/expire the relevant cache
+    request route
+    verify page executes
+    verify rendered result is cached
+
+Then:
+
+    request route again
+    verify cached result is reused
+    verify page is NOT executed again
+
+
+==================================================
+PROVE REVALIDATION
+==================================================
+
+Example:
+
+    cache /product/A
+
+    change Product A's title/price/details
+
+    trigger existing product invalidation
+
+    request /product/A
+
+Verify the rendered output reflects the updated data.
+
+Then request it again.
+
+Verify the new output is reused from cache.
+
+
+==================================================
+PROVE CROSS-PAGE INVALIDATION
+==================================================
+
+Example:
+
+    Product A appears on:
+        Home
+        Shop
+        Category
+        PDP
+
+Cache all relevant outputs.
+
+Mutate Product A.
+
+Trigger:
+
+    product:{id}
+
+Verify all genuinely dependent outputs become stale/revalidate.
+
+Then mutate unrelated Product B.
+
+Verify Product A's outputs are not unnecessarily invalidated merely because another product changed.
+
+
+==================================================
+PROVE FEED INVALIDATION
+==================================================
+
+Cache Home.
+
+Change the published home feed.
+
+Trigger:
+
+    feed.published
+        ->
+    feed:home
+
+Request Home.
+
+Verify it reflects the new feed.
+
+Then request Home again.
+
+Verify cached output is reused.
+
+
+==================================================
+PROVE STOCK BEHAVIOR
+==================================================
+
+Verify:
+
+- feed generation still excludes out-of-stock products
+- live stock behavior remains intact
+- cached public UI does not incorrectly freeze stock availability
+- PDP stock behavior remains correct
+- homepage stock overlay remains correct
+
+Do not replace live stock with stale cached stock merely to simplify page caching.
+
+
+==================================================
+PROVE SEARCH BEHAVIOR
+==================================================
+
+Verify:
+
+    /search?q=foo
+
+still works.
+
+Verify:
+
+- query changes work
+- results work
+- no global cache incorrectly mixes queries
+- Search -> PDP works
+- PDP -> Back -> Search works
+- Search -> Back -> Home works
+
+
+==================================================
+PROVE BUILD STATIC PAGES
+==================================================
+
+Perform a production build.
+
+Verify legal/informational pages are build-generated and do not unnecessarily execute dynamic server logic for normal requests.
+
+
+==================================================
+PRODUCTION TESTING
+==================================================
+
+The application has previously shown development/production navigation differences.
+
+Therefore test both:
+
+    development
+
+and:
+
+    production build
+
+Use existing project scripts.
+
+Do not modify package scripts merely for convenience.
+
+Production validation is mandatory.
+
+
+==================================================
+DEPLOYMENT / CACHE PERSISTENCE
+==================================================
+
+Inspect the actual deployment model.
+
+Determine whether the Next.js cache is local/in-memory or uses a deployment-supported shared/remote cache.
+
+Do NOT build custom persistence unless the actual production deployment requires it.
+
+Do not claim the cache is globally persistent across instances without verifying the deployment architecture.
+
+
+==================================================
+UI / UX PRESERVATION
+==================================================
+
+The visual output and behavior of the website must remain the same.
+
+Preserve:
+
+- layout
+- typography
+- spacing
+- colors
+- responsive behavior
+- product cards
+- carousels
+- navigation
+- footer
+- buttons
+- interaction states
+- accessibility
+- SEO metadata
+- structured data
+- analytics/tracking
+- stock indicators
+- loading behavior that is already intentional
+
+Do not redesign the website.
+
+The objective is a caching architecture improvement, not a UI redesign.
+
+
+==================================================
+DO NOT BREAK FEATURES
+==================================================
+
+Before finishing, verify the refactor does not break:
+
+- homepage feed
+- product navigation
+- category navigation
+- search
+- product pages
+- offers
+- reviews
+- cart
+- wishlist
+- account
+- orders
+- authentication
+- stock
+- tracking
+- newsletter
+- footer
+- navigation loader
+- invalidation
+- SEO
+- responsive UI
+
+
+==================================================
+FINAL REPOSITORY AUDIT
+==================================================
+
+Search the entire repository for:
+
+    "use cache"
+    cacheTag
+    revalidateTag
+    cacheLife
+    product:
+    category:
+    feed:home
+
+Understand every remaining occurrence.
+
+Also search for old request-time caching assumptions.
+
+Look for comments saying pages execute on every request.
+
+Update inaccurate comments.
+
+Do not leave misleading documentation.
+
+
+==================================================
+FINAL CACHE ARCHITECTURE REPORT
+==================================================
+
+At the end, produce a concise technical report containing:
+
+1. Public routes now using rendered-output caching.
+2. Legal pages generated at build time.
+3. User-specific pages and why they remain runtime/client-driven.
+4. Remaining data-level caches and why each remains.
+5. Cache tags and what they invalidate.
+6. Page/component cache boundaries.
+7. Runtime/stock boundaries.
+8. Exact first-request caching behavior.
+9. Exact subsequent-request behavior.
+10. Exact invalidation behavior.
+11. Search behavior.
+12. Navigation behavior.
+13. Production cache behavior.
+14. Tests actually executed.
+15. Any unresolved issue.
+
+
+==================================================
+ABSOLUTE IMPLEMENTATION RULES
+==================================================
+
+DO NOT:
+
+- redesign the application
+- replace Next.js caching with a custom system
+- remove useful tags
+- globally invalidate all pages
+- create cache tables
+- create cache queues
+- create workers
+- create custom page storage
+- add PPR flags speculatively
+- add prefetch={true} everywhere
+- disable prefetch globally
+- add router refresh hacks
+- add history hacks
+- add navigation delays
+- add scroll hacks
+- add reloads
+- turn everything into Client Components
+- make user-specific pages globally cacheable
+- cache live stock as if it were static
+- remove working feed architecture
+- modify Admin unnecessarily
+- modify ProcessingServer unnecessarily
+- modify TrackingServer unnecessarily
+- rewrite correct code merely because it is simple
+- treat a theoretical edge case as proof that existing working code is buggy
+
+DO:
+
+- inspect actual code
+- follow actual Next.js 16.3.4 semantics
+- preserve working architecture
+- introduce route/component rendered-output caching
+- preserve tag-based dependency invalidation
+- isolate genuinely dynamic runtime pieces
+- generate cache entries on first access
+- reuse rendered results afterward
+- revalidate affected cached output after relevant tag invalidation
+- preserve existing UI/UX
+- test actual runtime behavior
+- test production
+- report only verified results
+
+
+==================================================
+DEFINITION OF DONE
+==================================================
+
+The implementation is complete only when:
+
+[ ] Public catalog routes use cached rendered output where appropriate.
+
+[ ] Public catalog routes do NOT render/assemble from cached data on every request.
+
+[ ] First access generates the rendered result.
+
+[ ] Subsequent accesses reuse the cached rendered result.
+
+[ ] Appropriate cache entries participate in the existing tag-based invalidation graph.
+
+[ ] Product invalidation affects genuinely dependent cached UI/pages.
+
+[ ] Unrelated cached pages are not broadly invalidated without a real dependency.
+
+[ ] Feed invalidation affects cached homepage output.
+
+[ ] Legal/informational pages remain build-generated.
+
+[ ] User-specific pages remain safely user-specific.
+
+[ ] Live stock remains live where required.
+
+[ ] Search remains query-correct.
+
+[ ] PDP remains correct.
+
+[ ] Home remains correct.
+
+[ ] Existing homepage feed remains correct.
+
+[ ] Existing Admin invalidation behavior remains correct.
+
+[ ] Existing ProcessingServer feed publication remains correct.
+
+[ ] Existing TrackingServer behavior remains correct.
+
+[ ] Existing navigation loader UI is unchanged.
+
+[ ] No custom prefetch system is introduced.
+
+[ ] No unnecessary PPR configuration is introduced.
+
+[ ] No navigation hacks are introduced.
+
+[ ] No unnecessary cache infrastructure is introduced.
+
+[ ] Search -> PDP -> Back -> Search -> Back -> Home works repeatedly.
+
+[ ] No white-page regression remains.
+
+[ ] Development tests pass.
+
+[ ] Production tests pass.
+
+[ ] Actual first-request vs cached-request behavior has been verified.
+
+[ ] Actual invalidation/regeneration behavior has been verified.
+
+[ ] Repository-wide audit is complete.
+
+[ ] Final report accurately reflects what was actually tested.
+
+
+==================================================
+FINAL DIRECTIVE
+==================================================
+
+The desired system is NOT:
+
+    "cache the data and render the page every request."
+
+The desired system IS:
+
+    "render the page on first access, cache the rendered result, reuse that rendered result on subsequent requests, and use the existing fine-grained domain-tag system to invalidate affected cached UI/page outputs so they regenerate when needed."
+
+The existing tag system is valuable and must remain.
+
+The change is to move the reusable cache boundary upward into the rendered UI/page where appropriate.
+
+Use the actual Next.js 16.3.4 Cache Components model.
+
+Do not invent a custom system.
+
+Do not over-engineer.
+
+Do not break working functionality.
+
+Do not modify unrelated systems.
+
+Do not claim success without runtime verification.
+
+Inspect.
+Implement.
+Test.
+Verify.
+Clean up only what is genuinely redundant.
+Finish with the exact architecture described above.

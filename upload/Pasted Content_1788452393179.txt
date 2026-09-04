@@ -1,0 +1,2048 @@
+You are implementing a production-quality refactor across an existing ecommerce project.
+
+MODEL / EXECUTION DISCIPLINE
+============================
+
+You are GLM 5.2 operating as the implementation engineer.
+
+Your job is to inspect the ACTUAL CURRENT CODEBASE, implement the exact architecture and behavior specified below, test it properly, and finish with a verified working implementation.
+
+Do NOT drift from this specification.
+
+Do NOT reinterpret the architecture into something you personally prefer.
+
+Do NOT add backward compatibility unless explicitly required below.
+
+Do NOT invent abstractions, fallback systems, queues, workers, caches, APIs, tables, services, or compatibility layers that are not required.
+
+Do NOT treat correct, deterministic, simple, already-working code as suspicious merely because it could theoretically be redesigned.
+
+Do NOT rewrite working infrastructure just because you would architect it differently.
+
+Do NOT replace a simple solution with a more sophisticated one.
+
+Do NOT over-engineer.
+
+Do NOT create speculative fixes for hypothetical bugs.
+
+If existing code is correct and compatible with this specification, preserve it.
+
+If something genuinely conflicts with this specification, change only what is necessary.
+
+Most importantly:
+
+IMPLEMENT THE SYSTEM WE HAVE SPECIFIED.
+DO NOT GRADUALLY CHANGE THE SPECIFICATION DURING IMPLEMENTATION.
+
+
+==================================================
+PROJECT LOCATIONS
+==================================================
+
+The project contains:
+
+- Main ecommerce website: existing project root
+- TrackingServer: /TrackingServer
+- ProcessingServer: /ProcessingServer
+
+TrackingServer and ProcessingServer are separate server applications.
+
+IMPORTANT SANDBOX CONSTRAINT:
+
+The current sandbox/environment does NOT support keeping these servers continuously alive.
+
+DO NOT attempt to keep TrackingServer or ProcessingServer running permanently.
+
+DO NOT create background daemons merely to keep them alive.
+
+DO NOT modify their architecture to accommodate the sandbox.
+
+You MAY start either server temporarily from the terminal for testing.
+
+For example:
+
+- start server
+- send real test requests
+- inspect output/database result
+- stop server
+
+This is expected.
+
+You MUST test the servers properly despite them not remaining alive.
+
+
+==================================================
+CREDENTIALS
+==================================================
+
+I will provide test credentials when needed.
+
+These may include:
+
+- test TiDB credentials/password
+- Supabase secret/service-role key
+
+Use them ONLY for the requested test environment and only from server-side/test commands.
+
+NEVER expose secrets in:
+
+- browser code
+- client bundles
+- committed source files
+- logs
+- screenshots
+- final response
+- public environment variables
+
+Use existing environment-variable conventions where available.
+
+For Supabase server-side access, use the supplied server credential appropriately.
+
+Do NOT put Supabase secret/service-role credentials into the storefront.
+
+
+==================================================
+AUTHORITATIVE ARCHITECTURE
+==================================================
+
+We are replacing the old homepage circulation/feed implementation.
+
+The target architecture is:
+
+Browser
+    |
+    | product_id
+    v
+TrackingServer
+    |
+    v
+TiDB raw_events
+    |
+    | product_id
+    v
+ProcessingServer
+    |
+    +-- incremental event processing
+    +-- product engagement aggregation
+    +-- exposure/discovery information
+    +-- homepage feed generation
+    |
+    v
+Supabase home_feed
+    |
+    | product IDs
+    v
+Main Website
+    |
+    +-- server-side getHomeFeed()
+    +-- resolve current product data
+    +-- existing stock safety overlay
+    +-- existing cache architecture
+    |
+    v
+Complete server-rendered homepage
+
+
+There is NO client-side homepage feed fetch.
+
+There is NO /api/home/feed.
+
+The homepage does NOT reconstruct the feed in the browser.
+
+The ProcessingServer owns feed selection.
+
+The Main Website owns feed consumption and cache invalidation.
+
+The feed is GLOBAL, not personalized.
+
+Do NOT introduce personalization in this implementation.
+
+
+==================================================
+CORE MIGRATION: product_slug -> product_id
+==================================================
+
+This is a REAL migration.
+
+The canonical product identity throughout the tracking/processing/feed pipeline MUST become:
+
+    product_id
+
+using the actual product UUID.
+
+The following pipeline must be ID-based:
+
+Browser tracking
+    ->
+TrackingServer
+    ->
+TiDB raw_events
+    ->
+ProcessingServer
+    ->
+Supabase home_feed
+    ->
+Main Website
+
+DO NOT preserve product_slug as a compatibility field.
+
+DO NOT implement:
+
+    product_id ?? product_slug
+
+DO NOT implement:
+
+    if product_id exists use it, otherwise resolve slug
+
+DO NOT translate product_id back into slug.
+
+DO NOT retain slug-based processing.
+
+DO NOT create a dual identity system.
+
+The final feed/tracking pipeline must use product_id only.
+
+
+==================================================
+PHASE 0 — INSPECT THE REAL CURRENT CODE
+==================================================
+
+Before changing code, inspect the actual current implementation.
+
+Do NOT rely only on an old summary or audit.
+
+Inspect:
+
+- Main website homepage
+- homepage data loaders
+- homepage feed helpers
+- caching implementation
+- invalidation endpoint
+- product loading
+- stock hydration
+- frontend tracking calls
+- TrackingServer
+- ProcessingServer
+- database schemas/migrations
+- tests
+- package versions
+- environment configuration
+
+Search the entire project for:
+
+    product_slug
+    circulation
+    circulation_entries
+    circulation_versions
+    home_trending
+    home_featured
+    home_new_arrivals
+    home_on_sale
+    getCirculationIds
+    getFeedSurfaceIds
+    feedFallbackIds
+    resolveHomeSections
+
+Also locate every product-related tracking event.
+
+Do not modify anything during this inspection phase.
+
+Build an internal understanding of exactly where the old architecture exists.
+
+Then implement the migration.
+
+
+==================================================
+WHAT MUST BE PRESERVED
+==================================================
+
+The following existing working systems are NOT to be unnecessarily rewritten.
+
+TRACKINGSERVER:
+
+Preserve:
+
+- existing HTTP ingestion model
+- event batching
+- validation architecture
+- rate limiting
+- event deduplication
+- TiDB persistence mechanics
+- existing working request flow
+
+Only migrate product identity from slug to ID where required.
+
+PROCESSINGSERVER:
+
+Preserve the working concepts of:
+
+- authenticated processing endpoint
+- processing lock
+- checkpoint
+- incremental processing
+- bounded event batches
+- processing only events after the checkpoint
+- advancing checkpoint only after successful required persistence
+
+Do NOT turn this into a new processing framework.
+
+MAIN WEBSITE:
+
+Preserve:
+
+- existing server-rendered homepage architecture
+- existing Cache Components architecture
+- existing product cache boundaries
+- existing category cache boundaries
+- existing feed/home cache boundary
+- existing stock hydration/safety behavior
+- existing domain-event invalidation architecture
+- existing unrelated homepage content
+- existing hero/category/service/store/newsletter/footer areas
+
+Do NOT regress or redesign unrelated homepage functionality.
+
+Do NOT touch the already-fixed footer behavior.
+
+Do NOT introduce streaming or client reconstruction merely to implement this feed.
+
+The homepage remains a complete server-rendered page.
+
+
+==================================================
+THE OLD CIRCULATION SYSTEM IS DEAD
+==================================================
+
+This is NOT a compatibility migration.
+
+The old circulation system is NOT a fallback.
+
+Do NOT create the old circulation tables.
+
+Do NOT recreate:
+
+    circulation_entries
+    circulation_versions
+
+Do NOT preserve code that consumes them.
+
+Do NOT implement:
+
+    new feed -> old circulation fallback
+
+Do NOT implement:
+
+    new feed -> editorial fallback
+
+Do NOT implement:
+
+    new feed -> random catalog fallback
+
+Do NOT implement any compatibility path for the old homepage feed.
+
+Remove the old circulation-based homepage path completely.
+
+The old circulation publisher in ProcessingServer must also be replaced.
+
+If old circulation tables happen to exist in some environment, inspect them and remove them only when confirmed to belong exclusively to this obsolete homepage-feed system.
+
+The target system has ONE homepage feed storage model:
+
+    home_feed
+
+
+==================================================
+NEW SUPABASE STORAGE: ONE TABLE ONLY
+==================================================
+
+Create ONE table:
+
+    home_feed
+
+Do NOT create:
+
+    home_feed_versions
+    home_feed_entries
+    circulation_entries
+    circulation_versions
+
+No second feed table is needed.
+
+The feed is a single current global snapshot.
+
+Use a singleton row.
+
+Conceptually:
+
+    home_feed
+    ----------------
+    id
+    feed JSONB
+    updated_at
+
+The exact SQL types/defaults/constraints should follow the existing project's conventions.
+
+The singleton represents the current homepage feed.
+
+The JSONB shape is:
+
+{
+  "most_popular": [
+    "product-uuid",
+    "product-uuid"
+  ],
+  "new_arrivals": [
+    "product-uuid",
+    "product-uuid"
+  ],
+  "explore_more": [
+    "product-uuid",
+    "product-uuid"
+  ],
+  "on_sale": [
+    "product-uuid",
+    "product-uuid"
+  ]
+}
+
+IMPORTANT:
+
+- arrays contain PRODUCT UUIDs only
+- array order is display order
+- no product name
+- no price
+- no image
+- no stock
+- no product snapshot
+- no slug
+- no score unless there is an actual required consumer
+- no position column
+- no feed-entry rows
+- no feed version rows
+
+The feed stores WHAT products should appear.
+
+The product table remains the source of truth for WHAT those products currently are.
+
+
+==================================================
+FEED IS A SNAPSHOT, NOT A HISTORY SYSTEM
+==================================================
+
+ProcessingServer must build the entire feed in memory before publication.
+
+Conceptually:
+
+    calculate Most Popular
+    calculate New Arrivals
+    calculate Explore more
+    calculate On Sale
+            |
+            v
+    complete feed object
+            |
+            v
+    validate
+            |
+            v
+    one home_feed upsert
+
+Do NOT build the feed section-by-section in separate database writes.
+
+Do NOT create a building/published/archived state machine.
+
+Do NOT create feed versions.
+
+Do NOT create feed history.
+
+Do NOT create unnecessary transactional infrastructure.
+
+A complete JSON snapshot is generated first, then the singleton row is replaced/upserted.
+
+
+==================================================
+VERY IMPORTANT: VERIFY DURABLE PROCESSING STATE
+==================================================
+
+The existing ProcessingServer already has:
+
+- checkpoint
+- lock
+- incremental event processing
+- bounded batches
+- aggregation
+
+DO NOT assume this automatically means cumulative product metrics are durable.
+
+Inspect the ACTUAL current implementation and database state.
+
+Determine exactly where cumulative product metrics/exposure information currently lives.
+
+If durable aggregate state already exists and works, preserve it.
+
+If it does NOT exist and is genuinely required for correct cumulative popularity/exposure processing, implement the SMALLEST appropriate durable mechanism.
+
+Do NOT create unnecessary infrastructure.
+
+Do NOT reread the entire event history on every processing run.
+
+The processor MUST remain incremental.
+
+A processor run must not behave like:
+
+    read entire raw_events history
+    recalculate everything from zero
+
+It must process new events after the checkpoint.
+
+This is a hard requirement.
+
+
+==================================================
+TRACKING EVENT MIGRATION
+==================================================
+
+Product-related browser events must use product_id.
+
+At minimum verify these:
+
+    product_view
+    product_impression
+    product_click
+    add_to_cart
+    remove_from_cart
+    wishlist_add
+    wishlist_remove
+
+Where the event represents a product, use:
+
+    product_id
+
+Do not add a slug simply because older code used one.
+
+Do not create dual fields.
+
+Category/search events should NOT be unnecessarily redesigned as part of this migration.
+
+
+==================================================
+TRACKINGSERVER MIGRATION
+==================================================
+
+Change the TrackingServer event contract from product_slug to product_id.
+
+Validate product_id as the expected UUID format.
+
+Update:
+
+- TypeScript types
+- request validation
+- event parsing
+- persistence
+- SQL
+- indexes
+- tests
+- logging where applicable
+
+TiDB raw_events must ultimately contain:
+
+    product_id
+
+and not:
+
+    product_slug
+
+
+==================================================
+HISTORICAL TiDB DATA MIGRATION
+==================================================
+
+Existing historical events may currently contain product_slug.
+
+Perform a ONE-TIME migration if required by the actual current database state.
+
+Map:
+
+    raw_events.product_slug
+        ->
+    Supabase products.slug
+        ->
+    Supabase products.id
+        ->
+    raw_events.product_id
+
+Before removing the slug data, explicitly verify migration results.
+
+Report:
+
+- total relevant historical product events
+- successfully mapped events
+- unmapped events
+
+DO NOT silently discard unmapped historical events.
+
+If unmapped records exist, investigate the cause.
+
+Once the historical migration is verified:
+
+- remove product_slug from the tracking schema
+- remove obsolete slug indexes
+- update all queries
+- update all types
+- update all tests
+
+The final system is product_id-only.
+
+Do NOT keep a legacy slug column for compatibility.
+
+
+==================================================
+PROCESSINGSERVER IDENTITY REFACTOR
+==================================================
+
+Replace all product_slug-based aggregation and feed publication with product_id.
+
+For example, change conceptual structures from:
+
+    Map<product_slug, metrics>
+
+to:
+
+    Map<product_id, metrics>
+
+Every downstream feed operation must use UUIDs directly.
+
+No slug lookup should be required to identify a product for the feed.
+
+
+==================================================
+EXISTING ENGAGEMENT SIGNALS
+==================================================
+
+Preserve the existing event signals:
+
+    views
+    impressions
+    clicks
+    cart_adds
+    wishlist_adds
+
+The current score is:
+
+    views * 1
+    + clicks * 3
+    + cart_adds * 5
+    + wishlist_adds * 2
+
+Preserve this as the initial V1 popularity score unless actual code inspection proves it is currently implemented differently.
+
+Do NOT introduce machine learning.
+
+Do NOT introduce an unnecessarily sophisticated ranking model.
+
+Do NOT add time-decay mathematics merely because it sounds better.
+
+Do NOT change scoring and architecture simultaneously without a concrete reason.
+
+First build a correct feed system.
+
+Ranking refinement can happen later.
+
+
+==================================================
+GLOBAL PRODUCT ELIGIBILITY
+==================================================
+
+Before selecting products for ANY homepage section, enforce the common basic eligibility rule:
+
+    is_active = true
+    AND stock > 0
+
+An out-of-stock product MUST NOT be selected into the published feed.
+
+An inactive product MUST NOT be selected into the published feed.
+
+This rule applies to:
+
+    Most Popular
+    New Arrivals
+    Explore more
+    On Sale
+
+Do not duplicate inconsistent eligibility logic across sections.
+
+Use one clear eligibility concept/function/query where practical.
+
+Do not over-abstract it.
+
+
+==================================================
+SECTION 1 — MOST POPULAR
+==================================================
+
+Section name:
+
+    Most Popular
+
+Meaning:
+
+    genuinely popular products
+
+Selection must be based on actual engagement.
+
+Use the existing V1 engagement score:
+
+    views
+    + clicks * 3
+    + cart_adds * 5
+    + wishlist_adds * 2
+
+Candidate products must be eligible:
+
+    active
+    stock > 0
+
+Rank by popularity score.
+
+Select the desired number of products.
+
+IMPORTANT:
+
+DO NOT inject random weak products into Most Popular.
+
+DO NOT use Most Popular as a circulation mechanism.
+
+DO NOT fill empty slots with unrelated products.
+
+If only three products genuinely qualify, publish three.
+
+Do not fake popularity.
+
+
+==================================================
+SECTION 2 — NEW ARRIVALS
+==================================================
+
+Section name:
+
+    New Arrivals
+
+Meaning:
+
+    genuinely recent catalog additions
+
+Candidates:
+
+    is_active = true
+    AND stock > 0
+
+Order primarily by:
+
+    added_at DESC
+
+Select the desired number.
+
+Do NOT inject unrelated products to fill capacity.
+
+If fewer eligible products exist, publish fewer.
+
+
+==================================================
+SECTION 3 — EXPLORE MORE
+==================================================
+
+Section name:
+
+    Explore more
+
+This is the discovery/exposure section.
+
+Its purpose is specifically:
+
+    Give eligible products that have not received sufficient exposure an opportunity to be discovered.
+
+This section is NOT:
+
+- Most Popular
+- random products
+- a dump of weak products
+- a replacement for ranking
+- a fake recommendation engine
+- personalization
+
+Use existing product impression information and available engagement/exposure state.
+
+The basic concept is:
+
+    product exposure
+        +
+    engagement relative to exposure
+        +
+    recency/fairness of previous exposure where available
+        ->
+    discovery candidate
+
+Prioritize products that are:
+
+- untested
+- underexposed
+- promising but underexposed
+
+Avoid endlessly forcing products that have already received substantial exposure and consistently perform poorly.
+
+Do NOT use pure random selection over the entire catalog.
+
+If randomness is useful, it may only be used inside an already-qualified discovery candidate pool, and ONLY when the feed snapshot is generated by ProcessingServer.
+
+Never randomize on each homepage request.
+
+The homepage must remain deterministic for the published snapshot.
+
+Do not build a machine-learning recommender.
+
+Do not build personalization.
+
+Do not create a complicated multi-stage recommendation engine.
+
+Use the simplest reliable exposure/discovery mechanism supported by the actual available metrics.
+
+If the existing data does not support a sophisticated distinction, use a simple underexposure/last-shown/impression-based mechanism rather than inventing unavailable data.
+
+
+==================================================
+SECTION 4 — ON SALE
+==================================================
+
+Section name:
+
+    On Sale
+
+A product qualifies only if:
+
+    is_active = true
+    AND stock > 0
+    AND compare_at_price IS NOT NULL
+    AND compare_at_price > price
+
+Only genuine discounted products belong here.
+
+Do NOT fill this section with non-sale products.
+
+Do NOT use random products to fill missing capacity.
+
+Use a simple deterministic ordering appropriate to the actual schema.
+
+Do not invent nonexistent fields such as is_featured.
+
+
+==================================================
+NO "FEATURED" SECTION
+==================================================
+
+There is NO Featured section in the current homepage design.
+
+Do NOT create one.
+
+Do NOT introduce:
+
+    is_featured
+
+Do NOT invent a database field that does not exist.
+
+The actual homepage product sections are:
+
+    Most Popular
+    New Arrivals
+    Explore more
+    On Sale
+
+
+==================================================
+CROSS-SECTION DUPLICATES
+==================================================
+
+Prefer one product appearing only once in a homepage snapshot.
+
+Build sections with a usedProductIds set or equivalent simple mechanism.
+
+Recommended selection priority:
+
+    Most Popular
+    New Arrivals
+    On Sale
+    Explore more
+
+Why:
+
+Explore more exists specifically for discovery, so it should prefer products that are not already represented for a stronger semantic reason.
+
+If a product is both popular and on sale, it can appear in Most Popular and should not also consume an On Sale slot.
+
+If a product is new and popular, it should be represented according to the defined section-selection order.
+
+Do NOT build complex conflict-resolution machinery.
+
+If there are not enough unique eligible products, publish fewer products rather than inventing filler.
+
+
+==================================================
+EMPTY FEED / EMPTY SECTION BEHAVIOR
+==================================================
+
+Empty is a valid state.
+
+If:
+
+    most_popular = []
+
+then do not render Most Popular.
+
+If:
+
+    new_arrivals = []
+
+then do not render New Arrivals.
+
+If:
+
+    explore_more = []
+
+then do not render Explore more.
+
+If:
+
+    on_sale = []
+
+then do not render On Sale.
+
+If the entire feed is empty, the homepage still renders normally, simply without product-feed sections.
+
+ABSOLUTELY NO FALLBACK PRODUCT QUERIES.
+
+Do NOT fall back to:
+
+- review_count
+- rating
+- added_at outside New Arrivals
+- random products
+- arbitrary catalog products
+- hardcoded products
+- old circulation
+- old editorial logic
+
+Do NOT add 100 lines of "safety" fallback logic.
+
+A missing/empty feed must remain visible as an actual pipeline state.
+
+
+==================================================
+MAIN WEBSITE — NEW FEED CONSUMER
+==================================================
+
+Replace the old homepage feed consumer with one authoritative server-side loader:
+
+    getHomeFeed()
+
+The loader should:
+
+1. read the singleton home_feed
+2. validate/parse its JSON structure
+3. obtain the product UUID arrays
+4. resolve current product data from the existing authoritative product source
+5. preserve the order from the feed
+6. apply the existing live stock safety overlay
+7. return the four sections
+
+The homepage should consume this feed directly.
+
+The section components should be presentational.
+
+They must NOT independently decide which products belong to them.
+
+They must NOT independently query the catalog to construct their own feeds.
+
+
+==================================================
+NO HOMEPAGE FEED API
+==================================================
+
+DO NOT create:
+
+    /api/home/feed
+
+DO NOT fetch the feed from the browser.
+
+DO NOT create a client-side homepage feed loader.
+
+DO NOT reconstruct homepage product sections in React client state.
+
+The homepage must remain server-rendered.
+
+The feed is loaded server-side.
+
+
+==================================================
+PRODUCT DATA AND FEED DATA MUST REMAIN INDEPENDENT
+==================================================
+
+home_feed stores:
+
+    product IDs
+
+The products table stores:
+
+    name
+    price
+    images
+    stock
+    rating
+    etc.
+
+Do NOT duplicate product snapshots into home_feed.
+
+Example:
+
+    home_feed says:
+        [product-A, product-B]
+
+The main website then resolves current product data.
+
+If product-A's price changes:
+
+    invalidate product-A cache
+
+Do NOT regenerate the homepage feed merely because product metadata changed.
+
+This independence is intentional.
+
+
+==================================================
+STOCK SAFETY
+==================================================
+
+There are two separate stock protections.
+
+PROCESSINGSERVER:
+
+Do not select:
+
+    stock <= 0
+
+into the feed.
+
+MAIN WEBSITE:
+
+Preserve the existing live stock hydration/safety overlay.
+
+Reason:
+
+Feed publication and inventory changes happen at different times.
+
+Example:
+
+    feed generated while stock = 5
+    later stock becomes 0
+
+The published feed can legitimately still contain the product until the next feed publication.
+
+The main site's live stock mechanism remains the runtime safety layer.
+
+Do NOT remove it.
+
+Do NOT add order-to-homepage invalidation.
+
+Do NOT add stock polling.
+
+Do NOT add a worker just for stock.
+
+
+==================================================
+CACHE ARCHITECTURE
+==================================================
+
+Preserve the existing Next.js cache architecture.
+
+The homepage feed has its own cache boundary:
+
+    feed:home
+
+Product caches remain separate.
+
+Category caches remain separate.
+
+The relationship should be:
+
+    product update
+        ->
+    product cache invalidation
+
+NOT:
+
+    product update
+        ->
+    regenerate homepage feed
+
+A new feed publication should invalidate:
+
+    feed:home
+
+Do not turn the homepage into a giant cache dependency on every product.
+
+Do not micro-cache every visual component.
+
+Use meaningful cache boundaries.
+
+
+==================================================
+FEED INVALIDATION
+==================================================
+
+Add a domain event:
+
+    feed.published
+
+or the equivalent existing project naming convention.
+
+ProcessingServer sends the domain intent after successful feed publication.
+
+Conceptually:
+
+{
+    "type": "feed.published"
+}
+
+ProcessingServer MUST NOT send:
+
+    feed:home
+
+as a cache tag.
+
+ProcessingServer does not own Next.js cache tags.
+
+The Main Website owns event-to-tag resolution.
+
+Main Website:
+
+    feed.published
+        ->
+    feed:home
+        ->
+    revalidateTag(...)
+
+Preserve the existing invalidation architecture.
+
+Do not create a second invalidation system.
+
+
+==================================================
+FEED PUBLICATION FAILURE BEHAVIOR
+==================================================
+
+The processing pipeline must remain incremental and safe.
+
+Conceptually:
+
+    acquire lock
+        ->
+    read checkpoint
+        ->
+    read new events
+        ->
+    process
+        ->
+    generate complete feed
+        ->
+    write home_feed successfully
+        ->
+    advance checkpoint appropriately
+        ->
+    send feed.published notification
+
+Do NOT advance the checkpoint before required processing/persistence succeeds.
+
+Do NOT add:
+
+- queues
+- background workers
+- retry daemons
+- exponential backoff
+- DB-backed invalidation queues
+- polling
+- multi-stage distributed orchestration
+
+A notification attempt can fail independently.
+
+Do NOT force event reprocessing solely because a storefront cache notification failed.
+
+If notification fails, expose the failure appropriately according to the existing system's conventions.
+
+Manual retry, if the existing system supports it, should use the same domain notification mechanism.
+
+Do not build a new queue.
+
+
+==================================================
+NO-OP FEED PUBLICATION
+==================================================
+
+If the newly calculated feed is identical to the current home_feed snapshot:
+
+    do not perform an unnecessary feed update
+    do not send an unnecessary feed.published event
+
+This is a small optimization, not a reason to create feed versioning or hashing infrastructure.
+
+A straightforward comparison is sufficient.
+
+
+==================================================
+MAIN HOMEPAGE STRUCTURE
+==================================================
+
+Preserve all existing non-feed homepage content.
+
+The product feed should only control:
+
+    Most Popular
+    New Arrivals
+    Explore more
+    On Sale
+
+Do NOT move:
+
+- hero
+- categories
+- benefits/services
+- physical store content
+- browse full range CTA
+- newsletter
+- footer
+
+into ProcessingServer.
+
+ProcessingServer produces product-selection data only.
+
+The homepage remains responsible for presentation.
+
+
+==================================================
+OLD MAIN-SITE FALLBACK REMOVAL
+==================================================
+
+Delete the old logic that currently does things such as:
+
+    circulation lookup
+        ->
+    editorial fallback
+        ->
+    day-based rotation
+        ->
+    product catalog fallback
+
+The new architecture is:
+
+    home_feed
+        ->
+    getHomeFeed()
+        ->
+    render
+
+Nothing else.
+
+If home_feed is empty, the feed is empty.
+
+This is a deliberate requirement.
+
+
+==================================================
+EXPLORE MORE EXPOSURE LOOP
+==================================================
+
+The existing product_impression tracking is important.
+
+The intended loop is:
+
+    ProcessingServer publishes Product X in Explore more
+        ->
+    homepage renders Product X
+        ->
+    product_impression
+        ->
+    TrackingServer
+        ->
+    TiDB
+        ->
+    ProcessingServer
+        ->
+    exposure count/state changes
+        ->
+    future Explore more selection changes
+
+Do NOT create a separate feed-history table merely to implement this.
+
+Use the existing behavioral tracking and whatever minimal durable processing state is actually necessary.
+
+The feed table stores the CURRENT selection.
+
+Exposure/behavior state stores the HISTORY required for deciding future selections.
+
+Keep these concerns separate.
+
+
+==================================================
+TESTING IS MANDATORY
+==================================================
+
+Do not claim success without actually testing.
+
+Do not merely run TypeScript compilation and say the system works.
+
+Test the real data path.
+
+
+--------------------------------------------------
+TEST 1 — FRONTEND TRACKING
+--------------------------------------------------
+
+Trigger representative product events.
+
+Verify the request contains:
+
+    product_id
+
+and does NOT contain:
+
+    product_slug
+
+Test at least:
+
+    product_view
+    product_impression
+    product_click
+    add_to_cart
+    wishlist_add
+
+Verify the actual product UUID is transmitted.
+
+
+--------------------------------------------------
+TEST 2 — TRACKINGSERVER
+--------------------------------------------------
+
+Temporarily start:
+
+    /TrackingServer
+
+using the terminal.
+
+It only needs to remain alive long enough to test.
+
+Send real HTTP requests to it.
+
+Verify:
+
+    request
+      ->
+    validation
+      ->
+    TiDB
+      ->
+    raw_events.product_id
+
+Then stop the server.
+
+Do NOT leave it running.
+
+
+--------------------------------------------------
+TEST 3 — TiDB
+--------------------------------------------------
+
+Inspect the test database.
+
+Verify:
+
+- product events contain product_id
+- product_slug is no longer part of the final schema
+- expected indexes exist
+- duplicate event IDs remain deduplicated
+- event data is correct
+
+If historical migration was performed, verify the migration counts and sample records.
+
+
+--------------------------------------------------
+TEST 4 — PROCESSINGSERVER
+--------------------------------------------------
+
+Temporarily start:
+
+    /ProcessingServer
+
+using the terminal.
+
+Authenticate correctly.
+
+Run its processing endpoint/command against the test TiDB and Supabase environment.
+
+Verify:
+
+    new events
+        ->
+    checkpoint
+        ->
+    aggregation
+        ->
+    feed generation
+        ->
+    home_feed
+
+Then stop the server.
+
+Do NOT leave it running.
+
+
+--------------------------------------------------
+TEST 5 — INCREMENTAL PROCESSING
+--------------------------------------------------
+
+Create a controlled batch of events.
+
+Run processor.
+
+Record checkpoint.
+
+Create additional events.
+
+Run processor again.
+
+Verify the second run processes only events after the previous checkpoint.
+
+Do NOT allow the implementation to silently reread the entire event history.
+
+
+--------------------------------------------------
+TEST 6 — POPULARITY
+--------------------------------------------------
+
+Create controlled product behavior.
+
+Verify higher engagement produces higher Most Popular ranking according to the existing V1 score.
+
+Verify weak products are not randomly injected into Most Popular.
+
+
+--------------------------------------------------
+TEST 7 — NEW ARRIVALS
+--------------------------------------------------
+
+Create/use products with different added_at values.
+
+Verify New Arrivals follows actual recency.
+
+Verify only:
+
+    active
+    stock > 0
+
+products are selected.
+
+
+--------------------------------------------------
+TEST 8 — EXPLORE MORE
+--------------------------------------------------
+
+Create/use products with different impression/exposure histories.
+
+Verify underexposed/untested eligible products receive discovery opportunities.
+
+Verify Explore more is not simply random catalog selection.
+
+Verify heavily exposed consistently weak products are not endlessly forced into the section.
+
+Verify products already selected by stronger sections are excluded when possible.
+
+
+--------------------------------------------------
+TEST 9 — ON SALE
+--------------------------------------------------
+
+Verify only products satisfying:
+
+    active
+    stock > 0
+    compare_at_price > price
+
+appear in On Sale.
+
+Verify normal-price products are not inserted as filler.
+
+
+--------------------------------------------------
+TEST 10 — OUT OF STOCK
+--------------------------------------------------
+
+Set a candidate product to:
+
+    stock = 0
+
+Run feed generation.
+
+Verify its UUID appears in NONE of:
+
+    most_popular
+    new_arrivals
+    explore_more
+    on_sale
+
+
+--------------------------------------------------
+TEST 11 — INACTIVE
+--------------------------------------------------
+
+Set a candidate product:
+
+    is_active = false
+
+Verify it appears in NONE of the feed sections.
+
+
+--------------------------------------------------
+TEST 12 — CROSS-SECTION DUPLICATES
+--------------------------------------------------
+
+Verify the published feed does not unnecessarily contain the same product UUID in multiple sections.
+
+If insufficient unique products exist, sections may contain fewer products.
+
+Do not insert filler merely to satisfy a count.
+
+
+--------------------------------------------------
+TEST 13 — HOME_FEED STORAGE
+--------------------------------------------------
+
+Inspect Supabase.
+
+Verify there is exactly the intended new homepage feed storage:
+
+    home_feed
+
+Verify the feed JSON contains product IDs only.
+
+Verify no product slug is stored.
+
+Verify no duplicated product metadata exists.
+
+Verify there is no need for feed-entry/version tables.
+
+
+--------------------------------------------------
+TEST 14 — MAIN WEBSITE CONSUMPTION
+--------------------------------------------------
+
+Run the main website.
+
+Verify:
+
+    home_feed
+        ->
+    getHomeFeed()
+        ->
+    current product data
+        ->
+    correct homepage sections
+
+Verify section order is preserved.
+
+Verify product cards contain current product information rather than stale snapshots from the feed.
+
+
+--------------------------------------------------
+TEST 15 — EMPTY FEED
+--------------------------------------------------
+
+Set the feed to:
+
+{
+  "most_popular": [],
+  "new_arrivals": [],
+  "explore_more": [],
+  "on_sale": []
+}
+
+Verify:
+
+- homepage still renders
+- no product feed sections render
+- no fallback catalog query suddenly populates them
+- no old circulation logic runs
+
+
+--------------------------------------------------
+TEST 16 — FEED INVALIDATION
+--------------------------------------------------
+
+Publish a changed feed.
+
+Verify:
+
+    ProcessingServer
+        ->
+    home_feed updated
+        ->
+    feed.published
+        ->
+    Main Website invalidation endpoint
+        ->
+    feed:home invalidated
+        ->
+    next homepage render uses the new feed
+
+Verify ProcessingServer sends the domain event rather than an internal cache tag.
+
+
+--------------------------------------------------
+TEST 17 — PRODUCT CACHE INDEPENDENCE
+--------------------------------------------------
+
+Change a product's price/details.
+
+Verify the product cache invalidates as expected.
+
+Verify the homepage feed does NOT need to be regenerated merely because product metadata changed.
+
+The feed should continue referring to the same product ID while the main site reads current product data.
+
+
+--------------------------------------------------
+TEST 18 — NO-OP FEED
+--------------------------------------------------
+
+Generate the exact same feed twice.
+
+Verify the second generation does not cause an unnecessary feed update or feed.published notification.
+
+
+==================================================
+REPOSITORY-WIDE FINAL AUDIT
+==================================================
+
+After implementation, search the entire project again.
+
+Search for:
+
+    product_slug
+    circulation_entries
+    circulation_versions
+    home_trending
+    home_featured
+    home_new_arrivals
+    home_on_sale
+    getCirculationIds
+    feedFallbackIds
+    old circulation publisher
+
+Every occurrence must be:
+
+- migrated
+- deleted
+- or explicitly justified as unrelated to this system
+
+Do NOT leave dead compatibility code.
+
+Do NOT leave unused old feed functions.
+
+Do NOT leave old database types.
+
+Do NOT leave obsolete tests that test deleted architecture.
+
+Update tests to test the new architecture instead.
+
+
+==================================================
+DO NOT TOUCH UNRELATED SYSTEMS
+==================================================
+
+Do not modify unrelated functionality simply because you are working in the same project.
+
+Especially do not alter:
+
+- footer behavior
+- navigation loader visuals/animation
+- user account pages
+- cart architecture
+- order architecture
+- static informational pages
+- unrelated admin functionality
+- existing product/category functionality
+- existing cache architecture outside the feed changes
+
+If an unrelated test fails before your changes, identify it rather than rewriting unrelated code.
+
+
+==================================================
+NEXT.JS VERSION / CACHE BEHAVIOR
+==================================================
+
+Inspect the actual installed Next.js version and actual configuration.
+
+Do not blindly assume behavior from older documentation.
+
+Preserve the current Cache Components approach.
+
+The homepage must remain a complete server-rendered page.
+
+Do not introduce streaming/PPR/client reconstruction merely to make the feed work.
+
+Use the installed version's correct APIs.
+
+If a current API has changed, follow the actual installed version and official documentation where needed.
+
+Do not downgrade or randomly upgrade dependencies unless absolutely required.
+
+
+==================================================
+IMPLEMENTATION STYLE
+==================================================
+
+Prefer:
+
+- straightforward functions
+- clear data structures
+- explicit control flow
+- small focused modules
+- existing project conventions
+
+Avoid:
+
+- unnecessary abstraction layers
+- generic frameworks
+- strategy factories for four simple sections
+- plugin systems
+- dependency injection frameworks
+- event buses
+- queues
+- workers
+- background services
+- speculative retry systems
+- complicated state machines
+- unnecessary schemas
+- unnecessary database tables
+- unnecessary APIs
+- machine learning
+- personalization
+- microservices beyond the existing TrackingServer/ProcessingServer architecture
+
+A simple correct implementation is better than an elaborate theoretically flexible implementation.
+
+
+==================================================
+IMPORTANT: DO NOT MISDIAGNOSE CORRECT CODE
+==================================================
+
+Do not assume code is buggy simply because:
+
+- it is simple
+- it has little abstraction
+- it doesn't handle hypothetical edge cases
+- it doesn't use the newest pattern you know
+- it doesn't look like your preferred architecture
+
+Only change existing working code when:
+
+1. this specification requires the change,
+2. the current implementation is actually incorrect for this architecture,
+3. or the migration cannot otherwise be completed correctly.
+
+Do not "clean up" unrelated code.
+
+
+==================================================
+IMPORTANT: NO FALLBACK THINKING
+==================================================
+
+Do not interpret "robustness" as:
+
+    add a fallback
+
+Do not interpret "reliability" as:
+
+    add another cache
+
+Do not interpret "scalability" as:
+
+    add a queue
+
+Do not interpret "safety" as:
+
+    keep the old implementation
+
+Do not interpret "future-proofing" as:
+
+    create abstractions we do not need
+
+The architecture is intentionally simple.
+
+Respect that.
+
+
+==================================================
+IMPLEMENTATION PHASES
+==================================================
+
+Execute the work in these phases:
+
+PHASE 1
+-------
+Inspect actual current code and database/schema state.
+
+PHASE 2
+-------
+Migrate product tracking identity:
+
+    product_slug -> product_id
+
+including historical TiDB migration where required.
+
+PHASE 3
+-------
+Create:
+
+    home_feed
+
+as the single Supabase homepage feed table.
+
+PHASE 4
+-------
+Refactor ProcessingServer to use product_id and preserve incremental processing.
+
+Verify durable aggregate/exposure state and implement only what is genuinely required.
+
+PHASE 5
+-------
+Replace old circulation publication with the new complete global feed generator.
+
+Implement:
+
+    Most Popular
+    New Arrivals
+    Explore more
+    On Sale
+
+with strict eligibility and no filler.
+
+PHASE 6
+-------
+Replace Main Website's old circulation/fallback feed consumer with:
+
+    getHomeFeed()
+
+Remove old feed fallbacks completely.
+
+Rename the visible section:
+
+    Recommended
+
+to:
+
+    Explore more
+
+and connect it to the new feed.
+
+PHASE 7
+-------
+Integrate:
+
+    feed.published
+        ->
+    feed:home
+
+into the existing invalidation architecture.
+
+PHASE 8
+-------
+Remove obsolete circulation code, types, queries, tests, and references.
+
+PHASE 9
+-------
+Run full end-to-end testing using temporary TrackingServer and ProcessingServer processes.
+
+PHASE 10
+--------
+Perform final repository-wide audit and verify no architectural drift remains.
+
+
+==================================================
+DEFINITION OF DONE
+==================================================
+
+This implementation is NOT complete merely because TypeScript compiles.
+
+It is complete only when all of the following are true:
+
+[ ] Tracking product events use product_id.
+
+[ ] TrackingServer accepts/processes product_id.
+
+[ ] TiDB raw_events uses product_id.
+
+[ ] Historical product events are migrated or explicitly handled according to verified migration results.
+
+[ ] product_slug is removed from the tracking/feed pipeline.
+
+[ ] ProcessingServer remains incremental.
+
+[ ] ProcessingServer does not reread all historical events every run.
+
+[ ] Durable aggregate/exposure state is verified and correct.
+
+[ ] Supabase has the new home_feed singleton table.
+
+[ ] No circulation tables are created/recreated.
+
+[ ] No feed version table exists.
+
+[ ] No feed entry table exists.
+
+[ ] home_feed stores product UUIDs only.
+
+[ ] Most Popular is genuinely popularity-based.
+
+[ ] New Arrivals is genuinely recency-based.
+
+[ ] Explore more is genuinely discovery/exposure-based.
+
+[ ] On Sale contains genuine discounted products.
+
+[ ] Inactive products never enter the feed.
+
+[ ] Out-of-stock products never enter the feed.
+
+[ ] Products are not unnecessarily duplicated across sections.
+
+[ ] No section is filled with random filler.
+
+[ ] Empty sections render nothing.
+
+[ ] Empty feed has no fallback.
+
+[ ] Old circulation feed consumption is deleted.
+
+[ ] Old editorial feed fallbacks are deleted.
+
+[ ] No /api/home/feed exists.
+
+[ ] Homepage feed is loaded server-side.
+
+[ ] Homepage remains completely server-rendered.
+
+[ ] Existing product cache architecture remains independent.
+
+[ ] Existing live stock safety overlay remains.
+
+[ ] feed.published invalidates feed:home.
+
+[ ] ProcessingServer does not send internal cache tags.
+
+[ ] No unnecessary retry/queue/worker infrastructure was introduced.
+
+[ ] No unnecessary personalization was introduced.
+
+[ ] No unrelated homepage functionality was changed.
+
+[ ] TrackingServer was actually tested through HTTP.
+
+[ ] ProcessingServer was actually tested against the test TiDB/Supabase environment.
+
+[ ] Checkpoint behavior was actually tested.
+
+[ ] Feed output was actually inspected in Supabase.
+
+[ ] Main website was actually tested consuming the published feed.
+
+[ ] Empty-feed behavior was actually tested.
+
+[ ] Stock exclusion was actually tested.
+
+[ ] Invalidation was actually tested.
+
+[ ] No-op feed publication was tested.
+
+[ ] Repository-wide search confirms obsolete circulation/product_slug paths are gone.
+
+
+==================================================
+FINAL REPORT
+==================================================
+
+When implementation and testing are finished, provide a concise final report containing:
+
+1. What was changed.
+2. What old architecture was removed.
+3. Exact new feed architecture.
+4. Exact product identity migration status.
+5. Database changes.
+6. ProcessingServer changes.
+7. Main Website changes.
+8. Tests actually executed.
+9. Test results.
+10. Any genuine unresolved issue.
+
+Do NOT claim a test passed unless you actually ran it.
+
+Do NOT say "should work".
+
+Do NOT hide failures.
+
+Do NOT provide a long explanation of hypothetical future improvements.
+
+If something is genuinely unresolved, state it plainly.
+
+The implementation itself is the priority.
+
+
+==================================================
+FINAL ABSOLUTE RULE
+==================================================
+
+DO NOT DRIFT.
+
+The target is:
+
+    product_id everywhere
+    +
+    one home_feed table
+    +
+    one complete global feed snapshot
+    +
+    Most Popular
+    New Arrivals
+    Explore more
+    On Sale
+    +
+    strict active/stock eligibility
+    +
+    exposure-based discovery
+    +
+    no filler
+    +
+    no personalization
+    +
+    no old circulation compatibility
+    +
+    no fallback feed
+    +
+    no client-side feed
+    +
+    no homepage feed API
+    +
+    existing incremental ProcessingServer foundation preserved
+    +
+    existing Main Website cache architecture preserved
+    +
+    feed.published -> feed:home
+    +
+    actual end-to-end testing
+
+Implement exactly that.
